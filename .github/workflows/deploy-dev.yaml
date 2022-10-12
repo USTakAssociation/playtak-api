@@ -36,8 +36,8 @@ jobs:
             CORS_DOMAIN: ${{secrets.CORS_DOMAIN}}
             HOSTNAME : ${{ secrets.HOSTNAME }}
         run : |
-            echo CORS_DOMAIN
-            echo HOSTNAME
+            echo "$CORS_DOMAIN"
+            echo "$HOSTNAME"
       #     touch .env
       #     echo "NODE_ENV = production" >> .env
       #     echo "CORS_DOMAIN = ${CORS_DOMAIN}" >> .env
