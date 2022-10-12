@@ -10,35 +10,30 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
-
+    environment: Beta
     strategy:
       matrix:
         node-version: [16.x]
 
     steps:
-      - uses: actions/checkout@v2
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v1
-        with:
-          node-version: ${{ matrix.node-version }}
-      - run: npm ci
+      # - uses: actions/checkout@v2
+      # - name: Use Node.js ${{ matrix.node-version }}
+      #   uses: actions/setup-node@v1
+      #   with:
+      #     node-version: ${{ matrix.node-version }}
+      # - run: npm ci
 
-      - name: Lint code
-        run: npm run lint
+      # - name: Lint code
+      #   run: npm run lint
 
-      - name: Run Unit tests
-        run: npm run test
+      # - name: Run Unit tests
+      #   run: npm run test
 
-      - name: Build
-        run: npm run build
-      - uses: dopplerhq/secrets-fetch-action@v1.1.0
-        id: doppler
-        with:
-          doppler-token: ${{ secrets.DOPPLER_TOKEN_BETA }}
-          inject-env-vars: true
-      - run: printenv
-      # - name: Prep Artifact
-      #   run : |
+      # - name: Build
+      #   run: npm run build
+      - name: Prep Artifact
+        run : |
+            echo CORS_DOMAIN
       #     touch .env
       #     echo "NODE_ENV = production" >> .env
       #     echo "CORS_DOMAIN = ${CORS_DOMAIN}" >> .env
