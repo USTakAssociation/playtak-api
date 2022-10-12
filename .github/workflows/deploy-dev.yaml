@@ -34,7 +34,7 @@ jobs:
       - uses: dopplerhq/secrets-fetch-action@v1.1.0
         id: doppler
         with:
-          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+          doppler-token: ${{ secrets.DOPPLER_TOKEN_BETA }}
           inject-env-vars: true
       - run: printenv
       # - name: Prep Artifact
