@@ -45,7 +45,7 @@ jobs:
             echo "PORT = ${PORT}" >> .env
             echo "NODE_ENV = ${NODE_ENV}" >> .env
             echo "CORS_DOMAIN = ${CORS_DOMAIN}" >> .env
-            mv client_secret.json ./dist/assets
+            mv client_secret.json ./dist/assets/
             mv .env ./dist
             mv node_modules ./dist
             tar -czf artifact.tar.gz ./dist 
@@ -65,5 +65,5 @@ jobs:
             sudo mv playtak-api-tmp/dist/ /var/apps/playtak-api-beta
             rm -rf playtak-api-temp
             rm artifact.tar.gz
-            pm2 restart playtak-api-beta --update-env
+            sudo pm2 restart playtak-api-beta --update-env
           '
