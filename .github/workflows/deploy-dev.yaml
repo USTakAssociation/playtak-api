@@ -36,6 +36,7 @@ jobs:
         with:
           doppler-token: ${{ secrets.DOPPLER_TOKEN }}
           inject-env-vars: true
+      - run: printenv
       # - name: Prep Artifact
       #   run : |
       #     touch .env
