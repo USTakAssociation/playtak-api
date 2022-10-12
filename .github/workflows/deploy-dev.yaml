@@ -33,12 +33,13 @@ jobs:
         run: npm run build
       - name: Prep Artifact
         env: 
-            CORS_DOMAIN: ${{ secrets.CORS_DOMAIN }}
-            HOSTNAME : ${{ secrets.HOSTNAME }}
+            PORT : ${{ secrets.PORT }}
             NODE_ENV: ${{ secrets.NODE_ENV }}
+            CORS_DOMAIN: ${{ secrets.CORS_DOMAIN }}
         run : |
             rm .env
             touch .env
+            echo "PORT = ${PORT}" >> .env
             echo "NODE_ENV = ${NODE_ENV}" >> .env
             echo "CORS_DOMAIN = ${CORS_DOMAIN}" >> .env
             cat .env
