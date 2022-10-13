@@ -33,6 +33,7 @@ jobs:
         env: 
             CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
+          mkdir -p ./src/assets/
           touch ./src/assets/client_secret.json
           echo "${CLIENT_SECRET}" >> ./src/assets/client_secret.json
           npm run build
