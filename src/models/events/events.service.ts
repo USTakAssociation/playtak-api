@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { HttpException, Injectable, NotFoundException } from '@nestjs/common';
 import { google } from 'googleapis';
 import * as path from 'path';
 
@@ -14,6 +14,7 @@ export class EventsService {
 
 	async getEvents() {
 		try {
+			console.log(this.CREDENTIALS_PATH)
 			const auth = new google.auth.GoogleAuth({
 				keyFile: this.CREDENTIALS_PATH,
 				scopes: this.SCOPES,
@@ -49,6 +50,7 @@ export class EventsService {
 			};
 		} catch (error) {
 			console.error(error);
+			return new HttpException('500', error)
 		}
 	}
 }
