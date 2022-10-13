@@ -35,7 +35,7 @@ jobs:
         run: |
           mkdir -p ./src/assets/
           touch ./src/assets/client_secret.json
-          echo "${CLIENT_SECRET}" >> ./src/assets/client_secret.json
+          echo -n "${CLIENT_SECRET}" >> ./src/assets/client_secret.json
           npm run build
       - name: Prep Artifact
         env: 
@@ -61,7 +61,7 @@ jobs:
           echo "$PRIVATE_KEY" > private_key.pem && chmod 0400 private_key.pem
           scp -o StrictHostKeyChecking=no -i private_key.pem artifact.tar.gz ${USER_NAME}@${HOSTNAME}:~
           ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER_NAME}@${HOSTNAME} '
-            pwd
+            source ~/.nvm/nvm.sh
             rm -rf playtak-api-tmp
             mkdir playtak-api-tmp
             tar -xzf artifact.tar.gz -C ./playtak-api-tmp
