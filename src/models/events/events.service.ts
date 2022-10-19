@@ -14,7 +14,6 @@ export class EventsService {
 
 	async getEvents() {
 		try {
-			console.log(this.CREDENTIALS_PATH)
 			const auth = new google.auth.GoogleAuth({
 				keyFile: this.CREDENTIALS_PATH,
 				scopes: this.SCOPES,
@@ -22,7 +21,7 @@ export class EventsService {
 			const sheets = google.sheets({version: 'v4', auth})
 			const res = sheets.spreadsheets.values.get({
 				spreadsheetId: '1kpgv_7pkxijsjpQx5iHZAF3jnsZLlBabkKh49pAHhu8',
-				range: 'Event List!A2:F'
+				range: 'Event List!A2:G'
 			});
 			const response = (await res).data.values;
 			if(!response || !response.length){
@@ -32,14 +31,20 @@ export class EventsService {
 			}
 			const data = [];
 			const categories = ['All']
+			
 			for (let i = 0; i < response.length; i++) {
 				const tempObject = {
-					name: response[i][0] || "",
-					event: response[i][1] || "",
-					category: response[i][2] || "",
-					start_date: response[i][3] || "",
-					end_date: response[i][4] || "",
-					link: response[i][5] || null,
+					name: response[i][0] || '',
+					event: response[i][1] || '',
+					category: response[i][2] || '',
+					start_date: response[i][3] || null,
+					end_date: response[i][4] || null,
+					details:  response[i][5] && response[i][5].startsWith('http')
+						? response[i][5]
+						: null,
+					registration:  response[i][6] && response[i][6].startsWith('http')
+						? response[i][6]
+						: null,
 				};
 				categories.push(response[i][2]);
 				data.push(tempObject)
