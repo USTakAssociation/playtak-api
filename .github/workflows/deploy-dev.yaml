@@ -1,0 +1,74 @@
+name: Playtak API service deploy Dev
+
+on:
+  push:
+    branches: [ dev ]
+  pull_request:
+    branches: [ dev ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    environment: Beta
+    strategy:
+      matrix:
+        node-version: [16.x]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm ci
+
+      - name: Lint code
+        run: npm run lint
+
+      - name: Run Unit tests
+        run: npm run test
+
+      - name: Build
+        env: 
+            CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+        run: |
+          mkdir -p ./src/assets/
+          touch ./src/assets/client_secret.json
+          echo -n "${CLIENT_SECRET}" >> ./src/assets/client_secret.json
+          npm run build
+      - name: Prep Artifact
+        env: 
+            PORT : ${{ secrets.PORT }}
+            NODE_ENV: ${{ secrets.NODE_ENV }}
+            CORS_DOMAIN: ${{ secrets.CORS_DOMAIN }}
+            CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+        run : |
+            rm .env
+            touch .env
+            echo "PORT = ${PORT}" >> .env
+            echo "NODE_ENV = ${NODE_ENV}" >> .env
+            echo "CORS_DOMAIN = ${CORS_DOMAIN}" >> .env
+            mv .env ./dist
+            mv node_modules ./dist
+            tar -czf artifact.tar.gz ./dist 
+      - name: Deploy
+        env: 
+            PRIVATE_KEY: ${{ secrets.PRIVATE_KEY  }}
+            HOSTNAME : ${{ secrets.HOSTNAME }}
+            USER_NAME : ${{ secrets.USER_NAME }}
+            SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          echo "$PRIVATE_KEY" > private_key.pem && chmod 0400 private_key.pem
+          scp -P ${SSH_PORT} -o StrictHostKeyChecking=no -i private_key.pem artifact.tar.gz ${USER_NAME}@${HOSTNAME}:~
+          ssh -p ${SSH_PORT} -o StrictHostKeyChecking=no -i private_key.pem ${USER_NAME}@${HOSTNAME} '
+            source ~/.nvm/nvm.sh
+            rm -rf playtak-api-tmp
+            mkdir playtak-api-tmp
+            tar -xzf artifact.tar.gz -C ./playtak-api-tmp
+            sudo rm -rf /var/apps/playtak-api-beta
+            sudo mv playtak-api-tmp/dist/ /var/apps/playtak-api-beta
+            rm -rf playtak-api-temp
+            rm artifact.tar.gz
+            pm2 restart playtak-api-beta --update-env
+          '
