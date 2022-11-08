@@ -59,7 +59,7 @@ jobs:
         run: |
           echo "$PRIVATE_KEY" > private_key.pem && chmod 0400 private_key.pem
           scp -P ${SSH_PORT} -o StrictHostKeyChecking=no -i private_key.pem artifact.tar.gz ${USER_NAME}@${HOSTNAME}:~
-          ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER_NAME}@${HOSTNAME} '
+          ssh -p ${SSH_PORT} -o StrictHostKeyChecking=no -i private_key.pem ${USER_NAME}@${HOSTNAME} '
             source ~/.nvm/nvm.sh
             rm -rf playtak-api-tmp
             mkdir playtak-api-tmp
