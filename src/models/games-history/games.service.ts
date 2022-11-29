@@ -21,7 +21,6 @@ export class GamesService {
 		const mirror: boolean = search.mirror || false;
 		delete search.mirror;
 		delete search.type;
-		console.log("Search ", search, mirror)
 		
 		let player_search: boolean;
 		
@@ -139,8 +138,6 @@ export class GamesService {
 			const result = this.repository.findOne({
 				where: {id}
 			})
-			
-			
 			return result;
 		} catch (error) {
 			console.error(error);
@@ -151,7 +148,6 @@ export class GamesService {
 	async getDBInfo() {
 		try {
 			const result = await stat(process.env.ANON_DB_PATH);
-			console.log(result.size / (1024 ** 2));
 			return result;
 		} catch (error) {
 			console.error(error);
