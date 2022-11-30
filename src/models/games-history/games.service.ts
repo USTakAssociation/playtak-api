@@ -26,7 +26,7 @@ export class GamesService {
 		
 		if(search?.player_white || search?.player_black){
 			player_search = true;
-			if(search?.partial_user){
+			if(search['partial_user']){
 				if(search?.player_white){
 					search.player_white = Like(`%${search.player_white}%`);
 				}
@@ -52,25 +52,27 @@ export class GamesService {
 			}
 		}
 
-		const mirrorSearch = {};
+		const mirrorSearch = {...search};
 		if(mirror) {
-			if ( search?.player_white ) {
+			if (search?.player_white) {
+				delete mirrorSearch['player_white'];
 				mirrorSearch['player_black'] = search.player_white;
 				if (search?.partial_user) {
-					search.player_white = Like(`%${search.player_white}%`);
+					mirrorSearch.player_white = Like(`%${search.player_white}%`);
 				}
 				player_search = true;
 			}
 			
 			if(search?.player_black){
+				delete mirrorSearch['player_black']
 				mirrorSearch['player_white'] = search.player_black;
 				if (search?.player_black) {
-					search.player_black = Like(`%${search.player_black}%`);
+					mirrorSearch.player_black = Like(`%${search.player_black}%`);
 				}
 				player_search = true;
 			}
 			
-			if ( search?.game_result) {
+			if(search?.game_result) {
 				if (search.game_result === 'X-0') {
 					mirrorSearch['result'] = Like('0-%');
 				} else if (search.game_result === '0-X') {
@@ -82,10 +84,15 @@ export class GamesService {
 				}
 			}
 		}
-		delete search.game_result;
-		delete search.partial_user;
+		delete search['game_result'];
+		delete mirrorSearch['game_result'];
+		delete search['partial_user'];
+		delete mirrorSearch['partial_user'];
 		if(player_search){
 			search['date'] = MoreThan("1461430800000");
+			if(mirror) {
+				mirrorSearch['date'] = MoreThan('1461430800000');
+			}
 		}
 
 		try {
