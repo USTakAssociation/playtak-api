@@ -21,21 +21,18 @@ export class GamesService {
 		const mirror: boolean = search.mirror || false;
 		delete search.mirror;
 		delete search.type;
-		
+
 		let player_search: boolean;
-		
-		if(search?.player_white || search?.player_black){
+
+		if (search['player_white']) {
+			search.player_white = Like(`%${search.player_white}%`);
 			player_search = true;
-			if(search['partial_user']){
-				if(search?.player_white){
-					search.player_white = Like(`%${search.player_white}%`);
-				}
-				if (search?.player_black) {
-					search.player_black = Like(`%${search.player_black}%`);
-				}
-			}
 		}
-		
+		if (search['player_black']) {
+			search.player_black = Like(`%${search.player_black}%`);
+			player_search = true;
+		}
+
 		if(search?.normal === 1){
 			search["tournament"] = 0;
 			search["unrated"] = 0;
@@ -56,22 +53,14 @@ export class GamesService {
 		if(mirror) {
 			if (search?.player_white) {
 				delete mirrorSearch['player_white'];
-				mirrorSearch['player_black'] = search.player_white;
-				if (search?.partial_user) {
-					mirrorSearch.player_white = Like(`%${search.player_white}%`);
-				}
+				mirrorSearch['player_black'] = Like(`%${search.player_white}%`);
 				player_search = true;
 			}
-			
 			if(search?.player_black){
 				delete mirrorSearch['player_black']
-				mirrorSearch['player_white'] = search.player_black;
-				if (search?.player_black) {
-					mirrorSearch.player_black = Like(`%${search.player_black}%`);
-				}
+				mirrorSearch['player_white'] = Like(`%${search.player_black}%`);
 				player_search = true;
 			}
-			
 			if(search['game_result']) {
 				switch (search['game_result']) {
 					case 'X-0':
