@@ -23,13 +23,14 @@ export class GamesService {
 		delete search.type;
 
 		let player_search: boolean;
-
-		if (search['player_white']) {
-			search.player_white = Like(`%${search.player_white}%`);
+		const pw = search['player_white'];
+		const pb = search['player_black']; 
+		if (pw) {
+			search.player_white = Like(`%${pw}%`);
 			player_search = true;
 		}
-		if (search['player_black']) {
-			search.player_black = Like(`%${search.player_black}%`);
+		if (pb) {
+			search.player_black = Like(`%${pb}%`);
 			player_search = true;
 		}
 
@@ -51,14 +52,15 @@ export class GamesService {
 
 		const mirrorSearch = {...search};
 		if(mirror) {
-			if (search?.player_white) {
+			if (pw) {
 				delete mirrorSearch['player_white'];
-				mirrorSearch['player_black'] = Like(`%${search.player_white}%`);
+				console.log('', search['player_white'])
+				mirrorSearch['player_black'] = Like(`%${pw}%`);
 				player_search = true;
 			}
-			if(search?.player_black){
+			if(pb){
 				delete mirrorSearch['player_black']
-				mirrorSearch['player_white'] = Like(`%${search.player_black}%`);
+				mirrorSearch['player_white'] = Like(`%${pb}%`);
 				player_search = true;
 			}
 			if(search['game_result']) {
@@ -98,8 +100,7 @@ export class GamesService {
 		}
 		delete search['game_result'];
 		delete mirrorSearch['game_result'];
-		delete search['partial_user'];
-		delete mirrorSearch['partial_user'];
+		console.log(search, mirrorSearch)
 		if(player_search){
 			search['date'] = MoreThan("1461430800000");
 			if(mirror) {
