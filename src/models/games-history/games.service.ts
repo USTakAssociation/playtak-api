@@ -72,15 +72,38 @@ export class GamesService {
 				player_search = true;
 			}
 			
-			if(search?.game_result) {
-				if (search.game_result === 'X-0') {
-					mirrorSearch['result'] = Like('0-%');
-				} else if (search.game_result === '0-X') {
-					mirrorSearch['result'] = Like('%-0');
-				} else if (search.game_result === '1/2-1/2') {
-					mirrorSearch['result'] = '1/2-1/2';
-				} else {
-					mirrorSearch['result'] = search.game_result;
+			if(search['game_result']) {
+				switch (search['game_result']) {
+					case 'X-0':
+						mirrorSearch['result'] = Like('%0-%');
+						break;
+					case '0-X':
+						mirrorSearch['result'] = Like('%-0%');
+						break;
+					case '1/2-1/2':
+						mirrorSearch['result'] = '1/2-1/2';
+						break;
+					case '0-R':
+						mirrorSearch['result'] = 'R-0';
+						break;
+					case 'R-0':
+						mirrorSearch['result'] = '0-R';
+						break;
+					case 'F-0':
+						mirrorSearch['result'] = '0-F';
+						break;
+					case '0-F':
+						mirrorSearch['result'] = 'F-0';
+						break;
+					case '1-0':
+						mirrorSearch['result'] = '0-1';
+						break;
+					case '0-1':
+						mirrorSearch['result'] = '1-0';
+						break;
+					default:
+						mirrorSearch['result'] = search.game_result;
+						break;
 				}
 			}
 		}
