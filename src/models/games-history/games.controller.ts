@@ -12,7 +12,6 @@ export class GamesController {
 
 	@Get(':id')
 	getOneById(@Param('id') id: number) {
-		console.log(id)
 		return this.service.getOneByID(+id);
 	}
 	

@@ -54,7 +54,6 @@ export class GamesService {
 		if(mirror) {
 			if (pw) {
 				delete mirrorSearch['player_white'];
-				console.log('', search['player_white'])
 				mirrorSearch['player_black'] = Like(`%${pw}%`);
 				player_search = true;
 			}
@@ -100,7 +99,6 @@ export class GamesService {
 		}
 		delete search['game_result'];
 		delete mirrorSearch['game_result'];
-		console.log(search, mirrorSearch)
 		if(player_search){
 			search['date'] = MoreThan("1461430800000");
 			if(mirror) {
