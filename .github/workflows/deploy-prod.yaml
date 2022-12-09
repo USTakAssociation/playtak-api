@@ -1,8 +1,8 @@
 name: Playtak API service deploy Prod
 
 on:
-    push:
-        branches: [main]
+  push:
+    branches: [ main ]
 
 jobs:
   build:
