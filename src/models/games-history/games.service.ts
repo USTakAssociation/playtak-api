@@ -153,9 +153,13 @@ export class GamesService {
 	
 	async getOneByID(id: number): Promise<any>{
 		try {
-			const result = this.repository.findOne({
+			const result = await this.repository.findOne({
 				where: {id}
-			})
+			});
+			if (result && result['date'] <= 1461430800000) {
+				result['player_black'] = 'Anon';
+				result['player_white'] = 'Anon';
+			}
 			return result;
 		} catch (error) {
 			console.error(error);

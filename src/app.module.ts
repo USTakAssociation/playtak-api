@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
-import { ScheduleModule } from '@nestjs/schedule';
 import { EventsModule } from './models/events/events.module';
 import { GamesModule } from './models/games-history/games.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -16,7 +15,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 			entities: [__dirname + '/**/*.entity{.ts,.js}'],
 			synchronize: false,
 		}),
-		ScheduleModule.forRoot(),
 		EventsModule,
 		GamesModule,
 	],
