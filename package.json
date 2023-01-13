@@ -1,6 +1,6 @@
 {
 	"name": "playtak-api",
-	"version": "0.0.1",
+	"version": "1.0.0",
 	"description": "Playtak API",
 	"author": "Braydon Harris",
 	"private": true,
