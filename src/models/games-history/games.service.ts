@@ -109,7 +109,6 @@ export class GamesService {
 		try {
 			let dbQuery;
 			if (mirror) {
-				
 				dbQuery = this.repository
 					.createQueryBuilder()
 					.select('*')
