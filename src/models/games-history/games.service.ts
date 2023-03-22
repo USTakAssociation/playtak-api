@@ -23,14 +23,14 @@ export class GamesService {
 		delete search.type;
 
 		let player_search: boolean;
-		const pw = search['player_white'];
-		const pb = search['player_black']; 
-		if (pw) {
-			search.player_white = Like(`%${pw}%`);
+		const playerWhite = search['player_white'];
+		const playerBlack = search['player_black']; 
+		if (playerWhite) {
+			search.player_white = Like(`${playerWhite}`);
 			player_search = true;
 		}
-		if (pb) {
-			search.player_black = Like(`%${pb}%`);
+		if (playerBlack) {
+			search.player_black = Like(`${playerBlack}`);
 			player_search = true;
 		}
 
@@ -52,23 +52,23 @@ export class GamesService {
 
 		const mirrorSearch = {...search};
 		if(mirror) {
-			if (pw) {
-				delete mirrorSearch['player_white'];
-				mirrorSearch['player_black'] = Like(`%${pw}%`);
+			delete mirrorSearch['player_black'];
+			delete mirrorSearch['player_white'];
+			if (playerWhite) {
+				mirrorSearch['player_black'] = Like(`${playerWhite}`);
 				player_search = true;
 			}
-			if(pb){
-				delete mirrorSearch['player_black']
-				mirrorSearch['player_white'] = Like(`%${pb}%`);
+			if(playerBlack){
+				mirrorSearch['player_white'] = Like(`${playerBlack}`);
 				player_search = true;
 			}
 			if(search['game_result']) {
 				switch (search['game_result']) {
 					case 'X-0':
-						mirrorSearch['result'] = Like('%0-%');
+						mirrorSearch['result'] = Like('0-%');
 						break;
 					case '0-X':
-						mirrorSearch['result'] = Like('%-0%');
+						mirrorSearch['result'] = Like('%-0');
 						break;
 					case '1/2-1/2':
 						mirrorSearch['result'] = '1/2-1/2';
