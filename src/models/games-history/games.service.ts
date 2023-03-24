@@ -60,7 +60,7 @@ export class GamesService {
 				mirrorSearch['player_black'] = Like(`${playerWhite}`);
 				player_search = true;
 			}
-			if (playerBlack) {
+			if(playerBlack){
 				mirrorSearch['player_white'] = Like(`${playerBlack}`);
 				player_search = true;
 			}
