@@ -65,12 +65,12 @@ jobs:
           scp -P ${SSH_PORT} -o StrictHostKeyChecking=no -i private_key.pem artifact.tar.gz ${USER_NAME}@${HOSTNAME}:~
           ssh -p ${SSH_PORT} -o StrictHostKeyChecking=no -i private_key.pem ${USER_NAME}@${HOSTNAME} '
             source ~/.nvm/nvm.sh
-            rm -rf playtak-api-tmp
-            mkdir playtak-api-tmp
-            tar -xzf artifact.tar.gz -C ./playtak-api-tmp
+            rm -rf playtak-api-dev-tmp
+            mkdir playtak-api-dev-tmp
+            tar -xzf artifact.tar.gz -C ./playtak-api-dev-tmp
             sudo rm -rf /var/apps/playtak-api-beta
-            sudo mv playtak-api-tmp/dist/ /var/apps/playtak-api-beta
-            rm -rf playtak-api-temp
+            sudo mv playtak-api-dev-tmp/dist/ /var/apps/playtak-api-beta
+            rm -rf playtak-api-dev-temp
             rm artifact.tar.gz
             pm2 restart playtak-api-beta --update-env
           '
