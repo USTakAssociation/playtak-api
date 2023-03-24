@@ -1,20 +1,22 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Like, MoreThan, Repository } from 'typeorm';
 import { Games } from './entities/games.entity';
-import {stat} from 'fs/promises';
+import { stat } from 'fs/promises';
+import { PTNService } from './services/ptn.service';
 @Injectable()
 export class GamesService {
 	constructor(
 		@InjectRepository(Games)
 		private repository: Repository<Games>,
+		private ptnSerivce: PTNService,
 	) {}
 
 	async getAll(query?): Promise<any> {
 		const limit = parseInt(query.limit) || 50;
 		const skip = parseInt(query.skip) || 0;
 		const page = parseInt(query.page) || 0;
-		const order: "ASC" | "DESC" = query.order || 'DESC';
+		const order: 'ASC' | 'DESC' = query.order || 'DESC';
 		const search: any = query.search
 			? JSON.parse(decodeURI(query.search))
 			: {};
@@ -24,7 +26,7 @@ export class GamesService {
 
 		let player_search: boolean;
 		const playerWhite = search['player_white'];
-		const playerBlack = search['player_black']; 
+		const playerBlack = search['player_black'];
 		if (playerWhite) {
 			search.player_white = Like(`${playerWhite}`);
 			player_search = true;
@@ -34,24 +36,24 @@ export class GamesService {
 			player_search = true;
 		}
 
-		if(search?.normal === 1){
-			search["tournament"] = 0;
-			search["unrated"] = 0;
+		if (search?.normal === 1) {
+			search['tournament'] = 0;
+			search['unrated'] = 0;
 			delete search.normal;
 		}
 
-		if(search?.game_result ){
+		if (search?.game_result) {
 			if (search.game_result === 'X-0') {
 				search['result'] = Like('%-0');
-			} else if(search.game_result === '0-X'){
+			} else if (search.game_result === '0-X') {
 				search['result'] = Like('0-%');
-			} else{
+			} else {
 				search['result'] = search.game_result;
 			}
 		}
 
-		const mirrorSearch = {...search};
-		if(mirror) {
+		const mirrorSearch = { ...search };
+		if (mirror) {
 			delete mirrorSearch['player_black'];
 			delete mirrorSearch['player_white'];
 			if (playerWhite) {
@@ -62,7 +64,7 @@ export class GamesService {
 				mirrorSearch['player_white'] = Like(`${playerBlack}`);
 				player_search = true;
 			}
-			if(search['game_result']) {
+			if (search['game_result']) {
 				switch (search['game_result']) {
 					case 'X-0':
 						mirrorSearch['result'] = Like('0-%');
@@ -99,9 +101,9 @@ export class GamesService {
 		}
 		delete search['game_result'];
 		delete mirrorSearch['game_result'];
-		if(player_search){
-			search['date'] = MoreThan("1461430800000");
-			if(mirror) {
+		if (player_search) {
+			search['date'] = MoreThan('1461430800000');
+			if (mirror) {
 				mirrorSearch['date'] = MoreThan('1461430800000');
 			}
 		}
@@ -128,14 +130,13 @@ export class GamesService {
 				.limit(limit)
 				.offset(limit * page || skip)
 				.execute();
-			
+
 			for (let i = 0; i < result.length; i++) {
 				const element = result[i];
-				if(element.date <= 1461430800000) {
-					element.player_black = "Anon";
+				if (element.date <= 1461430800000) {
+					element.player_black = 'Anon';
 					element.player_white = 'Anon';
 				}
-				
 			}
 			return {
 				items: result || [],
@@ -148,13 +149,12 @@ export class GamesService {
 			console.error(error);
 			throw new Error('Could not get games. ' + error);
 		}
-		
 	}
-	
-	async getOneByID(id: number): Promise<any>{
+
+	async getOneByID(id: number): Promise<any> {
 		try {
 			const result = await this.repository.findOne({
-				where: {id}
+				where: { id },
 			});
 			if (result && result['date'] <= 1461430800000) {
 				result['player_black'] = 'Anon';
@@ -166,7 +166,7 @@ export class GamesService {
 			throw new Error('Could not get game by ID. ' + error);
 		}
 	}
-	
+
 	async getDBInfo() {
 		try {
 			const result = await stat(process.env.ANON_DB_PATH);
@@ -174,6 +174,22 @@ export class GamesService {
 		} catch (error) {
 			console.error(error);
 			throw new Error('Could not get DB info. ' + error);
+		}
+	}
+
+	async getRawPTN(id: number): Promise<any> {
+		try {
+			const result = await this.repository.findOne({
+				where: { id },
+			});
+			if (!result) {
+				return new NotFoundException();
+			}
+			const ptn = this.ptnSerivce.getPTN(result);
+			return ptn;
+		} catch (error) {
+			console.error(error);
+			throw new Error(error);
 		}
 	}
 }

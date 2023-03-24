@@ -14,9 +14,14 @@ export class GamesController {
 	getOneById(@Param('id') id: number) {
 		return this.service.getOneByID(+id);
 	}
-	
+
+	@Get('ptn/:id')
+	getPTN(@Param('id') id: number) {
+		return this.service.getRawPTN(+id);
+	}
+
 	@Get('/db')
-	getDBInfo(){
+	getDBInfo() {
 		return this.service.getDBInfo();
 	}
 }

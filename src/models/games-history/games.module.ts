@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Games } from './entities/games.entity';
 import { GamesController } from './games.controller';
 import { GamesService } from './games.service';
+import { PTNService } from './services/ptn.service';
 
 @Module({
 	controllers: [GamesController],
@@ -16,6 +17,6 @@ import { GamesService } from './games.service';
 			}),
 		}),
 	],
-	providers: [GamesService],
+	providers: [GamesService, PTNService],
 })
 export class GamesModule {}
