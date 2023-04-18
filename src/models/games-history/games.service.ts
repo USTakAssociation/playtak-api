@@ -4,6 +4,7 @@ import { Like, MoreThan, Repository } from 'typeorm';
 import { Games } from './entities/games.entity';
 import { stat } from 'fs/promises';
 import { PTNService } from './services/ptn.service';
+import { GameQuery } from './dto/games.dto';
 @Injectable()
 export class GamesService {
 	constructor(
@@ -12,55 +13,60 @@ export class GamesService {
 		private ptnSerivce: PTNService,
 	) {}
 
-	async getAll(query?): Promise<any> {
-		const limit = parseInt(query.limit) || 50;
-		const skip = parseInt(query.skip) || 0;
-		const page = parseInt(query.page) || 0;
-		const order: 'ASC' | 'DESC' = query.order || 'DESC';
-		const search: any = query.search
-			? JSON.parse(decodeURI(query.search))
-			: {};
-		const mirror: boolean = search.mirror || false;
-		delete search.mirror;
-		delete search.type;
+	
+	generateSearchQuery(query: GameQuery) {
+		const search = {};
+		query['id'] ? (search['id'] = query['id']) : null;
+		query['player_white']
+			? (search['player_white'] = query['player_white'])
+			: null;
+		query['player_black']
+			? (search['player_black'] = query['player_black'])
+			: null;
+		query['game_result']
+			? (search['game_result'] = query['game_result'])
+			: null;
+		query['size'] ? (search['size'] = query['size']) : null;
+		query['type'] ? (search[query['type'].toLowerCase()] = 1) : null;
+		const mirror = query.mirror === 'true' ? true : false;
+
+		if (search['normal']) {
+			search['tournament'] = 0;
+			search['unrated'] = 0;
+		}
 
 		let player_search: boolean;
 		const playerWhite = search['player_white'];
 		const playerBlack = search['player_black'];
 		if (playerWhite) {
-			search.player_white = Like(`${playerWhite}`);
+			search['player_white'] = Like(`${playerWhite}`);
 			player_search = true;
 		}
 		if (playerBlack) {
-			search.player_black = Like(`${playerBlack}`);
+			search['player_black'] = Like(`${playerBlack}`);
 			player_search = true;
 		}
 
-		if (search?.normal === 1) {
-			search['tournament'] = 0;
-			search['unrated'] = 0;
-			delete search.normal;
-		}
-
-		if (search?.game_result) {
-			if (search.game_result === 'X-0') {
+		if (search['game_result']) {
+			if (search['game_result'] === 'X-0') {
 				search['result'] = Like('%-0');
-			} else if (search.game_result === '0-X') {
+			} else if (search['game_result'] === '0-X') {
 				search['result'] = Like('0-%');
 			} else {
-				search['result'] = search.game_result;
+				search['result'] = search['game_result'];
 			}
 		}
 
-		const mirrorSearch = { ...search };
+		let mirrorSearch = {};
 		if (mirror) {
+			mirrorSearch = { ...search };
 			delete mirrorSearch['player_black'];
 			delete mirrorSearch['player_white'];
 			if (playerWhite) {
 				mirrorSearch['player_black'] = Like(`${playerWhite}`);
 				player_search = true;
 			}
-			if(playerBlack){
+			if (playerBlack) {
 				mirrorSearch['player_white'] = Like(`${playerBlack}`);
 				player_search = true;
 			}
@@ -94,7 +100,7 @@ export class GamesService {
 						mirrorSearch['result'] = '1-0';
 						break;
 					default:
-						mirrorSearch['result'] = search.game_result;
+						mirrorSearch['result'] = search['game_result'];
 						break;
 				}
 			}
@@ -107,7 +113,17 @@ export class GamesService {
 				mirrorSearch['date'] = MoreThan('1461430800000');
 			}
 		}
-
+		
+		return {search, mirrorSearch};
+	}
+	async getAll(query?: GameQuery): Promise<any> {
+		const limit = parseInt(query.limit) || 50;
+		const skip = parseInt(query.skip) || 0;
+		const page = parseInt(query.page) || 0;
+		const order: 'ASC' | 'DESC' = query.order || 'DESC';
+		const sort = query.sort ? query.sort : 'id';
+		const mirror = query.mirror === 'true' ? true : false;
+		const {search, mirrorSearch} = this.generateSearchQuery(query);
 		try {
 			let dbQuery;
 			if (mirror) {
@@ -116,13 +132,13 @@ export class GamesService {
 					.select('*')
 					.where(search)
 					.orWhere(mirrorSearch)
-					.orderBy('id', order);
+					.orderBy(sort, order);
 			} else {
 				dbQuery = this.repository
 					.createQueryBuilder()
 					.select('*')
 					.where(search)
-					.orderBy('id', order);
+					.orderBy(sort, order);
 			}
 			const total = await dbQuery.getCount();
 			const result = await dbQuery

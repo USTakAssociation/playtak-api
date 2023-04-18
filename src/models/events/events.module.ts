@@ -10,7 +10,7 @@ import { EventsService } from './events.service';
 		ThrottlerModule.forRootAsync({
 			useFactory: () => ({
 				ttl: 60,
-				limit: 5,
+				limit: 30,
 			}),
 		}),
 		CacheModule.register({

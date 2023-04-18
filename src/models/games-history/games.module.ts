@@ -13,7 +13,7 @@ import { PTNService } from './services/ptn.service';
 		ThrottlerModule.forRootAsync({
 			useFactory: () => ({
 				ttl: 60,
-				limit: 30,
+				limit: 60,
 			}),
 		}),
 	],

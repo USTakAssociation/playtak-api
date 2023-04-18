@@ -1,9 +1,9 @@
 export class PTNService {
-	private getHeader(key: string, val: any) {
+	public getHeader(key: string, val: any) {
 		return `[${key} "${val}"]\n`;
 	}
 
-	private convertMove(move: any) {
+	public convertMove(move: any) {
 		const spl = move.split(' ');
 		if (spl[0] === 'P') {
 			// P A4 (C|W)
@@ -40,7 +40,7 @@ export class PTNService {
 		return '';
 	}
 
-	private getMoves(notation: string) {
+	public getMoves(notation: string) {
 		let moves = '';
 		let count = 0;
 		const moveArray = notation.split(',');
@@ -55,31 +55,28 @@ export class PTNService {
 
 			count += 1;
 		}
-
 		return moves;
 	}
 
-	private getTimerInfo(timertime: number, timerinc: number) {
+	public getTimerInfo(timertime: number, timerinc: number) {
 		const secs = timertime % 60;
 		timertime = timertime / 60;
-
 		const mins = timertime % 60;
 		const hrs = Math.floor(timertime / 60);
 		let val = '';
 		let force = false;
 
-		if (hrs !== 0) {
+		if (hrs >= 1) {
 			val += hrs.toString() + ':';
 			force = true;
 		}
-		if (mins !== 0 || force) {
+		if (mins >= 1 || force) {
 			val += mins.toString() + ':';
 		}
 		val += secs.toString();
 		if (timerinc !== 0) {
 			val += ' +' + timerinc.toString();
 		}
-
 		return val;
 	}
 
