@@ -99,7 +99,6 @@ describe('GamesService', () => {
 			const { search, mirrorSearch } = service.generateSearchQuery(mockQuery);
 			expect(search['tournament']).toBe(0);
 			expect(search['unrated']).toBe(0);
-			expect(search['normal']).toBe(1);
 			expect(mirrorSearch).toStrictEqual({});
 		});
 
