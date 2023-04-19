@@ -43,7 +43,7 @@ jobs:
             CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
             ANON_DB_PATH: ${{ secrets.ANON_DB_PATH }}
             DB_PATH: ${{ secrets.DB_PATH }}
-            APP_ENV: ${{secrets.APP_ENV}}} 
+            APP_ENV: ${{ secrets.APP_ENV }} 
         run : |
             rm .env
             touch .env
