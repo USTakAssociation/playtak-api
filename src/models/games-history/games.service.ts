@@ -33,6 +33,7 @@ export class GamesService {
 		if (search['normal']) {
 			search['tournament'] = 0;
 			search['unrated'] = 0;
+			delete search['normal']
 		}
 
 		let player_search: boolean;
