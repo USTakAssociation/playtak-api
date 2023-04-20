@@ -77,6 +77,7 @@ export class PTNService {
 		if (timerinc !== 0) {
 			val += ' +' + timerinc.toString();
 		}
+
 		return val;
 	}
 

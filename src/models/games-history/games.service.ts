@@ -13,7 +13,6 @@ export class GamesService {
 		private ptnSerivce: PTNService,
 	) {}
 
-	
 	generateSearchQuery(query: GameQuery) {
 		const search = {};
 		query['id'] ? (search['id'] = query['id']) : null;
@@ -117,6 +116,7 @@ export class GamesService {
 		
 		return {search, mirrorSearch};
 	}
+
 	async getAll(query?: GameQuery): Promise<any> {
 		const limit = parseInt(query.limit) || 50;
 		const skip = parseInt(query.skip) || 0;
