@@ -26,7 +26,7 @@ export class GamesController {
 	@ApiResponse({
 		status: 429,
 		type: DefaultExceptionDto,
-		description: 'Returns 429 too many reuests error',
+		description: 'Returns 429 too many requests error',
 	})
 	@ApiResponse({
 		status: 500,
@@ -52,7 +52,7 @@ export class GamesController {
 	@ApiResponse({
 		status: 429,
 		type: DefaultExceptionDto,
-		description: 'Returns 429 too many reuests error',
+		description: 'Returns 429 too many requests error',
 	})
 	@ApiResponse({
 		status: 500,
@@ -79,7 +79,7 @@ export class GamesController {
 	@ApiResponse({
 		status: 429,
 		type: DefaultExceptionDto,
-		description: 'Returns 429 too many reuests error',
+		description: 'Returns 429 too many requests error',
 	})
 	@ApiResponse({
 		status: 500,
@@ -105,7 +105,7 @@ export class GamesController {
 	@ApiResponse({
 		status: 429,
 		type: DefaultExceptionDto,
-		description: 'Returns 429 too many reuests error',
+		description: 'Returns 429 too many requests error',
 	})
 	@ApiResponse({
 		status: 500,
