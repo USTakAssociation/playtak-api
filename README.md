@@ -2,7 +2,11 @@
 
 ## Description
 
-This is the playtak api 
+![Unit Tests](https://github.com/USTakAssociation/playtak-api/actions/workflows/ci.yml/badge.svg
+)
+
+
+This is the Play Tak API projects which contains multiple endpoints for serivcing data to the Play Tak UI
 
 ## Installation
 
@@ -36,11 +40,24 @@ $ npm run test:e2e
 $ npm run test:cov
 ```
 
+## Endpoints
+
+SwaggerOpenAPI Documentation
+https://api.playtak.com/api
+
+https://api.{env}.playtak.com
+
+/events
+
+/v1/games-history/
+/v1/games-history/{id}
+/v1/games-historoy/ptn/{id}
+/v1/hames-history/db
+
 ## TODO
 
 - Finish up migrating rerating to nest
-- endpoints for getting rating data	
-- finalize advanced search for games history
+- endpoints for getting rating data
 - create user auth endpoints and test
 
 

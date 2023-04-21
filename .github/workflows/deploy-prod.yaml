@@ -43,6 +43,7 @@ jobs:
             CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
             ANON_DB_PATH: ${{ secrets.ANON_DB_PATH }}
             DB_PATH: ${{ secrets.DB_PATH }}
+            APP_ENV: ${{ secrets.APP_ENV }}
         run : |
             rm .env
             touch .env
@@ -51,6 +52,7 @@ jobs:
             echo "CORS_DOMAIN = ${CORS_DOMAIN}" >> .env
             echo "ANON_DB_PATH = ${ANON_DB_PATH}" >> .env
             echo "DB_PATH = ${DB_PATH}" >> .env
+            echo "APP_ENV = ${APP_ENV}" >> .env
             mv .env ./dist
             mv node_modules ./dist
             tar -czf artifact.tar.gz ./dist 
