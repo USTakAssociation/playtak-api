@@ -10,7 +10,7 @@ export class EventsService {
 	private SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
 	constructor() {
 		this.filePath = path.resolve(__dirname, '../../assets');
-		this.CREDENTIALS_PATH = this.filePath + '/client_secret.json';
+		this.CREDENTIALS_PATH = path.join(this.filePath, '/client_secret.json');
 	}
 
 	async getEvents(): Promise<EventList | NotFoundException | HttpException> {
