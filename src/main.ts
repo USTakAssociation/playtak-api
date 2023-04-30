@@ -38,7 +38,7 @@ async function bootstrap() {
 	if (process.env.DIST_PATH) {
 		dist = process.env.DIST_PATH;
 	}
-	const outputPath = path.resolve(process.cwd(), dist + 'swagger.json');
+	const outputPath = path.resolve(process.cwd(), path.join(dist, 'swagger.json'));
 	writeFileSync(outputPath, JSON.stringify(document), { encoding: 'utf8' });
 
 	app.enableCors({
