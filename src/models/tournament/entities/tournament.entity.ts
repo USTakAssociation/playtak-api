@@ -15,6 +15,11 @@ export class Tournament { // part of mvp
 		id: number
 	@Column()
 		name: string
+	@Column()
+		description: string
+	/** `true` if the tournament is over. */
+	@Column({ default: false })
+		finished: boolean
 	// @Column()
 	// 	type: string // tbd
 	// @Column()

@@ -5,6 +5,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { EventsModule } from './models/events/events.module';
 import { GamesModule } from './models/games-history/games.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { TournamentsModule } from './models/tournament/tournaments.module';
 import * as path from 'path';
 
 
@@ -19,6 +20,7 @@ import * as path from 'path';
 		}),
 		EventsModule,
 		GamesModule,
+		TournamentsModule,
 	],
 	controllers: [],
 	providers: [
