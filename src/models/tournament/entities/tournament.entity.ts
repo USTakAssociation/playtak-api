@@ -26,7 +26,7 @@ export class Tournament { // part of mvp
 	// matchupType: "single game" | "double game" // tbd
 
 	@OneToMany(() => Stage, stage => stage.tournament)
-		stages: [Relation<Stage>]
+		stages: Array<Relation<Stage>>
 
 	// maybe skip these for now
 	// applications?: any

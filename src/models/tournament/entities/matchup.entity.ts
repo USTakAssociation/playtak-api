@@ -26,6 +26,6 @@ export class Matchup {
 		player2: string // FK
 
 	@OneToMany(() => Game, game => game.matchup)
-		games: [Relation<Game>]
+		games: Array<Relation<Game>>
 }
 

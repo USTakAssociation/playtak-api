@@ -24,7 +24,7 @@ export class Stage {
 		name: string
 	
 	@OneToMany(() => Group, group => group.stage)
-		groups: [Group]
+		groups: Array<Relation<Group>>
 	
 	@ManyToOne(() => GameRules)
 		rules: Relation<GameRules> // tbd: is this necessary? let's have it for now

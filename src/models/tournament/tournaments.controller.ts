@@ -1,8 +1,8 @@
-import { Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Controller, Get, Logger, Param, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { TournamentsService } from './tournaments.service';
 import { DefaultExceptionDto } from './dto/error.dto';
 import { Tournament, TournamentsList, TournamentsQuery } from './dto/tournaments.dto';
+import { TournamentsService } from './tournaments.service';
 
 @ApiTags('Tournaments')
 @Controller({
@@ -10,6 +10,8 @@ import { Tournament, TournamentsList, TournamentsQuery } from './dto/tournaments
 	version: ['1'],
 })
 export class TournamentsController {
+	private readonly logger = new Logger(TournamentsController.name);
+
 	constructor(private readonly service: TournamentsService) {}
 
 	@ApiOperation({ operationId: 'tournaments_list', summary: 'Get Tournaments List' })

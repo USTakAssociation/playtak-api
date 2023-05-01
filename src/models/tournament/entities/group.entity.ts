@@ -23,5 +23,5 @@ export class Group {
 		name?: string
 	
 	@OneToMany(() => Matchup, matchup => matchup.group)
-		matchups: [Relation<Matchup>]
+		matchups: Array<Relation<Matchup>>
 }
