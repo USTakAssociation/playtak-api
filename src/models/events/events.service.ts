@@ -1,4 +1,4 @@
-import { HttpException, Injectable, NotFoundException } from '@nestjs/common';
+import { HttpException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { google } from 'googleapis';
 import * as path from 'path';
 import { EventList } from '../games-history/dto/events.dto';
@@ -8,6 +8,8 @@ export class EventsService {
 	private filePath;
 	private CREDENTIALS_PATH;
 	private SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
+	private readonly logger = new Logger(EventsService.name);
+
 	constructor() {
 		this.filePath = path.resolve(__dirname, '../../assets');
 		this.CREDENTIALS_PATH = path.join(this.filePath, '/client_secret.json');
@@ -57,7 +59,7 @@ export class EventsService {
 				categories: [...new Set(categories)],
 			};
 		} catch (error) {
-			console.error(error);
+			this.logger.error(error);
 			return new HttpException('500', error);
 		}
 	}

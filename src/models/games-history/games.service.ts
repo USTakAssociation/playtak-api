@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Like, MoreThan, Repository } from 'typeorm';
 import { Games } from './entities/games.entity';
@@ -7,6 +7,8 @@ import { PTNService } from './services/ptn.service';
 import { GameQuery } from './dto/games.dto';
 @Injectable()
 export class GamesService {
+	private readonly logger = new Logger(GamesService.name);
+
 	constructor(
 		@InjectRepository(Games)
 		private repository: Repository<Games>,
@@ -163,7 +165,7 @@ export class GamesService {
 				totalPages: Math.ceil(total / limit),
 			};
 		} catch (error) {
-			console.error(error);
+			this.logger.error(error);
 			throw new Error('Could not get games. ' + error);
 		}
 	}
@@ -179,7 +181,7 @@ export class GamesService {
 			}
 			return result;
 		} catch (error) {
-			console.error(error);
+			this.logger.error(error);
 			throw new Error('Could not get game by ID. ' + error);
 		}
 	}
@@ -189,7 +191,7 @@ export class GamesService {
 			const result = await stat(process.env.ANON_DB_PATH);
 			return result;
 		} catch (error) {
-			console.error(error);
+			this.logger.error(error);
 			throw new Error('Could not get DB info. ' + error);
 		}
 	}
@@ -205,7 +207,7 @@ export class GamesService {
 			const ptn = this.ptnSerivce.getPTN(result);
 			return ptn;
 		} catch (error) {
-			console.error(error);
+			this.logger.error(error);
 			throw new Error(error);
 		}
 	}
