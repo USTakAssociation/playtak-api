@@ -13,7 +13,7 @@ export class Tournament {
 	@ApiProperty()
 		description: string
 	@ApiProperty()
-		stages: Array<Stage>
+		stages: Array<any> // todo Array<StageDto>
 	@ApiProperty()
 		finished: boolean
 }

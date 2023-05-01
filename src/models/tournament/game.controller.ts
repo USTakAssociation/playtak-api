@@ -1,8 +1,9 @@
-import { BadRequestException, Body, Controller, Logger, NotImplementedException, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Logger, NotImplementedException, Post, Put, ValidationPipe } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { TournamentsService } from './tournaments.service';
 import { DefaultExceptionDto } from './dto/error.dto';
 import { GameUpdateDto } from './dto/gameUpdate.dto';
+import { CreateGameDto, GameDto, GameQuery } from './dto/game.dto';
+import { GameService } from './services/game.service';
 
 @ApiTags('Tournaments', 'TournamentGame')
 @Controller({
@@ -12,7 +13,7 @@ import { GameUpdateDto } from './dto/gameUpdate.dto';
 export class GameController {
 	private readonly logger = new Logger(GameController.name);
 
-	constructor(private readonly service: TournamentsService) {}
+	constructor(private readonly gameService: GameService) {}
 
 	@ApiOperation({ operationId: 'game_update', summary: 'Receives updates about games played' })
 	@ApiResponse({
@@ -44,6 +45,30 @@ export class GameController {
 			throw new BadRequestException("GameUpdate.game must be defined")
 		}
 
-		return this.service.handleGameUpdate(gameUpdate);
+		return this.gameService.handleGameUpdate(gameUpdate);
+	}
+
+
+	@ApiOperation({ operationId: 'game_get_all', summary: 'Get all games for all tournaments' })
+	@ApiResponse({
+		status: 200,
+		type: Array<GameDto>,
+		description: 'A list of all games.',
+	})
+	@Get()
+	getAll(@Body() query: GameQuery): Promise<Array<GameDto>> {
+		return this.gameService.getAll(query);
+	}
+
+	
+	@ApiOperation({ operationId: 'matchups_create', summary: 'Create a new matchup' })
+	@ApiResponse({
+		status: 200,
+		type: GameDto,
+		description: 'A list of all matchups.',
+	})
+	@Put()
+	createMatchup(@Body(ValidationPipe) game: CreateGameDto): Promise<GameDto> {
+		return this.gameService.createGame(game);
 	}
 }

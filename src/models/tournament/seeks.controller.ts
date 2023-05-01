@@ -1,10 +1,10 @@
 import { Controller, Get, Logger, NotFoundException, Param, ParseIntPipe, Put } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { DefaultExceptionDto } from './dto/error.dto';
 import { SeekDto } from './dto/seek.dto';
 import { SeeksService } from './services/seeks.service';
 
-@ApiTags('Tournament', 'Seek')
+@ApiTags('Tournaments', 'Seek')
 @Controller({
 	path: 'tournaments/seeks',
 	version: ['1'],
@@ -46,6 +46,7 @@ export class SeeksController {
 		type: NotFoundException,
 		description: 'Returns 500 server error',
 	})
+	@ApiParam({ name: 'gameId', description: 'Game ID' })
 	@Put(':gameId')
 	createSeek(@Param('gameId', ParseIntPipe) gameId: number): Promise<SeekDto> {
 		return this.service.createSeek(gameId);

@@ -1,18 +1,26 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, NotImplementedException, PreconditionFailedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityNotFoundError, Repository } from 'typeorm';
+import { CreateGameDto, GameDto, GameQuery } from '../dto/game.dto';
 import { GameUpdateDto } from '../dto/gameUpdate.dto';
 import { Game } from '../entities/game.entity';
+import { GameRulesService } from './gameRules.service';
+import { MatchupsService } from './matchups.service';
 @Injectable()
 export class GameService {
 	private readonly logger = new Logger(GameService.name);
 
 	constructor(
 		@InjectRepository(Game)
-		private games: Repository<Game>,
+		private readonly games: Repository<Game>,
+		private readonly matchupService: MatchupsService,
+		private readonly gameRulesService: GameRulesService,
 	) {}
 
-	
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	async getAll(query: GameQuery): Promise<Array<GameDto>> {
+		return await this.games.find();
+	}
 
 	async getGameById(id: number): Promise<Game> {
 		try {
@@ -129,5 +137,14 @@ export class GameService {
 			default:
 				throw new NotImplementedException(`Cannot handle GameUpdate.type '${gameUpdate.type}'`);
 		}
+	}
+
+	
+	async createGame(gameToCreate: CreateGameDto): Promise<GameDto> {
+		const gameRules = await this.gameRulesService.getById(gameToCreate.rules);
+		const matchup = await this.matchupService.getById(gameToCreate.matchup);
+
+		const game = this.games.create({ ...gameToCreate, matchup: matchup, rules: gameRules });
+		return await this.games.manager.save(game)
 	}
 }

@@ -14,9 +14,13 @@ import { GameController } from './game.controller';
 import { SeeksService } from './services/seeks.service';
 import { SeeksController } from './seeks.controller';
 import { HttpModule } from '@nestjs/axios';
+import { MatchupsController } from './matchups.controller';
+import { MatchupsService } from './services/matchups.service';
+import { GameRulesService } from './services/gameRules.service';
+import { GameRulesController } from './gameRules.controller';
 
 @Module({
-	controllers: [TournamentsController, GameController, SeeksController],
+	controllers: [TournamentsController, GameController, SeeksController, MatchupsController, GameRulesController],
 	imports: [
 		HttpModule,
 		TypeOrmModule.forFeature([Tournament, Stage, Group, Matchup, Game, GameRules]),
@@ -27,6 +31,6 @@ import { HttpModule } from '@nestjs/axios';
 			}),
 		}),
 	],
-	providers: [TournamentsService, GameService, SeeksService],
+	providers: [TournamentsService, GameService, SeeksService, MatchupsService, GameRulesService],
 })
 export class TournamentsModule {}
