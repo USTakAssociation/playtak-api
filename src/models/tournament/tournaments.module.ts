@@ -11,10 +11,14 @@ import { Group } from './entities/group.entity';
 import { Stage } from './entities/stage.entity';
 import { GameService } from './services/game.service';
 import { GameController } from './game.controller';
+import { SeeksService } from './services/seeks.service';
+import { SeeksController } from './seeks.controller';
+import { HttpModule } from '@nestjs/axios';
 
 @Module({
-	controllers: [TournamentsController, GameController],
+	controllers: [TournamentsController, GameController, SeeksController],
 	imports: [
+		HttpModule,
 		TypeOrmModule.forFeature([Tournament, Stage, Group, Matchup, Game, GameRules]),
 		ThrottlerModule.forRootAsync({
 			useFactory: () => ({
@@ -23,6 +27,6 @@ import { GameController } from './game.controller';
 			}),
 		}),
 	],
-	providers: [TournamentsService, GameService],
+	providers: [TournamentsService, GameService, SeeksService],
 })
 export class TournamentsModule {}
