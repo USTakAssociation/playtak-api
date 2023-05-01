@@ -22,10 +22,10 @@ export class GameService {
 		return await this.games.find();
 	}
 
-	async getGameById(id: number): Promise<Game> {
+	async getGameById(id: number, relations = { matchup: false, rules: false }): Promise<Game> {
 		try {
 			this.logger.log("get by id", id)
-			return await this.games.findOneByOrFail({ id });
+			return await this.games.findOne({ relations, where: { id } });
 		}
 		catch (cause) {
 			if (cause instanceof EntityNotFoundError) {
@@ -108,12 +108,12 @@ export class GameService {
 
 		switch (gameUpdate.type) {
 			case "game.created": {
-				this.logger.log(`Game #${gameUpdate.game.id} started: ${gameUpdate.game.white} vs ${gameUpdate.game.black}`);
-
+				this.logger.log(`Game playtak_id=${gameUpdate.game.id} started: ${gameUpdate.game.white} vs ${gameUpdate.game.black}`);
+				await this.moveGameToInProgress(gameUpdate.game.seekUid, gameUpdate.game.id);
 				break;
 			}
 			case "game.ended": {
-				this.logger.log(`Game #${gameUpdate.game.id} ended: ${gameUpdate.game.white} vs ${gameUpdate.game.black}`);
+				this.logger.log(`Game playtak_id=${gameUpdate.game.id} ended: ${gameUpdate.game.white} vs ${gameUpdate.game.black}`);
 				
 				if (!gameUpdate.game.result) {
 					throw new BadRequestException("GameUpdate.game.result must be set when reporting a finished game");
@@ -125,12 +125,12 @@ export class GameService {
 				if (gameUpdate.game.moves.length === 0) {
 					const game = await this.getGameByPlaytakId(gameUpdate.game.id);
 					this.logger.debug(`Resetting game id=${game.id} since the game ended with no moves played`);
-					this.resetGameState(gameUpdate.game.id);
+					await this.resetGameState(gameUpdate.game.id);
 				}
 				else {
 					const { white, black, result, id: playtakId } = gameUpdate.game;
 					this.logger.debug(`Marking game ${white} vs ${black} as finished ${result} (playtakId=${playtakId})`);
-					this.markGameAsFinished(playtakId, result);
+					await this.markGameAsFinished(playtakId, result);
 				}
 				break;
 			}

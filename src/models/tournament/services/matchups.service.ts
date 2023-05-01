@@ -1,11 +1,8 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityNotFoundError, Repository } from 'typeorm';
-import { GameQuery } from '../dto/game.dto';
 import { CreateMatchupDto, MatchupDto, MatchupsQuery } from '../dto/matchups.dto';
-import { Game } from '../entities/game.entity';
 import { Matchup } from '../entities/matchup.entity';
-import { match } from 'assert';
 @Injectable()
 export class MatchupsService {
 	private readonly logger = new Logger(MatchupsService.name);

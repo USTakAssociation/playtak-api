@@ -18,6 +18,7 @@ import { MatchupsController } from './matchups.controller';
 import { MatchupsService } from './services/matchups.service';
 import { GameRulesService } from './services/gameRules.service';
 import { GameRulesController } from './gameRules.controller';
+import { ConfigService } from '@nestjs/config';
 
 @Module({
 	controllers: [TournamentsController, GameController, SeeksController, MatchupsController, GameRulesController],
@@ -31,6 +32,6 @@ import { GameRulesController } from './gameRules.controller';
 			}),
 		}),
 	],
-	providers: [TournamentsService, GameService, SeeksService, MatchupsService, GameRulesService],
+	providers: [TournamentsService, GameService, SeeksService, MatchupsService, GameRulesService, ConfigService],
 })
 export class TournamentsModule {}
