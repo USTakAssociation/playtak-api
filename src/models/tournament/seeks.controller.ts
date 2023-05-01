@@ -35,18 +35,18 @@ export class SeeksController {
 		return this.service.getSeeks();
 	}
 
-	@ApiOperation({ operationId: 'seek_create', summary: 'Creates a seek on the playtak server.' })
+	@ApiOperation({ operationId: 'seek_create', summary: 'Create a seek for a tournament game on the playtak server' })
 	@ApiResponse({
 		status: 200,
 		type: SeekDto,
-		description: 'Creates a tournament seek for the game `gameId`',
+		description: 'The created seek',
 	})
 	@ApiResponse({
 		status: 404,
 		type: NotFoundException,
 		description: 'Returns 500 server error',
 	})
-	@ApiParam({ name: 'gameId', description: 'Game ID' })
+	@ApiParam({ name: 'gameId', description: 'The game for which to create the seek' })
 	@Put(':gameId')
 	createSeek(@Param('gameId', ParseIntPipe) gameId: number): Promise<SeekDto> {
 		return this.service.createSeek(gameId);

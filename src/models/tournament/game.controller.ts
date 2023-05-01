@@ -15,7 +15,7 @@ export class GameController {
 
 	constructor(private readonly gameService: GameService) {}
 
-	@ApiOperation({ operationId: 'game_update', summary: 'Receives updates about games played' })
+	@ApiOperation({ operationId: 'game_update', summary: 'Receives updates (e.g. from playtak-server) about games played' })
 	@ApiResponse({
 		status: 200,
 		type: null,
@@ -61,11 +61,11 @@ export class GameController {
 	}
 
 	
-	@ApiOperation({ operationId: 'matchups_create', summary: 'Create a new matchup' })
+	@ApiOperation({ operationId: 'matchups_create', summary: 'Create a new game in a matchup' })
 	@ApiResponse({
 		status: 200,
 		type: GameDto,
-		description: 'A list of all matchups.',
+		description: 'The created game.',
 	})
 	@Put()
 	createMatchup(@Body(ValidationPipe) game: CreateGameDto): Promise<GameDto> {
