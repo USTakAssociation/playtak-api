@@ -12,6 +12,23 @@ export class GameService {
 		private games: Repository<Game>,
 	) {}
 
+	
+
+	async getGameById(id: number): Promise<Game> {
+		try {
+			this.logger.log("get by id", id)
+			return await this.games.findOneByOrFail({ id });
+		}
+		catch (cause) {
+			if (cause instanceof EntityNotFoundError) {
+				const exc = new NotFoundException(`Found no game with id='${id}'`, { cause });
+				this.logger.warn(exc)
+				throw exc;
+			}
+			throw cause;
+		}
+	}
+
 	async getGameBySeekUid(seekUid: string): Promise<Game> {
 		try {
 			return await this.games.findOneByOrFail( { seekUid });
@@ -38,6 +55,14 @@ export class GameService {
 			}
 			throw cause;
 		}
+	}
+
+	async setSeekUid(gameId: number, seekUid: string) {
+		const game = await this.getGameById(gameId);
+		if (game.playtakId) {
+			throw new PreconditionFailedException(`Game id=${game.id} cannot be moved to 'seek created' because playtakId is already set (${game.playtakId})`);
+		}
+		this.games.update(game.id, { seekUid });
 	}
 
 	async moveGameToInProgress(seekUid: string, playtakId: number) {

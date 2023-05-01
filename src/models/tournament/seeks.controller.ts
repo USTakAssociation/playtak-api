@@ -1,8 +1,7 @@
-import { Controller, Get, Logger } from '@nestjs/common';
+import { Controller, Get, Logger, NotFoundException, Param, ParseIntPipe, Put } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { DefaultExceptionDto } from './dto/error.dto';
 import { SeekDto } from './dto/seek.dto';
-import { TournamentsList } from './dto/tournaments.dto';
 import { SeeksService } from './services/seeks.service';
 
 @ApiTags('Tournament', 'Seek')
@@ -15,7 +14,7 @@ export class SeeksController {
 
 	constructor(private readonly service: SeeksService) {}
 
-	@ApiOperation({ operationId: 'seek_list', summary: 'Get a list of all current seeks' })
+	@ApiOperation({ operationId: 'seek_list', summary: 'Get a list of all current seeks on the playtak server' })
 	@ApiResponse({
 		status: 200,
 		type: Array<SeekDto>,
@@ -32,7 +31,23 @@ export class SeeksController {
 		description: 'Returns 500 server error',
 	})
 	@Get()
-	findAll(): Promise<Array<SeekDto>> {
+	getAll(): Promise<Array<SeekDto>> {
 		return this.service.getSeeks();
+	}
+
+	@ApiOperation({ operationId: 'seek_create', summary: 'Creates a seek on the playtak server.' })
+	@ApiResponse({
+		status: 200,
+		type: SeekDto,
+		description: 'Creates a tournament seek for the game `gameId`',
+	})
+	@ApiResponse({
+		status: 404,
+		type: NotFoundException,
+		description: 'Returns 500 server error',
+	})
+	@Put(':gameId')
+	createSeek(@Param('gameId', ParseIntPipe) gameId: number): Promise<SeekDto> {
+		return this.service.createSeek(gameId);
 	}
 }

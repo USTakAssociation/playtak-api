@@ -2,7 +2,7 @@ import { ApiProperty } from "@nestjs/swagger";
 
 type GameUpdateType = "game.created" | "game.ended";
 
-class GameDto {
+class GameDetailsDto {
 	@ApiProperty()
 		id: number;
 
@@ -43,5 +43,5 @@ export class GameUpdateDto {
 	@ApiProperty()
 		type: GameUpdateType;
 	@ApiProperty()
-		game: GameDto;
+		game: GameDetailsDto;
 }
