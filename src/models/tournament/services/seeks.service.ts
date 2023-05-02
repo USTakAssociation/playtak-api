@@ -31,7 +31,8 @@ export class SeeksService {
 			this.getSeekApiUrl().href,
 			{
 				headers: { 'Accept': 'application/json' },
-			});
+			}).catch(reason => { throw new HttpException(`Playtak-Server responded with '${reason}'`, HttpStatus.FAILED_DEPENDENCY)});
+
 		if (response.status == HttpStatus.OK) {
 			return response.data;
 		}
@@ -86,7 +87,8 @@ export class SeeksService {
 					'Content-Type': 'application/json',
 				},
 			}
-		);
+		).catch(reason => { throw new HttpException(`Playtak-Server responded with '${reason} ${reason.status}'`, HttpStatus.FAILED_DEPENDENCY)});
+
 
 		if (response.status == HttpStatus.OK) {
 			const seek: SeekDto = response.data;
