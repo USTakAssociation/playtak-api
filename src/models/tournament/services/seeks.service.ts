@@ -31,7 +31,7 @@ export class SeeksService {
 			this.getSeekApiUrl().href,
 			{
 				headers: { 'Accept': 'application/json' },
-			}).catch(reason => { throw new HttpException(`Playtak-Server responded with '${reason}'`, HttpStatus.FAILED_DEPENDENCY)});
+			}).catch(reason => { throw new HttpException(`Playtak-Server responded with '${reason.response?.data ?? reason}'`, HttpStatus.FAILED_DEPENDENCY)});
 
 		if (response.status == HttpStatus.OK) {
 			return response.data;
@@ -49,8 +49,6 @@ export class SeeksService {
 	/**
 	 * Creates a tournament seek for `gameId` on the playtak server.
 	 * Uses the rules and player names associated with the game.
-	 * 
-	 * Updates the game's seekUid so that `GameUpdates` can be associated with the entity. 
 	 */
 	async createSeek(gameId: number): Promise<SeekDto> {
 		// Todo make sure this can only be called from someone logged in
@@ -63,10 +61,17 @@ export class SeeksService {
 		if (!game.matchup) 
 			throw TypeError(`Game.matchup is not defined for game id=${gameId}`)
 
+		if (game.result) {
+			throw new HttpException(`Game is already 'finished' (result=${game.result})`, HttpStatus.BAD_GATEWAY);
+		}
+		if (game.playtakId) {
+			throw new HttpException(`Game is already 'in progress' (playtakId=${game.playtakId})`, HttpStatus.BAD_GATEWAY);
+		}
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		const { name: _, ...rules } =  game.rules;
 
 		const seekInquiry: CreateSeekDto = {
+			pntId: game.id,
 			creator: game.matchup.player1,
 			opponent: game.matchup.player2,
 			unrated: false,
@@ -87,17 +92,16 @@ export class SeeksService {
 					'Content-Type': 'application/json',
 				},
 			}
-		).catch(reason => { throw new HttpException(`Playtak-Server responded with '${reason} ${reason.status}'`, HttpStatus.FAILED_DEPENDENCY)});
+		).catch(reason => { throw new HttpException(`Playtak-Server responded with '${reason.response?.data ?? reason}'`, HttpStatus.FAILED_DEPENDENCY)});
 
 
 		if (response.status == HttpStatus.OK) {
 			const seek: SeekDto = response.data;
 			this.logger.debug('Created seek', seek);
-			if (seek.uid) {
-				this.gameService.setSeekUid(gameId, seek.uid);
+			if (seek.pntId) {
 				return seek;
 			}
-			throw new HttpException('Created seek did not contain a uid', HttpStatus.FAILED_DEPENDENCY);
+			throw new HttpException('Created seek did not contain pntId', HttpStatus.FAILED_DEPENDENCY);
 		}
 
 		// Todo handle '<creator-name> currently not logged in to playtak' response

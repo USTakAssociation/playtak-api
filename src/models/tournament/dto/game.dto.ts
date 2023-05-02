@@ -36,9 +36,6 @@ export class GameDto {
 		rules: GameRulesDto
 
 	@ApiProperty()
-		seekUid: string;
-
-	@ApiProperty()
 		playtakId?: number;
 
 	@ApiProperty()

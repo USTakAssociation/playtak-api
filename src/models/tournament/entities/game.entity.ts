@@ -25,15 +25,6 @@ export class Game {
 	@ManyToOne(() => GameRules)
 		rules: Relation<GameRules>;
 
-	/**
-	 * UUID
-	 * Filled in once the seek is created.
-	 * Used to associate GameUpdate `game.started` with this entity. 
-	 * Since seeks can easily be destroyed, this field being set should not stop anyone from creating new seeks for a game.
-	 */
-	@Column({ nullable: true, default: null })
-		seekUid: string;
-
 	/** Filled in once the game is started. If set, no more seeks should be created for this game. */
 	@Column({ nullable: true, default: null })
 		playtakId?: number;
@@ -53,9 +44,6 @@ export class Game {
 		if (this.playtakId) {
 			return "game started";
 		}
-		if (this.seekUid) {
-			return "seek created";
-		}
-		return "new";
+		return "game not yet started";
 	}
 }

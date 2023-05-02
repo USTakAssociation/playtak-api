@@ -6,9 +6,9 @@ class GameDetailsDto {
 	@ApiProperty()
 		id: number;
 
-	/** UUID */
+	/** Should relate to `game.entity id` */
 	@ApiProperty()
-		seekUid: string;
+		pntId: number;
 	@ApiProperty()
 		capstones: number;
 	@ApiProperty()

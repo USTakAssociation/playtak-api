@@ -8,6 +8,10 @@ export enum Color {
 }
 
 export class CreateSeekDto {
+	/** Refers to `game.entity id` */
+	@ApiProperty()
+		pntId: number;
+
 	@ApiProperty()
 		creator: string;
 
@@ -58,7 +62,4 @@ export class CreateSeekDto {
 export class SeekDto extends CreateSeekDto {
 	@ApiProperty()
 		id?: number;
-
-	@ApiProperty()
-		uid?: string;
 }

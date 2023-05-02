@@ -37,20 +37,6 @@ export class GameService {
 		}
 	}
 
-	async getGameBySeekUid(seekUid: string): Promise<Game> {
-		try {
-			return await this.games.findOneByOrFail( { seekUid });
-		}
-		catch (cause) {
-			if (cause instanceof EntityNotFoundError) {
-				const exc = new NotFoundException(`Found no game with seekUid='${seekUid}'`, { cause });
-				this.logger.warn(exc)
-				throw exc;
-			}
-			throw cause;
-		}
-	}
-
 	async getGameByPlaytakId(playtakId: number): Promise<Game> {
 		try {
 			return await this.games.findOneByOrFail( { playtakId });
@@ -65,32 +51,26 @@ export class GameService {
 		}
 	}
 
-	async setSeekUid(gameId: number, seekUid: string) {
+	async moveGameToInProgress(gameId: number, playtakId: number) {
 		const game = await this.getGameById(gameId);
-		if (game.playtakId) {
-			throw new PreconditionFailedException(`Game id=${game.id} cannot be moved to 'seek created' because playtakId is already set (${game.playtakId})`);
-		}
-		this.games.update(game.id, { seekUid });
-	}
-
-	async moveGameToInProgress(seekUid: string, playtakId: number) {
-		const game = await this.getGameBySeekUid(seekUid);
 		if (game.playtakId) {
 			throw new PreconditionFailedException(`Game id=${game.id} cannot be moved to 'in Progress' because playtakId is already set (${playtakId})`);
 		}
+		this.logger.debug(`Moving game id=${game.id} to 'in Progress' with playtakId=${playtakId}`);
 		this.games.update(game.id, { playtakId });
 	}
 
-	async resetGameState(playtakId: number) {
-		const game = await this.getGameByPlaytakId(playtakId);
-		await this.games.update(game.id, { result: null, playtakId: null, seekUid: null });
+	async resetGameState(gameId: number) {
+		const game = await this.getGameById(gameId);
+		await this.games.update(game.id, { result: null, playtakId: null });
 	}
 
-	async markGameAsFinished(playtakId: number, result: string) {
-		const game = await this.getGameByPlaytakId(playtakId);
+	async markGameAsFinished(gameId: number, result: string) {
+		const game = await this.getGameById(gameId);
 		if (game.result) {
 			throw new PreconditionFailedException(`Game id=${game.id} cannot be marked as 'finished' with result='${result}' because it is already finished (previous result='${game.result}')`);
 		}
+		this.logger.log(`Moving game id=${game.id} to 'finished' with result=${result}`);
 		this.games.update(game.id, { result });
 	}
 
@@ -99,8 +79,8 @@ export class GameService {
 			this.logger.debug("Ignoring GameUpdate for non-tournament game", gameUpdate);
 			throw new NotImplementedException("Non-tournament games are currently ignored")
 		}
-		if (!gameUpdate.game.seekUid) {
-			throw new BadRequestException("GameUpdate.game.seekUid must be set");
+		if (!gameUpdate.game.pntId) {
+			throw new BadRequestException("GameUpdate.game.pntId must be set");
 		}
 		if (!gameUpdate.game.id) {
 			throw new BadRequestException("GameUpdate.game.id must be set");
@@ -109,11 +89,11 @@ export class GameService {
 		switch (gameUpdate.type) {
 			case "game.created": {
 				this.logger.log(`Game playtak_id=${gameUpdate.game.id} started: ${gameUpdate.game.white} vs ${gameUpdate.game.black}`);
-				await this.moveGameToInProgress(gameUpdate.game.seekUid, gameUpdate.game.id);
+				await this.moveGameToInProgress(gameUpdate.game.pntId, gameUpdate.game.id);
 				break;
 			}
 			case "game.ended": {
-				this.logger.log(`Game playtak_id=${gameUpdate.game.id} ended: ${gameUpdate.game.white} vs ${gameUpdate.game.black}`);
+				this.logger.log(`Game id=${gameUpdate.game.pntId} playtak_id=${gameUpdate.game.id} ended: ${gameUpdate.game.white} vs ${gameUpdate.game.black}`);
 				
 				if (!gameUpdate.game.result) {
 					throw new BadRequestException("GameUpdate.game.result must be set when reporting a finished game");
@@ -123,14 +103,13 @@ export class GameService {
 				}
 
 				if (gameUpdate.game.moves.length === 0) {
-					const game = await this.getGameByPlaytakId(gameUpdate.game.id);
-					this.logger.debug(`Resetting game id=${game.id} since the game ended with no moves played`);
-					await this.resetGameState(gameUpdate.game.id);
+					this.logger.debug(`Resetting game id=${gameUpdate.game.pntId} since the game ended with no moves played`);
+					await this.resetGameState(gameUpdate.game.pntId);
 				}
 				else {
-					const { white, black, result, id: playtakId } = gameUpdate.game;
-					this.logger.debug(`Marking game ${white} vs ${black} as finished ${result} (playtakId=${playtakId})`);
-					await this.markGameAsFinished(playtakId, result);
+					const { white, black, result, pntId: gameId, id: playtakId } = gameUpdate.game;
+					this.logger.debug(`Marking game id=${gameId} ${white} vs ${black} as finished ${result} (playtakId=${playtakId})`);
+					await this.markGameAsFinished(gameId, result);
 				}
 				break;
 			}
@@ -144,7 +123,7 @@ export class GameService {
 		const gameRules = await this.gameRulesService.getById(gameToCreate.rules);
 		const matchup = await this.matchupService.getById(gameToCreate.matchup);
 
-		const game = this.games.create({ ...gameToCreate, matchup: matchup, rules: gameRules });
-		return await this.games.manager.save(game)
+		const gameInstance = this.games.create({ ...gameToCreate, matchup: matchup, rules: gameRules });
+		return await this.games.manager.save(gameInstance);
 	}
 }
