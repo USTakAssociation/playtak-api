@@ -14,9 +14,9 @@ export class TournamentsService {
 
 	generateSearchQuery(query: TournamentsQuery) {
 		const search = {};
-		const finished: boolean = query['finished'];
+		const { finished } = query;
 		if (finished == true || finished == false) {
-			search['finished'] == finished
+			search['finished'] = finished
 		}
 
 		return search;
@@ -25,12 +25,10 @@ export class TournamentsService {
 	async getAll(query?: TournamentsQuery): Promise<TournamentsList> {
 		const search = this.generateSearchQuery(query);
 		try {
-			const dbQuery = this.tournaments
-				.createQueryBuilder()
-				.select('*')
-				.where(search)
-				.orderBy('id');
-			const result = await dbQuery.execute();
+			const result = await this.tournaments.find({
+				where: search,
+				order: { 'id': 1 }
+			});
 
 			return {
 				tournaments: result ?? [],

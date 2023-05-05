@@ -11,9 +11,11 @@ export class CreateTournamentDto {
 	@IsString()
 	@ApiProperty()
 		name: string
+
 	@IsString()
 	@ApiProperty()
 		description: string
+
 	@IsBoolean()
 	@IsOptional()
 	@ApiProperty({ default: false })
@@ -23,12 +25,14 @@ export class CreateTournamentDto {
 export class TournamentDto extends CreateTournamentDto{
 	@ApiProperty()
 		id: number
+
 	@ApiProperty()
 		stages: Array<StageDto>
 }
 
 export class TournamentsQuery {
 	@IsBoolean()
+	@IsOptional()
 	@ApiProperty({
 		description: 'True if the tournament needs to be over, false if it has to be currently open, null/undefined to ignore this filter.',
 		required: false

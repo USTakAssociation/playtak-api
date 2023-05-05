@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Logger, Param, ParseIntPipe, Post, Put, Query, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Logger, Param, ParseIntPipe, Post, Put, ValidationPipe } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { DefaultExceptionDto } from '../../common/dto/error.dto';
 import { CreateTournamentDto, TournamentDto, TournamentsList, TournamentsQuery } from '../dto/tournaments.dto';
@@ -20,24 +20,19 @@ export class TournamentsController {
 		type: TournamentsList,
 		description: 'Returns list of tournaments',
 	})
-	@ApiResponse({
-		status: 404,
-		type: DefaultExceptionDto,
-		description: 'Returns 404 server error',
-	})
-	@ApiResponse({
-		status: 429,
-		type: DefaultExceptionDto,
-		description: 'Returns 429 too many requests error',
-	})
-	@ApiResponse({
-		status: 500,
-		type: DefaultExceptionDto,
-		description: 'Returns 500 server error',
-	})
 	@Get()
+	getAll(): Promise<TournamentsList> {
+		return this.service.getAll({});
+	}
+
+	@ApiOperation({ operationId: 'tournaments_list_filtered', summary: 'Get Tournaments List with a filter query' })
+	@ApiResponse({
+		status: 200,
+		type: TournamentsList,
+		description: 'Returns filtered list of tournaments',
+	})
 	@Post()
-	findAll(@Query() query: TournamentsQuery): Promise<TournamentsList> {
+	getAllPost(@Body(ValidationPipe) query: TournamentsQuery): Promise<TournamentsList> {
 		return this.service.getAll(query);
 	}
 
