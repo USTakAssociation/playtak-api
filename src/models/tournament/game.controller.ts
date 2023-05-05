@@ -40,11 +40,6 @@ export class GameController {
 		// TODO: This should only allow requests from playtak - is it enough to check for a localhost IP?
 		//       or do we need a secret token?
 
-		if (!gameUpdate?.game) {
-			this.logger.debug("Ignoring invalid update", gameUpdate);	
-			throw new BadRequestException("GameUpdate.game must be defined")
-		}
-
 		return this.gameService.handleGameUpdate(gameUpdate);
 	}
 

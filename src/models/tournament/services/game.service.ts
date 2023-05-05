@@ -75,6 +75,10 @@ export class GameService {
 	}
 
 	async handleGameUpdate(gameUpdate: GameUpdateDto): Promise<void> {
+		if (!gameUpdate?.game) {
+			this.logger.debug("Ignoring invalid GameUpdate", gameUpdate);	
+			throw new BadRequestException("GameUpdate.game must be defined")
+		}
 		if (gameUpdate?.game?.tournament != true) {
 			this.logger.debug("Ignoring GameUpdate for non-tournament game", gameUpdate);
 			throw new NotImplementedException("Non-tournament games are currently ignored")
