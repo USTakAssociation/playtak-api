@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CreateTournamentDto, TournamentDto, TournamentsList, TournamentsQuery } from './dto/tournaments.dto';
-import { Tournament } from './entities/tournament.entity';
+import { CreateTournamentDto, TournamentDto, TournamentsList, TournamentsQuery } from '../dto/tournaments.dto';
+import { Tournament } from '../entities/tournament.entity';
 @Injectable()
 export class TournamentsService {
 	private readonly logger = new Logger(TournamentsService.name);

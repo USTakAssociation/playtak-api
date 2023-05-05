@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Logger, Put, ValidationPipe } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { CreateGameRulesDto, GameRulesDto, GameRulesQuery } from './dto/gameRules.dto';
-import { GameRulesService } from './services/gameRules.service';
+import { CreateGameRulesDto, GameRulesDto, GameRulesQuery } from '../dto/gameRules.dto';
+import { GameRulesService } from '../services/gameRules.service';
 
 @ApiTags('Tournaments', 'GameRules')
 @Controller({

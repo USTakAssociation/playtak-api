@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Logger, ParseIntPipe, Put, Query, ValidationPipe } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { CreateMatchupDto, MatchupDto } from './dto/matchups.dto';
-import { MatchupsService } from './services/matchups.service';
+import { CreateMatchupDto, MatchupDto } from '../dto/matchups.dto';
+import { MatchupsService } from '../services/matchups.service';
 
 @ApiTags('Tournaments', 'TournamentMatchups')
 @Controller({

@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Logger, ParseIntPipe, Put, Query, ValidationPipe } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { CreateStageDto, StageDto } from './dto/stage.dto';
-import { StagesService } from './services/stages.service';
+import { CreateStageDto, StageDto } from '../dto/stage.dto';
+import { StagesService } from '../services/stages.service';
 
 @ApiTags('Tournaments', 'TournamentStages')
 @Controller({

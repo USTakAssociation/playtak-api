@@ -1,8 +1,8 @@
 import { Controller, Get, Logger, NotFoundException, Param, ParseIntPipe, Put } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { DefaultExceptionDto } from './dto/error.dto';
-import { SeekDto } from './dto/seek.dto';
-import { SeeksService } from './services/seeks.service';
+import { DefaultExceptionDto } from '../dto/error.dto';
+import { SeekDto } from '../dto/seek.dto';
+import { SeeksService } from '../services/seeks.service';
 
 @ApiTags('Tournaments', 'Seek')
 @Controller({

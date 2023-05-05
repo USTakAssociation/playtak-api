@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Logger, ParseIntPipe, Put, Query, ValidationPipe } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { CreateGroupDto, GroupDto } from './dto/group.dto';
-import { GroupsService } from './services/groups.service';
+import { CreateGroupDto, GroupDto } from '../dto/group.dto';
+import { GroupsService } from '../services/groups.service';
 
 @ApiTags('Tournaments', 'TournamentGroups')
 @Controller({

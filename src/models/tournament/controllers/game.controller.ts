@@ -1,9 +1,9 @@
 import { BadRequestException, Body, Controller, Get, Logger, NotImplementedException, Post, Put, ValidationPipe } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { DefaultExceptionDto } from './dto/error.dto';
-import { GameUpdateDto } from './dto/gameUpdate.dto';
-import { CreateGameDto, GameDto, GameQuery } from './dto/game.dto';
-import { GameService } from './services/game.service';
+import { DefaultExceptionDto } from '../dto/error.dto';
+import { GameUpdateDto } from '../dto/gameUpdate.dto';
+import { CreateGameDto, GameDto, GameQuery } from '../dto/game.dto';
+import { GameService } from '../services/game.service';
 
 @ApiTags('Tournaments', 'TournamentGame')
 @Controller({
