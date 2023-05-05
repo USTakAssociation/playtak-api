@@ -18,7 +18,7 @@ export class Stage {
 		id: number
 	
 	@ManyToOne(() => Tournament, tournament => tournament.stages)
-		tournament: number
+		tournament: Relation<Tournament>
 	
 	@Column()
 		name: string

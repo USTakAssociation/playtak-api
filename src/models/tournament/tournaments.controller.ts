@@ -1,7 +1,7 @@
-import { Controller, Get, Logger, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Logger, Param, ParseIntPipe, Post, Put, Query, ValidationPipe } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { DefaultExceptionDto } from './dto/error.dto';
-import { Tournament, TournamentsList, TournamentsQuery } from './dto/tournaments.dto';
+import { CreateTournamentDto, TournamentDto, TournamentsList, TournamentsQuery } from './dto/tournaments.dto';
 import { TournamentsService } from './tournaments.service';
 
 @ApiTags('Tournaments')
@@ -41,10 +41,10 @@ export class TournamentsController {
 		return this.service.getAll(query);
 	}
 
-	@ApiOperation({ operationId: 'tournament', summary: 'Get Tournament by ID' })
+	@ApiOperation({ operationId: 'tournament', summary: 'Get the entire tournament with all its stages etc. by ID' })
 	@ApiResponse({
 		status: 200,
-		type: Tournament,
+		type: TournamentDto,
 		description: 'Returns tournament by id',
 	})
 	@ApiResponse({
@@ -62,9 +62,20 @@ export class TournamentsController {
 		type: DefaultExceptionDto,
 		description: 'Returns 500 server error',
 	})
-	@ApiParam({ name: 'id', description: 'Game ID' })
+	@ApiParam({ name: 'id', description: 'Tournament ID' })
 	@Get(':id')
-	getOneById(@Param('id') id: number): Promise<Tournament> {
-		return this.service.getOneByID(+id);
+	getOneById(@Param('id', ParseIntPipe) id: number): Promise<TournamentDto> {
+		return this.service.getEntireTournamentById(id);
+	}
+
+	@ApiOperation({ operationId: 'tournaments_create', summary: 'Create a new tournament' })
+	@ApiResponse({
+		status: 200,
+		type: CreateTournamentDto,
+		description: 'The created game.',
+	})
+	@Put()
+	createGame(@Body(ValidationPipe) tournament: CreateTournamentDto): Promise<TournamentDto> {
+		return this.service.createTournament(tournament);
 	}
 }

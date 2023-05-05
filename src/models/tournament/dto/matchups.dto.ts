@@ -1,44 +1,32 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInstance, IsInt, IsOptional, IsString } from 'class-validator';
+import { IsInt, IsString } from 'class-validator';
 import { GameDto } from './game.dto';
+import { GroupDto } from './group.dto';
 
+class BaseMatchupDto {
+	@IsString()
+	@ApiProperty()
+		player1: string
 
-export class MatchupsQuery {
+	@IsString()
+	@ApiProperty()
+		player2: string
+}
+
+export class CreateMatchupDto extends BaseMatchupDto{
+	@IsInt()
+	@ApiProperty()
+		group: number
 
 }
 
-export class MatchupDto {
+export class MatchupDto extends BaseMatchupDto{
 	@ApiProperty()
 		id: number
 
 	@ApiProperty()
-		group: any // TODO
+		group: GroupDto|number
 
-	@ApiProperty()
-		player1: string
-
-	@ApiProperty()
-		player2: string
-
-	@ApiProperty()
-		games: Array<GameDto>
-}
-
-export class CreateMatchupDto {
-	@IsInt()
-	@ApiProperty()
-		group?: number
-
-	@IsString()
-	@ApiProperty()
-		player1: string
-
-	@IsString()
-	@ApiProperty()
-		player2: string
-
-	@IsOptional()
-	@IsInstance(Array<GameDto>)
 	@ApiProperty()
 		games?: Array<GameDto>
 }

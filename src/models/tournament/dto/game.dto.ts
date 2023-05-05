@@ -8,32 +8,31 @@ export class GameQuery {
 
 }
 
-export class CreateGameDto {
-	@IsInt()
-	@ApiProperty()
-		matchup: number
-	
+class BaseGameDto {
 	@IsBoolean()
 	@ApiProperty()
 		player1goesFirst: boolean;
+}
+
+export class CreateGameDto extends BaseGameDto{
+	@IsInt()
+	@ApiProperty()
+		matchup: number
 
 	@IsInt()
 	@ApiProperty()
 		rules: number
 }
 
-export class GameDto {
+export class GameDto extends BaseGameDto{
 	@ApiProperty()
 		id: number;
 
 	@ApiProperty()
-		matchup?: MatchupDto
+		matchup: MatchupDto|number
 
 	@ApiProperty()
-		player1goesFirst: boolean;
-
-	@ApiProperty()
-		rules: GameRulesDto
+		rules: GameRulesDto|number
 
 	@ApiProperty()
 		playtakId?: number;

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { TournamentsList, TournamentsQuery } from './dto/tournaments.dto';
+import { CreateTournamentDto, TournamentDto, TournamentsList, TournamentsQuery } from './dto/tournaments.dto';
 import { Tournament } from './entities/tournament.entity';
 @Injectable()
 export class TournamentsService {
@@ -10,7 +10,7 @@ export class TournamentsService {
 	constructor(
 		@InjectRepository(Tournament)
 		private tournaments: Repository<Tournament>,
-	) {}
+	) { }
 
 	generateSearchQuery(query: TournamentsQuery) {
 		const search = {};
@@ -18,12 +18,12 @@ export class TournamentsService {
 		if (finished == true || finished == false) {
 			search['finished'] == finished
 		}
-		
+
 		return search;
 	}
 
 	async getAll(query?: TournamentsQuery): Promise<TournamentsList> {
-		const search =this.generateSearchQuery(query);
+		const search = this.generateSearchQuery(query);
 		try {
 			const dbQuery = this.tournaments
 				.createQueryBuilder()
@@ -41,11 +41,31 @@ export class TournamentsService {
 		}
 	}
 
-	async getOneByID(id: number): Promise<Tournament> {
+	async getEntireTournamentById(id: number): Promise<TournamentDto> {
 		if (!Number.isSafeInteger(id)) {
 			throw new Error(`id must be an integer, but was '${id}'`);
 		}
+
 		return await this.tournaments
-			.findOneByOrFail({ id });
+			.findOneOrFail({
+				where: { id },
+				relations: {
+					stages: {
+						rules: true,
+						groups: {
+							matchups: {
+								games: {
+									rules: true
+								}
+							}
+						}
+					}
+				}
+			});
+	}
+
+	async createTournament(tournament: CreateTournamentDto): Promise<TournamentDto> {
+		const tournamentsInstance = this.tournaments.create(tournament);
+		return await this.tournaments.manager.save(tournamentsInstance);
 	}
 }

@@ -32,7 +32,7 @@ export class GameRulesService {
 		}
 	}
 	
-	async createMatchup(matchupToCreate: CreateGameRulesDto): Promise<GameRulesDto> {
+	async createGameRules(matchupToCreate: CreateGameRulesDto): Promise<GameRulesDto> {
 		const gameRulesInstance = this.gameRules.create({
 			...matchupToCreate,
 			id: undefined,

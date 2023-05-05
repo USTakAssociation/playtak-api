@@ -56,14 +56,14 @@ export class GameController {
 	}
 
 	
-	@ApiOperation({ operationId: 'matchups_create', summary: 'Create a new game in a matchup' })
+	@ApiOperation({ operationId: 'game_create', summary: 'Create a new game in a matchup' })
 	@ApiResponse({
 		status: 200,
 		type: GameDto,
 		description: 'The created game.',
 	})
 	@Put()
-	createMatchup(@Body(ValidationPipe) game: CreateGameDto): Promise<GameDto> {
+	createGame(@Body(ValidationPipe) game: CreateGameDto): Promise<GameDto> {
 		return this.gameService.createGame(game);
 	}
 }

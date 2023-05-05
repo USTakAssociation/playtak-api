@@ -1,8 +1,9 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityNotFoundError, Repository } from 'typeorm';
-import { CreateMatchupDto, MatchupDto, MatchupsQuery } from '../dto/matchups.dto';
+import { CreateMatchupDto, MatchupDto } from '../dto/matchups.dto';
 import { Matchup } from '../entities/matchup.entity';
+import { Group } from '../entities/group.entity';
 @Injectable()
 export class MatchupsService {
 	private readonly logger = new Logger(MatchupsService.name);
@@ -10,12 +11,10 @@ export class MatchupsService {
 	constructor(
 		@InjectRepository(Matchup)
 		private matchups: Repository<Matchup>,
+		@InjectRepository(Group)
+		private groups: Repository<Group>,
 	) {}
 
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	async getAll(query: MatchupsQuery): Promise<Array<MatchupDto>> {
-		return await this.matchups.find();
-	}
 
 	async getById(id: number): Promise<Matchup> {
 		try {
@@ -32,14 +31,11 @@ export class MatchupsService {
 		}
 	}
 	
-	async createMatchup(matchupToCreate: CreateMatchupDto): Promise<MatchupDto> {
-		// todo check matchup.group exists
-
-		const matchup2 = this.matchups.create({
-			...matchupToCreate,
-			group: null,
-		});
-		const matchup = await this.matchups.manager.save<Matchup>(matchup2);
-		return matchup;
+	async create(matchup: CreateMatchupDto): Promise<MatchupDto> {
+		return await this.matchups.manager.save<Matchup>(this.matchups.create({
+			...matchup,
+			group: await this.groups.findOneByOrFail({ id: matchup.group }),
+			games: []
+		}));
 	}
 }

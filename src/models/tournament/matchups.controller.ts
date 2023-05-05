@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Logger, Put, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Logger, ParseIntPipe, Put, Query, ValidationPipe } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { CreateMatchupDto, MatchupDto, MatchupsQuery } from './dto/matchups.dto';
+import { CreateMatchupDto, MatchupDto } from './dto/matchups.dto';
 import { MatchupsService } from './services/matchups.service';
 
 @ApiTags('Tournaments', 'TournamentMatchups')
@@ -11,27 +11,27 @@ import { MatchupsService } from './services/matchups.service';
 export class MatchupsController {
 	private readonly logger = new Logger(MatchupsController.name);
 
-	constructor(private readonly matchupsService: MatchupsService) {}
+	constructor(private readonly service: MatchupsService) {}
 
-	@ApiOperation({ operationId: 'matchups_get_all', summary: 'Get all matchups for all tournaments' })
+	@ApiOperation({ operationId: 'matchups_get', summary: 'Get matchup by id' })
 	@ApiResponse({
 		status: 200,
-		type: Array<MatchupDto>,
-		description: 'A list of all matchups.',
+		type: MatchupDto,
+		description: 'The requested matchup.',
 	})
-	@Get()
-	getAll(@Body() query: MatchupsQuery): Promise<Array<MatchupDto>> {
-		return this.matchupsService.getAll(query);
+	@Get(':id')
+	get(@Query('id', ParseIntPipe) id: number): Promise<MatchupDto> {
+		return this.service.getById(id);
 	}
 
 	@ApiOperation({ operationId: 'matchups_create', summary: 'Create a new matchup' })
 	@ApiResponse({
 		status: 200,
 		type: MatchupDto,
-		description: 'A list of all matchups.',
+		description: 'Returns the new matchup.',
 	})
 	@Put()
-	createMatchup(@Body(ValidationPipe) matchup: CreateMatchupDto): Promise<MatchupDto> {
-		return this.matchupsService.createMatchup(matchup);
+	create(@Body(ValidationPipe) matchup: CreateMatchupDto): Promise<MatchupDto> {
+		return this.service.create(matchup);
 	}
 }
