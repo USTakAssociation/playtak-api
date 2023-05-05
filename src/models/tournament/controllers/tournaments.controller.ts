@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Logger, Param, ParseIntPipe, Post, Put, Query, ValidationPipe } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { DefaultExceptionDto } from '../dto/error.dto';
+import { DefaultExceptionDto } from '../../common/dto/error.dto';
 import { CreateTournamentDto, TournamentDto, TournamentsList, TournamentsQuery } from '../dto/tournaments.dto';
 import { TournamentsService } from '../services/tournaments.service';
 
