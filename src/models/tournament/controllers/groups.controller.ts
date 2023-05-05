@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Logger, ParseIntPipe, Put, Query, ValidationPipe } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Logger, Param, ParseIntPipe, Put, ValidationPipe } from '@nestjs/common';
+import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CreateGroupDto, GroupDto } from '../dto/group.dto';
 import { GroupsService } from '../services/groups.service';
 
@@ -19,8 +19,9 @@ export class GroupsController {
 		type: GroupDto,
 		description: 'The requested group.',
 	})
+	@ApiParam({ name: 'id', description: 'Group ID' })
 	@Get(':id')
-	get(@Query('id', ParseIntPipe) id: number): Promise<GroupDto> {
+	get(@Param('id', ParseIntPipe) id: number): Promise<GroupDto> {
 		return this.service.getById(id);
 	}
 

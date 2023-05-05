@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Logger, ParseIntPipe, Put, Query, ValidationPipe } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Logger, Param, ParseIntPipe, Put, ValidationPipe } from '@nestjs/common';
+import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CreateMatchupDto, MatchupDto } from '../dto/matchups.dto';
 import { MatchupsService } from '../services/matchups.service';
 
@@ -19,8 +19,9 @@ export class MatchupsController {
 		type: MatchupDto,
 		description: 'The requested matchup.',
 	})
+	@ApiParam({ name: 'id', description: 'Matchup ID' })
 	@Get(':id')
-	get(@Query('id', ParseIntPipe) id: number): Promise<MatchupDto> {
+	get(@Param('id', ParseIntPipe) id: number): Promise<MatchupDto> {
 		return this.service.getById(id);
 	}
 

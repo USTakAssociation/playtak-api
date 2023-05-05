@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Logger, ParseIntPipe, Put, Query, ValidationPipe } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Logger, Param, ParseIntPipe, Put, ValidationPipe } from '@nestjs/common';
+import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CreateStageDto, StageDto } from '../dto/stage.dto';
 import { StagesService } from '../services/stages.service';
 
@@ -19,8 +19,9 @@ export class StagesController {
 		type: StageDto,
 		description: 'The requested stage.',
 	})
+	@ApiParam({ name: 'id', description: 'Stage ID' })
 	@Get(':id')
-	get(@Query('id', ParseIntPipe) id: number): Promise<StageDto> {
+	get(@Param('id', ParseIntPipe) id: number): Promise<StageDto> {
 		return this.service.getById(id);
 	}
 
