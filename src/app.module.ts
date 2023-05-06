@@ -11,6 +11,7 @@ import { RatingsModule } from './models/ratings/ratings.module';
 import { ScheduleModule } from '@nestjs/schedule';=
 
 
+
 @Module({
 	imports: [
 		ConfigModule.forRoot(),
