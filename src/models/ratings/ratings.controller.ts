@@ -30,7 +30,6 @@ export class RatingsController {
 	@ApiParam({ name: 'name', description: 'player name', required: true })
 	@Get('/:name')
 	findRating(@Param() param: any): Promise<Rating> {
-		console.log(param.name);
 		return this.service.getPlayersRating(param.name);
 	}
 }
