@@ -27,8 +27,9 @@ export class RatingsController {
 	@ApiResponse({status: 404, type: DefaultExceptionDto, description: 'Returns 404 server error'})
 	@ApiResponse({status: 429, type: DefaultExceptionDto, description: 'Returns 429 too many requests error'})
 	@ApiResponse({status: 500, type: DefaultExceptionDto, description: 'Returns 500 server error'})
+	@ApiParam({ name: 'name', description: 'player name', required: true })
 	@Get('/:name')
-	findRating(@Param() param: any): Promise<RatingList> {
+	findRating(@Param() param: any): Promise<Rating> {
 		console.log(param.name);
 		return this.service.getPlayersRating(param.name);
 	}

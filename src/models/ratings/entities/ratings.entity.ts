@@ -23,8 +23,8 @@ export class Ratings {
 		isbot: boolean;
 		
 	@Column()
-		ratingbase: number;
+		ratingbase?: number;
 		
 	@Column()
-		unrated: number;
+		unrated?: number;
 }

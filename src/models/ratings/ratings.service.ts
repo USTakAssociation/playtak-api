@@ -34,6 +34,7 @@ export class RatingService {
 		if (query.name) whereSearch['name'] = Like(`${query.name}`);
 		try {
 			const results = await this.ratingRespository.findAndCount({
+				select: ['name', 'rating', 'ratedgames', 'maxrating', 'isbot'],
 				where: whereSearch,
 				order: {
 					[sort]: order,
@@ -56,8 +57,10 @@ export class RatingService {
 
 	public async getPlayersRating(name: string): Promise<any> {
 		try {
-			const result = await this.ratingRespository.findOneBy({ name: name });
-			console.log(result);
+			const result = await this.ratingRespository.findOne({
+				select: ['name', 'rating', 'ratedgames', 'maxrating', 'isbot'],
+				where: { name: name }
+			});
 			if (!result) {
 				throw new HttpException("Error: User not found", 404, {cause: new Error("User not found")});
 			}
