@@ -55,6 +55,9 @@ https://api.{env}.playtak.com
 - /v1/ratings
 - /v1/ratings{player_name}
 
+- /v1/ratings
+- /v1/ratings{player_name}
+
 ## TODO
 
 - Finish up migrating rerating to nest
