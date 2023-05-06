@@ -280,20 +280,7 @@ describe('RatingService', () => {
 				maxrating: 1000,
 				ratingage: 1637395624533.48
 			}
-			const player_black = {
-				id: 2,
-				fatigue: {
-					"1": 0.10901345963072347
-				},
-				boost: 0,
-				ratedgames: 0,
-				rating: 1000,
-				maxrating: 1000,
-				ratingage: 0
-			}
-			
 			const white_result = await service.adjustedRating(player_white, mockGame.date, PARTICIPATION_CUTOFF, RATING_RETENTION, MAX_DROP, PARTICIPATION_LIMIT);
-			const black_result = await service.adjustedRating(player_black, mockGame.date, PARTICIPATION_CUTOFF, RATING_RETENTION, MAX_DROP, PARTICIPATION_LIMIT);
 			expect(white_result).toEqual(1700);
 		});
 	})
