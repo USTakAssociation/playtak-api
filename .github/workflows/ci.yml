@@ -2,10 +2,9 @@ name: Play Tak API CI
 
 on:
   pull_request:
-    types:
-      - opened
     branches: 
       - main
+      - dev
 
 jobs:
   lint_and_test:
