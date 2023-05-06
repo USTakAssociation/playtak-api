@@ -8,6 +8,7 @@ import { GamesModule } from './models/games-history/games.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { RatingsModule } from './models/ratings/ratings.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import * as path from 'path';
 
 @Module({
 	imports: [
@@ -15,14 +16,14 @@ import { ScheduleModule } from '@nestjs/schedule';
 		TypeOrmModule.forRoot({
 			name: 'games',
 			type: 'sqlite',
-			database: process.env.DB_PATH + 'games.db',
+			database: path.join(process.env.DB_PATH, 'games.db'),
 			entities: [__dirname + '/**/*.entity{.ts,.js}'],
 			synchronize: false,
 		}),
 		TypeOrmModule.forRoot({
 			name: 'default',
 			type: 'sqlite',
-			database: process.env.DB_PATH + 'players.db',
+			database:  path.join(process.env.DB_PATH, 'players.db'),
 			entities: [__dirname + '/**/*.entity{.ts,.js}'],
 			synchronize: false,
 		}),
