@@ -9,10 +9,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { RatingsModule } from './models/ratings/ratings.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import * as path from 'path';
-import { RatingsModule } from './models/ratings/ratings.module';
-import { ScheduleModule } from '@nestjs/schedule';=
-
-
 
 @Module({
 	imports: [
