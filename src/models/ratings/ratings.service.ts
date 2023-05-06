@@ -51,7 +51,8 @@ export class RatingService {
 			};
 		} catch (error) {
 			console.error(error);
-			throw new Error('Could not get games. ' + error);
+			this.logger.error(error);
+			throw new HttpException("Error getting all ratings. ", 500, {cause: error});
 		}
 	}
 
@@ -67,7 +68,7 @@ export class RatingService {
 			return result;
 		} catch (error) {
 			this.logger.error(error);
-			throw new HttpException(error, 500, {cause: error});
+			throw new HttpException("Error getting players rating. ", 500, {cause: error});
 		}
 	}
 
@@ -224,12 +225,12 @@ export class RatingService {
 								);
 								player_white = this.updateFatigue(
 									player_white,
-									player_black.id,
+									player_black.id.toString(),
 									fairness * fatiguefactor,
 								);
 								player_black = this.updateFatigue(
 									player_black,
-									player_white.id,
+									player_white.id.toString(),
 									fairness * fatiguefactor,
 								);
 								const artw2 = this.adjustedRating(
@@ -312,7 +313,7 @@ export class RatingService {
 			await playerRunner.commitTransaction();
 			await gameRunner.commitTransaction();
 		} catch (error) {
-			this.logger.error(error);
+			this.logger.error("Error processing player and game ratings, rolling back transaction. ", error);
 			playerRunner.rollbackTransaction();
 			gameRunner.rollbackTransaction();
 		} finally {
@@ -325,16 +326,17 @@ export class RatingService {
 		}
 	}
 
+	// returns the adjusted rating of a player
 	public adjustPlayer(
-		player,
-		amount,
+		player: any,
+		amount: number,
 		fairness: number,
 		fatiguefactor: number,
-		date,
-		BONUS_FACTOR,
-		BONUS_RATING,
-		RATING_RETENTION,
-		INITIAL_RATING,
+		date: number,
+		BONUS_FACTOR: number,
+		BONUS_RATING: number,
+		RATING_RETENTION: number,
+		INITIAL_RATING: number,
 	) {
 		const bonus = Math.min(
 			Math.max(0, (fatiguefactor * amount * Math.max(player.boost, 1) * BONUS_FACTOR) / BONUS_RATING),
@@ -359,9 +361,10 @@ export class RatingService {
 		return player;
 	}
 
-	public updateFatigue(player, opid, gamefactor) {
+	// returns the new fatigue value
+	public updateFatigue(player: any, opid: string, gamefactor: number) {
 		const MULTIPLIER = 1 - gamefactor * 0.4;
-		// check if player fatigue is a string
+		// check if player fatigue is a string adn throw error
 		if (typeof player.fatigue == 'string') {
 			throw new Error('Fatigue is a string, needs to be an object');
 		}
@@ -371,18 +374,17 @@ export class RatingService {
 				delete player.fatigue[a];
 			}
 		}
-		return (player.fatigue[opid] =
-			(player.fatigue[opid] || 0) + gamefactor);
+		return (player.fatigue[opid] = (player.fatigue[opid] || 0) + gamefactor);
 	}
 
 	public adjustedRating(
-		player,
-		date,
-		PARTICIPATION_CUTOFF,
-		RATING_RETENTION,
-		MAX_DROP,
-		PARTICIPATION_LIMIT,
-	) {
+		player: any,
+		date: number,
+		PARTICIPATION_CUTOFF: number,
+		RATING_RETENTION: number,
+		MAX_DROP: number,
+		PARTICIPATION_LIMIT: number ,
+	): number {
 		if (player.rating < PARTICIPATION_CUTOFF) {
 			return player.rating;
 		}
@@ -404,7 +406,7 @@ export class RatingService {
 	}
 
 	// return true of false if game is eligible
-	public isGameEligible(game): boolean {
+	public isGameEligible(game: any): boolean {
 		let eligible = game.size >= 5;
 		const limits = [
 			null,

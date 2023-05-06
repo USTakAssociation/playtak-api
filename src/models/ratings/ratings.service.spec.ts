@@ -4,8 +4,6 @@ import { Ratings } from './entities/ratings.entity';
 import { RatingService } from './ratings.service';
 import { Players } from './entities/players.entity';
 import { Games } from '../games-history/entities/games.entity';
-import exp from 'constants';
-
 
 describe('RatingService', () => {
 	let service: RatingService;
@@ -68,13 +66,6 @@ describe('RatingService', () => {
 	it('should be defined', () => {
 		expect(service).toBeDefined();
 	});
-	
-	// describe('Generate Ratings', () => {	
-	// 	it('should return ratings', async () => {
-	// 		const result = await service.generateRating();
-	// 		expect(result).toEqual([[{ sn: '1234' }], 1]);
-	// 	});
-	// });
 	
 	describe('Adjust Player', () => {
 		it('should return adjusted player', async () => {
@@ -168,8 +159,8 @@ describe('RatingService', () => {
 			const fatiguefactor =
 				(1 -(player_white.fatigue[player_black.id] || 0) * 0.4) *
 				(1 -(player_black.fatigue[player_white.id] || 0) * 0.4);
-			const white_result = await service.updateFatigue(player_white, player_black.id, fairness * fatiguefactor);
-			const black_result = await service.updateFatigue(player_black, player_white.id, fairness * fatiguefactor);
+			const white_result = await service.updateFatigue(player_white, player_black.id.toString(), fairness * fatiguefactor);
+			const black_result = await service.updateFatigue(player_black, player_white.id.toString(), fairness * fatiguefactor);
 			expect(white_result).toEqual(0.23909865403692765);
 			expect(black_result).toEqual(0.3376861250798051);
 		});
@@ -201,7 +192,7 @@ describe('RatingService', () => {
 				(1 -(player_white.fatigue[player_black.id] || 0) * 0.4) *
 				(1 -(0) * 0.4);
 			try {
-				await service.updateFatigue(player_black, player_white.id, fairness * fatiguefactor);
+				await service.updateFatigue(player_black, player_white.id.toString(), fairness * fatiguefactor);
 			} catch (error) {
 				expect(error.message).toEqual("Fatigue is a string, needs to be an object");
 			}
@@ -234,7 +225,7 @@ describe('RatingService', () => {
 			const fatiguefactor =
 				(1 -(player_white.fatigue[player_black.id] || 0) * 0.4) *
 				(1 -(0) * 0.4);
-			const result = await service.updateFatigue(player_black, player_white.id, fairness * fatiguefactor);
+			const result = await service.updateFatigue(player_black, player_white.id.toString(), fairness * fatiguefactor);
 			expect(result).toEqual(0.25);
 		});
 		
