@@ -9,7 +9,7 @@ export class RatingTask {
 
 	constructor(private _service: RatingService) {}
 
-	// TODO enable this when ready to move awai rom rating script
+	// TODO enable this when ready to move away from rating script
 	//@Cron('30 */1 * * *')
 	//@Cron('* * * * *')
 	handleCron() {
