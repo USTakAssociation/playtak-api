@@ -22,7 +22,7 @@ export class RatingsController {
 		return this.service.getAll(query);
 	}
 	
-	@ApiOperation({ operationId: 'rating_list', summary: 'Get Rating List' })
+	@ApiOperation({ operationId: 'Player Rating', summary: 'Get Players Rating' })
 	@ApiResponse({status: 200, type: RatingList, description: 'Returns list of games' })
 	@ApiResponse({status: 404, type: DefaultExceptionDto, description: 'Returns 404 server error'})
 	@ApiResponse({status: 429, type: DefaultExceptionDto, description: 'Returns 429 too many requests error'})
