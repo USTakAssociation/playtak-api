@@ -46,12 +46,11 @@ https://api.playtak.com/api
 
 https://api.{env}.playtak.com
 
-/events
-
-/v1/games-history/
-/v1/games-history/{id}
-/v1/games-historoy/ptn/{id}
-/v1/hames-history/db
+- /events
+- /v1/games-history/
+- /v1/games-history/{id}
+- /v1/games-historoy/ptn/{id}
+- /v1/hames-history/db
 
 - /v1/ratings
 - /v1/ratings{player_name}
