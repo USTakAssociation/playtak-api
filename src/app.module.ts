@@ -6,6 +6,8 @@ import { APP_GUARD } from '@nestjs/core';
 import { EventsModule } from './models/events/events.module';
 import { GamesModule } from './models/games-history/games.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { RatingsModule } from './models/ratings/ratings.module';
+import { ScheduleModule } from '@nestjs/schedule';
 import * as path from 'path';
 import { RatingsModule } from './models/ratings/ratings.module';
 import { ScheduleModule } from '@nestjs/schedule';=
