@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Logger, Put, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Logger, Put, Query, ValidationPipe } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CreateGameRulesDto, GameRulesDto, GameRulesQuery } from '../dto/gameRules.dto';
 import { GameRulesService } from '../services/gameRules.service';
@@ -20,7 +20,7 @@ export class GameRulesController {
 		description: 'A list of all game-rules.',
 	})
 	@Get()
-	getAll(@Body() query: GameRulesQuery): Promise<Array<GameRulesDto>> {
+	getAll(@Query() query: GameRulesQuery): Promise<Array<GameRulesDto>> {
 		return this.service.getAll(query);
 	}
 

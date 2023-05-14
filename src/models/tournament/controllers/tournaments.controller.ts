@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Logger, Param, ParseIntPipe, Post, Put, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Logger, Param, ParseIntPipe, Post, Put, Query, ValidationPipe } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { DefaultExceptionDto } from '../../common/dto/error.dto';
 import { CreateTournamentDto, TournamentDto, TournamentsList, TournamentsQuery } from '../dto/tournaments.dto';
@@ -32,7 +32,7 @@ export class TournamentsController {
 		description: 'Returns filtered list of tournaments',
 	})
 	@Post()
-	getAllPost(@Body(ValidationPipe) query: TournamentsQuery): Promise<TournamentsList> {
+	getAllPost(@Query(ValidationPipe) query: TournamentsQuery): Promise<TournamentsList> {
 		return this.service.getAll(query);
 	}
 

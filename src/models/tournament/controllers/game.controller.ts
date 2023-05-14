@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Logger, NotImplementedException, Post, Put, ValidationPipe } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Logger, NotImplementedException, Post, Put, Query, ValidationPipe } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { DefaultExceptionDto } from '../../common/dto/error.dto';
 import { GameUpdateDto } from '../dto/gameUpdate.dto';
@@ -51,7 +51,7 @@ export class GameController {
 		description: 'A list of all games.',
 	})
 	@Get()
-	getAll(@Body() query: GameQuery): Promise<Array<GameDto>> {
+	getAll(@Query() query: GameQuery): Promise<Array<GameDto>> {
 		return this.gameService.getAll(query);
 	}
 
