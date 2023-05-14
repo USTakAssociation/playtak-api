@@ -1,6 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityNotFoundError, Repository } from 'typeorm';
 import { CreateTournamentDto, TournamentDto, TournamentsList, TournamentsQuery } from '../dto/tournaments.dto';
 import { Tournament } from '../entities/tournament.entity';
 @Injectable()
@@ -44,22 +44,32 @@ export class TournamentsService {
 			throw new Error(`id must be an integer, but was '${id}'`);
 		}
 
-		return await this.tournaments
-			.findOneOrFail({
-				where: { id },
-				relations: {
-					stages: {
-						rules: true,
-						groups: {
-							matchups: {
-								games: {
-									rules: true
+		try {
+			return await this.tournaments
+				.findOneOrFail({
+					where: { id },
+					relations: {
+						stages: {
+							rules: true,
+							groups: {
+								matchups: {
+									games: {
+										rules: true
+									}
 								}
 							}
 						}
 					}
-				}
-			});
+				});
+		}
+		catch (cause) {
+			if (cause instanceof EntityNotFoundError) {
+				const exc = new NotFoundException(`Found no tournament with id='${id}'`, { cause });
+				this.logger.warn(exc)
+				throw exc;
+			}
+			throw cause;
+		}
 	}
 
 	async createTournament(tournament: CreateTournamentDto): Promise<TournamentDto> {
