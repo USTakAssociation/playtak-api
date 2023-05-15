@@ -31,7 +31,8 @@ export class RatingService {
 			unrated: 0,
 			ratedgames: MoreThan(0),
 		}
-		if (query.name) whereSearch['name'] = Like(`${query.name}`);
+		if(query.name){ whereSearch['name'] = Like(`${query.name}`); }
+		if(query.id){ whereSearch['id'] = query.id; }
 		try {
 			const results = await this.ratingRespository.findAndCount({
 				select: ['name', 'rating', 'ratedgames', 'maxrating', 'isbot'],
@@ -50,7 +51,6 @@ export class RatingService {
 				totalPages: Math.ceil(results[1] / limit),
 			};
 		} catch (error) {
-			console.error(error);
 			this.logger.error(error);
 			throw new HttpException("Error getting all ratings. ", 500, {cause: error});
 		}

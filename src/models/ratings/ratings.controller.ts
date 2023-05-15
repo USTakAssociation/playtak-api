@@ -29,7 +29,7 @@ export class RatingsController {
 	@ApiResponse({status: 500, type: DefaultExceptionDto, description: 'Returns 500 server error'})
 	@ApiParam({ name: 'name', description: 'player name', required: true })
 	@Get('/:name')
-	findRating(@Param() param: any): Promise<Rating> {
-		return this.service.getPlayersRating(param.name);
+	findRating(@Param('name') name: string): Promise<Rating> {
+		return this.service.getPlayersRating(name);
 	}
 }

@@ -29,38 +29,38 @@ export class RatingList {
 
 export class RatingQuery {
 	@ApiProperty({
-		description: 'Number of results per page',
+		description: 'Number of results per pag for pagination. Optional.',
 		required: false
 	})
 		limit?: string;
 	@ApiProperty({
-		description: 'page number',
+		description: 'Page number for pagination. Optional.',
 		required: false
 	})
 		page?: string;
 	@ApiProperty({
-		description: 'Optional skip if you dont use page',
+		description: 'Number of items to skip for pagination. Can use this instead of a page number. Optional.',
 		required: false,
 	})
 		skip?: string;
 	@ApiProperty({
-		description: 'Order By',
+		description: 'Order By either ASC or DESC for sorting. Optional.',
 		enum: ['ASC', 'DESC'],
 		required: false
 	})
 		order?: 'ASC' | 'DESC';
 	@ApiProperty({
-		description: 'Column sort',
+		description: 'Which column to sort by for sorting. Optional.',
 		required: false
 	})
 		sort?: string;
 	@ApiProperty({
-		description: 'player id',
+		description: 'Player ID. Optional.',
 		required: false
 	})
 		id?: number;
 	@ApiProperty({
-		description: 'Player username',
+		description: 'Player username. Optional.',
 		required: false
 	})
 		name?: string;
