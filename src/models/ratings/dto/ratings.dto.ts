@@ -29,7 +29,7 @@ export class RatingList {
 
 export class RatingQuery {
 	@ApiProperty({
-		description: 'Number of results per pag for pagination. Optional.',
+		description: 'Number of results per page for pagination. Optional.',
 		required: false
 	})
 		limit?: string;
