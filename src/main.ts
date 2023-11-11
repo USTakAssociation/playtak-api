@@ -42,7 +42,7 @@ async function bootstrap() {
 	writeFileSync(outputPath, JSON.stringify(document), { encoding: 'utf8' });
 
 	app.enableCors({
-		origin: process.env.CORS_DOMAIN,
+		origin: process.env.CORS_DOMAIN.split(','),
 	});
 
 	await app.register(fastifyHelmet, {
