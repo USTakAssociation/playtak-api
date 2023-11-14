@@ -79,9 +79,7 @@ describe('PTNService', () => {
 			const ptn1 = `[Site "PlayTak.com"]\n[Event "Online Play"]\n[Date "2022.05.25"]\n[Time "14:19:10"]\n[Player1 "Covault"]\n[Rating1 "1080"]\n[Player2 "Catalyst"]\n[Rating2 "1105"]\n[Clock "3:0 +20"]\n[Result "R-0"]\n[Size "7"]\n[Komi "0"]\n[Flats "40"]\n[Caps "2"]\n\n\n1. a7 d4\n2. e4 a4\n3. d3 b4\n4. d2 d7\n5. d5 d6\n6. d1 Cc4\n7. e5 1c4>1\n8. e6 e7\n9. f6 f7\n10. Cg7 2d4>2\n11. 1g7<1 1e7-1\n12. 1f6<1 3e4+3\n13. 3e6<12 Cd4\n14. c7 c4\n15. c5 g4\n16. Ce4 a5\n17. c3 4e5<4\n18. 1c3+1 5d5<5\n19. 1c7>1 6c5+6\n20. e5 7c6>7\n21. 2f7<2 1d4<1\n22. e3 7d6>7\n23. d5\nR-0\n`;
 			const ptn2 = `[Site "PlayTak.com"]\n[Event "Online Play"]\n[Date "2016.04.23"]\n[Time "16:58:20"]\n[Player1 "Anon"]\n[Rating1 "1080"]\n[Player2 "Anon"]\n[Rating2 "1105"]\n[Clock "3:0 +20"]\n[Result "R-0"]\n[Size "7"]\n[Komi "0"]\n[Flats "40"]\n[Caps "2"]\n\n\n1. a7 d4\n2. e4 a4\n3. d3 b4\n4. d2 d7\n5. d5 d6\n6. d1 Cc4\n7. e5 1c4>1\n8. e6 e7\n9. f6 f7\n10. Cg7 2d4>2\n11. 1g7<1 1e7-1\n12. 1f6<1 3e4+3\n13. 3e6<12 Cd4\n14. c7 c4\n15. c5 g4\n16. Ce4 a5\n17. c3 4e5<4\n18. 1c3+1 5d5<5\n19. 1c7>1 6c5+6\n20. e5 7c6>7\n21. 2f7<2 1d4<1\n22. e3 7d6>7\n23. d5\nR-0\n`;
 			const getPTN1 = service.getPTN(game1);
-			console.log(getPTN1);
-			const getPTN2 = service.getPTN(game2)
-			console.log(getPTN2);
+			const getPTN2 = service.getPTN(game2);
 			expect(getPTN1).toEqual(ptn1);
 			expect(getPTN2).toEqual(ptn2);
 		})
