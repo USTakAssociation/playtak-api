@@ -5,7 +5,7 @@ import {
 	NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { fastifyHelmet } from '@fastify/helmet';
-import { VersioningType } from '@nestjs/common';
+import { HttpException, VersioningType } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as path from 'path';
 import { writeFileSync } from 'fs';
@@ -42,7 +42,18 @@ async function bootstrap() {
 	writeFileSync(outputPath, JSON.stringify(document), { encoding: 'utf8' });
 
 	app.enableCors({
-		origin: process.env.CORS_DOMAIN.split(','),
+		origin: function (origin, callback) {
+			if (!origin) {
+			  callback(null, true);
+			  return;
+			}
+			if ( process.env.CORS_DOMAIN.split(',').includes(origin) ) {
+			  callback(null, true);
+			} else {
+			  console.error('blocked cors for:', origin);
+			  callback(new HttpException('Not allowed by CORS', 500), false);
+			}
+		  },
 	});
 
 	await app.register(fastifyHelmet, {
