@@ -86,7 +86,7 @@ export class GameQuery {
 		description: 'Game id',
 		required: false
 	})
-		id?: number;
+		id?: string;
 	@ApiProperty({
 		description: 'Player white username',
 		required: false

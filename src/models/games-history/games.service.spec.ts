@@ -212,7 +212,7 @@ describe('GamesService', () => {
 		});
 		it('Should return the correct search for ID', () => {
 			const mock = {
-				id: 1234,
+				id: '1234',
 				mirror: 'true',
 			} as const;
 			const { search } = service.generateSearchQuery(mock);
@@ -228,4 +228,47 @@ describe('GamesService', () => {
 			expect(search['size']).toEqual(7);
 		});
 	})
+	
+	describe('validate ID search', () => {
+		it('Should return true for valid ID search 1234', () => {
+			const idString = '1234';
+			const result = service.validateIdQuery(idString);
+			expect(result).toBe(true);
+		});
+		it('Should return true for valid ID search', () => {
+			const idString = '1-10';
+			const result = service.validateIdQuery(idString);
+			expect(result).toBe(true);
+		});
+		it('Should return true for valid ID search 1,2,3,4', () => {
+			const idString = '1,2,3,4';
+			const result = service.validateIdQuery(idString);
+			expect(result).toBe(true);
+		});
+		it('Should return false for invalid ID abc1', () => {
+			const idString = 'abc1';
+			const result = service.validateIdQuery(idString);
+			expect(result).toBe(false);
+		});
+		it('Should return false for invalid ID 10-', () => {
+			const idString = '10-';
+			const result = service.validateIdQuery(idString);
+			expect(result).toBe(false);
+		});
+		it('Should return false for invalid ID 10-1', () => {
+			const idString = '10-1';
+			const result = service.validateIdQuery(idString);
+			expect(result).toBe(false);
+		});
+		it('Should return false for invalid ID 10-11,', () => {
+			const idString = '10-11,';
+			const result = service.validateIdQuery(idString);
+			expect(result).toBe(false);
+		});
+		it('Should return false for invalid ID 10-11-', () => {
+			const idString = '10-11-';
+			const result = service.validateIdQuery(idString);
+			expect(result).toBe(false);
+		});
+	});
 });

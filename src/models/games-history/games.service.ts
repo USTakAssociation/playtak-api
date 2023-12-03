@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Like, MoreThan, Repository } from 'typeorm';
+import { Between, In, Like, MoreThan, Repository } from 'typeorm';
 import { Games } from './entities/games.entity';
 import { stat } from 'fs/promises';
 import { PTNService } from './services/ptn.service';
@@ -13,9 +13,66 @@ export class GamesService {
 		private ptnSerivce: PTNService,
 	) {}
 
+	validateIdQuery(id: string) {
+		// return flase if ending with a hyphen or comma
+		if (id.endsWith("-") || id.endsWith(",")) {
+			return false;
+		}
+		
+		// allow multiple seperated comma values like 1,2,3,4...
+		const commaRegex = new RegExp("^([0-9]+,)*[0-9]+$");
+		if (commaRegex.test(id)) {
+			return true;
+		}
+		
+		const regex = new RegExp("^([0-9]+([-][0-9]+)?)*$");
+		if (!regex.test(id)) {
+			return false;
+		}
+		
+		// cannot conatin both a hyphen and a comma
+		if (id.includes("-") && id.includes(",")) {
+			return false;
+		}
+		// if value has a hyphen check that the second number is greater than the first
+		if (id.includes("-")) {
+			const idArray = id.split("-");
+			if (parseInt(idArray[0]) >= parseInt(idArray[1])) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	generateSearchQuery(query: GameQuery) {
 		const search = {};
-		query['id'] ? (search['id'] = query['id']) : null;
+		query['id'] ? (search['id'] = parseInt(query['id'])) : null;
+		if( query['id'] && this.validateIdQuery(query['id']) ) {
+			if(query['id'].includes(',')) {
+				const ids = query['id'].split(',');
+				const arr = [];
+				for(let i = 0; i < ids.length; i++) {
+					arr.push(parseInt(ids[i]));
+				}
+				search['id'] = In(arr);
+			}
+			if(query['id'].includes('-')) {
+				const ids = query['id'].split('-');
+				search['id'] = Between(parseInt(ids[0]), parseInt(ids[1]))
+			}
+		}
+		if(query['id'] && query['id'].includes('-')) {
+			// remove duplicate hyphens
+			query['id'] = query['id'].replace(/-{2,}/g, '-');
+			const ids = query['id'].split('-');
+			// make sure the first id is smaller than the second
+			if(parseInt(ids[0]) > parseInt(ids[1])) {
+				const temp = ids[0];
+				ids[0] = ids[1];
+				ids[1] = temp;
+			}
+			search['id'] = Between(parseInt(ids[0]), parseInt(ids[1]))
+		}
 		query['player_white']
 			? (search['player_white'] = query['player_white'])
 			: null;
@@ -27,6 +84,12 @@ export class GamesService {
 			: null;
 		query['size'] ? (search['size'] = query['size']) : null;
 		query['type'] ? (search[query['type'].toLowerCase()] = 1) : null;
+		// query['exclude_bots'] ? (search['bot'] = 0) : null;
+		// query['show_only_bots'] ? (search['bot'] = 1) : null;
+		if(query['exclude_bots']) {
+			// get all the bots fromt he players table and exclude them from the search
+			const bots = this.repository
+		}
 		const mirror = query.mirror === 'true' ? true : false;
 
 		if (search['normal']) {
