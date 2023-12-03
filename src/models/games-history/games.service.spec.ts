@@ -270,5 +270,15 @@ describe('GamesService', () => {
 			const result = service.validateIdQuery(idString);
 			expect(result).toBe(false);
 		});
+		it('Should return false for invalid ID 10---11', () => {
+			const idString = '10--11';
+			const result = service.validateIdQuery(idString);
+			expect(result).toBe(false);
+		});
+		it('Should return false for invalid ID 10,,11,1', () => {
+			const idString = '10,,11,1';
+			const result = service.validateIdQuery(idString);
+			expect(result).toBe(false);
+		});
 	});
 });
