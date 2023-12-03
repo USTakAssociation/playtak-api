@@ -84,12 +84,6 @@ export class GamesService {
 			: null;
 		query['size'] ? (search['size'] = query['size']) : null;
 		query['type'] ? (search[query['type'].toLowerCase()] = 1) : null;
-		// query['exclude_bots'] ? (search['bot'] = 0) : null;
-		// query['show_only_bots'] ? (search['bot'] = 1) : null;
-		if(query['exclude_bots']) {
-			// get all the bots fromt he players table and exclude them from the search
-			const bots = this.repository
-		}
 		const mirror = query.mirror === 'true' ? true : false;
 
 		if (search['normal']) {
