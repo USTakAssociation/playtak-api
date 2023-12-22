@@ -1,3 +1,4 @@
+/* istanbul ignore file */
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import {
@@ -22,11 +23,6 @@ async function bootstrap() {
 	});
 	
 	const config = new DocumentBuilder()
-		.addApiKey({
-			type: 'apiKey',
-			name: 'Ocp-Apim-Subscription-Key',
-			in: 'header',
-		})
 		.setTitle(`Play Tak API Service ${process.env.APP_ENV}`)
 		.setDescription('Play Tak API Service Swagger API documentation')
 		.setVersion('1.0')

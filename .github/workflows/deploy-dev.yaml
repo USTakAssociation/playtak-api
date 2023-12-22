@@ -44,6 +44,7 @@ jobs:
             ANON_DB_PATH: ${{ secrets.ANON_DB_PATH }}
             DB_PATH: ${{ secrets.DB_PATH }}
             APP_ENV: ${{ secrets.APP_ENV }} 
+            PREVIOUS_FILE: ${{ secrets.PREVIOUS_FILE }}
         run : |
             rm .env
             touch .env
@@ -53,8 +54,10 @@ jobs:
             echo "ANON_DB_PATH = ${ANON_DB_PATH}" >> .env
             echo "DB_PATH = ${DB_PATH}" >> .env
             echo "APP_ENV = ${APP_ENV}" >> .env
+            echo "PREVIOUS_FILE = ${PREVIOUS_FILE}" >> .env
             mv .env ./dist
             mv node_modules ./dist
+            mv previous.txt ./dist
             tar -czf artifact.tar.gz ./dist 
       - name: Deploy
         env: 

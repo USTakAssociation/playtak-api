@@ -2,8 +2,7 @@
 
 ## Description
 
-![Unit Tests](https://github.com/USTakAssociation/playtak-api/actions/workflows/ci.yml/badge.svg
-)
+![Unit Tests](https://github.com/USTakAssociation/playtak-api/actions/workflows/ci.yml/badge.svg)
 
 
 This is the Play Tak API projects which contains multiple endpoints for serivcing data to the Play Tak UI
@@ -47,11 +46,18 @@ https://api.playtak.com/api
 
 https://api.{env}.playtak.com
 
+Events
 - /events
+
+Games History
 - /v1/games-history/
 - /v1/games-history/{id}
 - /v1/games-historoy/ptn/{id}
 - /v1/hames-history/db
+
+Ratings
+- /v1/ratings
+- /v1/ratings/{player_name}
 
 ## TODO
 
