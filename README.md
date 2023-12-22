@@ -46,17 +46,18 @@ https://api.playtak.com/api
 
 https://api.{env}.playtak.com
 
+Events
 - /events
+
+Games History
 - /v1/games-history/
 - /v1/games-history/{id}
 - /v1/games-historoy/ptn/{id}
 - /v1/hames-history/db
 
+Ratings
 - /v1/ratings
-- /v1/ratings{player_name}
-
-- /v1/ratings
-- /v1/ratings{player_name}
+- /v1/ratings/{player_name}
 
 ## TODO
 
