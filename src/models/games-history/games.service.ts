@@ -14,12 +14,6 @@ export class GamesService {
 	) {}
 
 	validateIdQuery(id: string) {
-		// return flase if ending with a hyphen or comma
-		// if (id.endsWith("-") || id.endsWith(",")) {
-		// 	return false;
-		// }
-
-		//const regex = new RegExp("^([0-9]+([-][0-9]+)?)*$");
 		const regex = /^(?!.*,,)(?!.*--)\d+([-,\d]*\d+)?$/;
 		if (!regex.test(id)) {
 			return false;
