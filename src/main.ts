@@ -16,6 +16,11 @@ async function bootstrap() {
 	const app = await NestFactory.create<NestFastifyApplication>(
 		AppModule,
 		new FastifyAdapter(),
+		{
+			logger: process.env['NODE_ENV'] == 'local'
+				? ['error', 'warn', 'log', 'debug']
+				: ['error', 'warn', 'log'],
+		}
 	);
 	app.enableVersioning({
 		type: VersioningType.URI,
@@ -57,7 +62,7 @@ async function bootstrap() {
 	});
 
 	await app.register(fastifyHelmet, {
-		contentSecurityPolicy: false, 
+		contentSecurityPolicy: false,
 	});
 	await app.listen(port, '0.0.0.0');
 }

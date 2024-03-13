@@ -1,7 +1,7 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { GamesService } from './games.service';
-import { DefaultExceptionDto } from './dto/error.dto';
+import { DefaultExceptionDto } from '../common/dto/error.dto';
 import { AnonDetails, Game, GameQuery, GamesList } from './dto/games.dto';
 
 @ApiTags('Games History')
@@ -61,7 +61,7 @@ export class GamesController {
 	})
 	@ApiParam({ name: 'id', description: 'Game ID' })
 	@Get(':id')
-	getOneById(@Param('id') id: number): Promise<Game> {
+	getOneById(@Param('id', ParseIntPipe) id: number): Promise<Game> {
 		return this.service.getOneByID(+id);
 	}
 
