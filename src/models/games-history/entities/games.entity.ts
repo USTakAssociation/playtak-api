@@ -32,6 +32,12 @@ export class Games {
 	@Column({ default: 0 })
 		timerinc: number;
 
+	@Column({ default: 0 })
+		extra_time_amount: number;
+
+	@Column({ default: 0 })
+		extra_time_trigger: number;
+	
 	@Column({ default: 1000 })
 		rating_white: number;
 
