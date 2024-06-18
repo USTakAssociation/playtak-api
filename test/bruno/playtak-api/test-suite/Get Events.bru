@@ -1,0 +1,22 @@
+meta {
+  name: Get Events
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{url}}/events
+  body: none
+  auth: none
+}
+
+tests {
+  test("Expect status code to be 200", () => {
+    expect(res.getStatus()).to.equal(200);
+  });
+  
+  test("Expect response to be an object", () => {
+    const body = res.getBody();
+    expect(body).to.be.an('object');
+  });
+}

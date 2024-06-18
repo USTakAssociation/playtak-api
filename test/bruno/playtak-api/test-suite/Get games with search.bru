@@ -1,0 +1,42 @@
+meta {
+  name: Get games with search
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{url}}/v1/games-history?page=0&limit=50&mirror=true&player_black={{playerName}}
+  body: none
+  auth: none
+}
+
+params:query {
+  page: 0
+  limit: 50
+  mirror: true
+  player_black: {{playerName}}
+}
+
+tests {
+  test("Expect status code to be 200", () => {
+    expect(res.getStatus()).to.equal(200);
+  });
+  
+  test("Expect response to be an object", () => {
+    const body = res.getBody();
+    expect(body).to.be.an('object');
+  });
+  
+  test("Expect response to have an items and  length greater than 1", () => {
+    const body = res.getBody();
+    expect(body.items).to.exist.and.to.be.an('array').with.lengthOf.at.least(1);
+  });
+  
+  test("Expect response to include total, page, perpagem and totalPages", () => {
+    const body = res.getBody();
+    expect(body.total).to.exist;
+    expect(body.page).to.exist;
+    expect(body.perPage).to.exist;
+    expect(body.totalPages).to.exist;
+  });
+}
