@@ -22,7 +22,7 @@ export class EventsService {
 			const sheets = google.sheets({ version: 'v4', auth });
 			const res = sheets.spreadsheets.values.get({
 				spreadsheetId: '1kpgv_7pkxijsjpQx5iHZAF3jnsZLlBabkKh49pAHhu8',
-				range: 'Event List!A2:G',
+				range: 'Event List!A2:H',
 			});
 			const response = (await res).data.values;
 			if (!response || !response.length) {
@@ -47,6 +47,10 @@ export class EventsService {
 					registration:
 						response[i][6] && response[i][6].startsWith('http')
 							? response[i][6]
+							: null,
+					standings: 
+						response[i][7] && response[i][7].startsWith('http') 
+							? response[i][7] 
 							: null,
 				};
 				categories.push(response[i][2]);
