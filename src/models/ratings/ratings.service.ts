@@ -74,6 +74,17 @@ export class RatingService {
 		}
 	}
 
+	// generates the games and players ratings
+	// the rating calculation is based on Nohatcoders Elo rating system
+	// https://nohatcoder.dk/2015-03-22-1.html
+	// this function gets the games based on the last used game id from the previous.txt file
+	// it gets all the players from the players table
+	// this generateRating function does 3 database transactions
+	// it loops through the games data and updates the players rating for that game and sets if the player has changed
+	// it loops through the players data and updates the players rating for that player if they have changed
+	// it updates the players fatigue rating even if they haven't changed
+	// it tries to commit the transactions and if there is an error it rolls back the transactions
+	// if there is no error it writes the last used game id to the previous.txt file
 	public async generateRating(): Promise<void> {
 		let has_error = false;
 		let previous = '0 0';
@@ -89,7 +100,7 @@ export class RatingService {
 		const DATE_NOW = Date.now();
 		const RECENT_LIMIT = DATE_NOW - 1000 * 60 * 60 * 6;
 
-		//Rating calculation parameters:
+		// Rating calculation parameters:
 		const INITIAL_RATING = 1000;
 		const BONUS_RATING = 750;
 		const BONUS_FACTOR = 60;
@@ -107,10 +118,11 @@ export class RatingService {
 		await playerRunner.startTransaction();
 		await gameRunner.startTransaction();
 		try {
-			// get al the players
+			// get all the players
 			const getPlayersQuery =
 				'select id,name,ratingbase,unrated,isbot,rating,boost,ratedgames,maxrating,ratingage,fatigue FROM players WHERE ratingbase = 0 AND unrated = 0;';
 			const playersData = await this.playersRepository.query(getPlayersQuery);
+			// loop through the players to parse the players fatigue, add a changed boolean, and push them to the playersArray
 			for (let i = 0; i < playersData.length; i++) {
 				playersData[i].fatigue = playersData[i].fatigue.replace(/\\/g, '');
 				// if fatigue starts with " then remove it
@@ -131,10 +143,10 @@ export class RatingService {
 				order by id asc limit 50000;`;
 			const gamesData = await gameRunner.manager.query(gamesQuery);
 
-			// start transaction
+			// set game updating flag
 			let updating = true;
 
-			// update game query
+			// update game query function
 			async function updateGame(whiteRating: number, blackRating: number, whiteRatingAdjusted: number, blackRatingAdjusted: number, id: number): Promise<void> {
 				const updateGameQuery = `UPDATE games SET 
 				rating_white=?, rating_black=?, rating_change_white=?, rating_change_black=? where id=?;`;
@@ -151,6 +163,7 @@ export class RatingService {
 			this.logger.debug('Updating games');
 			for (let i = 0; i < gamesData.length; i++) {
 				const game = gamesData[i];
+				// get the player white and player black from the playersArray
 				let player_white =
 					playersArray[
 						playersArray.findIndex((p) => p.name == game.player_white)
@@ -163,6 +176,7 @@ export class RatingService {
 				let blackRating = 0;
 				let whiteAdjustedRating = 0;
 				let blackAdjustedRating = 0;
+				// check if player_white exists and set whiteRating and whiteAdjustedRating
 				if (player_white) {
 					whiteRating = player_white.rating;
 					whiteAdjustedRating = this.adjustedRating(
@@ -174,6 +188,7 @@ export class RatingService {
 						PARTICIPATION_LIMIT,
 					);
 				}
+				// check if player_black exists and set blackRating and blackAdjustedRating
 				if (player_black) {
 					blackRating = player_black.rating;
 					blackAdjustedRating = this.adjustedRating(
@@ -189,6 +204,7 @@ export class RatingService {
 				if (player_white && player_black && this.isGameEligible(game) && game.unrated == 0 && player_white != player_black) {
 					if (updating) {
 						this.logger.debug('Updating game: ', game.id, player_white, player_black);
+						// checks if there are more than 6 moves in the game
 						if (game.notationlength > 6) {
 							lastUsedGame = game.id;
 							if (quickResult === undefined) {
@@ -258,10 +274,7 @@ export class RatingService {
 								);
 							}
 						} else {
-							if (
-								quickResult === undefined &&
-								game.date > RECENT_LIMIT
-							) {
+							if ( quickResult === undefined && game.date > RECENT_LIMIT) {
 								updating = false;
 							} else {
 								lastUsedGame = game.id;
@@ -277,8 +290,8 @@ export class RatingService {
 				}
 			}
 
+			// update player query function
 			async function updatePlayer(rating: number, boost: number, ratedGames, maxRating, ratingAge, fatigueObject, id, fatigueRating) {
-				// update player query
 				const updatePlayerQuery = `UPDATE players SET
 				rating=?, boost=?, ratedgames=?, maxrating=?, ratingage=?, fatigue=?, fatiguerating=? where id=?;`;
 				try {
@@ -298,6 +311,8 @@ export class RatingService {
 					throw new Error(error);
 				}
 			}
+
+			// Update players loop
 			this.logger.debug('Updating players');
 			for (let i = 0; i < playersArray.length; i++) {
 				if (playersArray[i].changed) {
@@ -311,15 +326,15 @@ export class RatingService {
 						this.adjustedRating(playersArray[i], Date.now(), PARTICIPATION_CUTOFF, RATING_RETENTION, MAX_DROP, PARTICIPATION_LIMIT),
 						playersArray[i].id,
 					);
+				} else {
+					// always update a players fatiguerating even if they haven't changed
+					const updateFatigueRatingQuery = `UPDATE players SET fatiguerating=? where id=?;`;
+					await playerRunner.manager.query(updateFatigueRatingQuery, [this.adjustedRating(playersArray[i], Date.now(), PARTICIPATION_CUTOFF, RATING_RETENTION, MAX_DROP, PARTICIPATION_LIMIT), playersArray[i].id]);
 				}
-				// always update fatiguerating
-				const updateFatigueRatingQuery = `UPDATE players SET fatiguerating=? where id=?;`;
-				await playerRunner.manager.query(updateFatigueRatingQuery, [this.adjustedRating(playersArray[i], Date.now(), PARTICIPATION_CUTOFF, RATING_RETENTION, MAX_DROP, PARTICIPATION_LIMIT), playersArray[i].id]);
 			}
 			await playerRunner.commitTransaction();
 			await gameRunner.commitTransaction();
 		} catch (error) {
-			console.error(error);
 			this.logger.error("Error processing player and game ratings, rolling back transaction. ", error);
 			playerRunner.rollbackTransaction();
 			gameRunner.rollbackTransaction();
@@ -333,7 +348,8 @@ export class RatingService {
 		}
 	}
 
-	// returns the adjusted rating of a player
+	// mutates the player boost, ratingage, maxrating, ratedgames, and changed
+	// called when looping through the gamesData
 	public adjustPlayer(
 		player: Player,
 		amount: number,
@@ -368,10 +384,11 @@ export class RatingService {
 		return player;
 	}
 
-	// returns the new fatigue value
+	// mutates the player fatigue object
+	// called when looping through the gamesData
 	public updateFatigue(player: Player, opponentID: string, gameFactor: number) {
 		const MULTIPLIER = 1 - gameFactor * 0.4;
-		// check if player fatigue is a string adn throw error
+		// check if player fatigue is a string and throw error
 		if (typeof player.fatigue == 'string') {
 			throw new Error('Fatigue is a string, needs to be an object');
 		}
@@ -384,6 +401,8 @@ export class RatingService {
 		return (player.fatigue[opponentID] = (player.fatigue[opponentID] || 0) + gameFactor);
 	}
 
+	// returns the players adjusted rating
+	// called when looping through the playersData
 	public adjustedRating(
 		player: Player,
 		date: number,
@@ -412,7 +431,8 @@ export class RatingService {
 		}
 	}
 
-	// return true of false if game is eligible
+	// return true or false if game is eligible for rating
+	// called when looping through the gamesData
 	public isGameEligible(game: any): boolean {
 		let eligible = game.size >= 5;
 		const limits = [
