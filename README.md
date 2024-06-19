@@ -19,6 +19,8 @@ $ npm install
 
 ## Running the app
 
+
+*Note: be sure to update the .env file with the correct paths to where the sqlite db files are located*
 ```bash
 # development
 $ npm run start
@@ -66,6 +68,7 @@ Ratings
 ## TODO
 - create user auth endpoints and test
 - dockerize app
+- automatically setup db files in the project and fill with dummy data
 - setup API key registration to track usage
 - add automated versioning and setup release artifacts with github
 - build out more robust deploy and rollback
