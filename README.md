@@ -1,11 +1,15 @@
-# Playtak-api 
+# PlayTak-API 
 
 ## Description
 
 ![Unit Tests](https://github.com/USTakAssociation/playtak-api/actions/workflows/ci.yml/badge.svg)
 
 
-This is the Play Tak API projects which contains multiple endpoints for serivcing data to the Play Tak UI
+This is the Play Tak API project which contains multiple endpoints for servicing data to the Play Tak UI
+
+## Requirements
+- node v16.17.1
+- sqlite3
 
 ## Installation
 
@@ -52,7 +56,7 @@ Events
 Games History
 - /v1/games-history/
 - /v1/games-history/{id}
-- /v1/games-historoy/ptn/{id}
+- /v1/games-history/ptn/{id}
 - /v1/hames-history/db
 
 Ratings
@@ -61,6 +65,11 @@ Ratings
 
 ## TODO
 - create user auth endpoints and test
+- dockerize app
+- setup API key registration to track usage
+- add automated versioning and setup release artifacts with github
+- build out more robust deploy and rollback
+- add health check endpoint
 
 
 ## Contributing
@@ -81,7 +90,7 @@ Please read [CONTRIBUTING.md](docs/CONTRIBUTING.md) for details on our code of c
 We use [SemVer](http://semver.org/) for versioning. For the versions available, see the tags on this repository.
 
 ## Contributors
-Play tak is only possible due to the excellent work of the following contributors:
+PlayTak is only possible due to the excellent work of the following contributors:
 
 ||
 :----:|
