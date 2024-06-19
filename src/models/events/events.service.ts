@@ -1,7 +1,7 @@
 import { HttpException, Injectable, NotFoundException } from '@nestjs/common';
 import { google } from 'googleapis';
 import * as path from 'path';
-import { EventList } from '../games-history/dto/events.dto';
+import { EventList } from '../dto/events/events.dto';
 
 @Injectable()
 export class EventsService {

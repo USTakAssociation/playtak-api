@@ -1,0 +1,35 @@
+meta {
+  name: Get ratings
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{url}}/v1/ratings
+  body: none
+  auth: none
+}
+
+tests {
+  test("Expect status code to be 200", () => {
+    expect(res.getStatus()).to.equal(200);
+  });
+  
+  test("Expect response to be an object", () => {
+    const body = res.getBody();
+    expect(body).to.be.an('object');
+  });
+  
+  test("Expect response to have an items and  length greater than 1", () => {
+    const body = res.getBody();
+    expect(body.items).to.exist.and.to.be.an('array').with.lengthOf.at.least(1);
+  });
+  
+  test("Expect response to include total, page, perpagem and totalPages", () => {
+    const body = res.getBody();
+    expect(body.total).to.exist;
+    expect(body.page).to.exist;
+    expect(body.perPage).to.exist;
+    expect(body.totalPages).to.exist;
+  });
+}
