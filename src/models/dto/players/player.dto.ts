@@ -41,9 +41,6 @@ export class Player {
 	fatigue: Fatigue | string | null;
 
 	@ApiProperty()
-	isBot: boolean;
-
-	@ApiProperty()
 	changed?: boolean;
 
 }

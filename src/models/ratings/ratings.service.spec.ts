@@ -4,6 +4,7 @@ import { Ratings } from './entities/ratings.entity';
 import { RatingService } from './ratings.service';
 import { Players } from './entities/players.entity';
 import { Games } from '../games-history/entities/games.entity';
+import { Player } from '../dto/players/player.dto';
 
 describe('RatingService', () => {
 	let service: RatingService;
@@ -74,16 +75,20 @@ describe('RatingService', () => {
 				date: 1683328933,
 			}
 			const quickresult = {'R-0': 1, 'F-0': 1, '1-0': 1, '0-R': 0, '0-F': 0, '0-1': 0, '1/2-1/2': 0.5}[mockGame.result];
-			const player_white = {
+			const player_white: Player = {
 				id: 1,
 				fatigue: {},
 				boost: 0,
 				ratedgames: 0,
 				rating: 1000,
 				maxrating: 1000,
-				ratingage: 1637395624533.48
+				ratingage: 1637395624533.48,
+				name: 'Guest1',
+				isbot: false,
+				ratingbase: 1000,
+				fatiguerating: 1000
 			}
-			const player_black = {
+			const player_black: Player = {
 				id: 2,
 				fatigue: {
 					"1": 0.10901345963072347
@@ -92,7 +97,11 @@ describe('RatingService', () => {
 				ratedgames: 0,
 				rating: 1000,
 				maxrating: 1000,
-				ratingage: 0
+				ratingage: 0,
+				name: 'Guest2',
+				isbot: false,
+				ratingbase: 1000,
+				fatiguerating: 1000
 			}
 
 			const sw = Math.pow(10, player_white.rating / 400);
@@ -113,7 +122,11 @@ describe('RatingService', () => {
 				rating: 1019.1278923229543,
 				maxrating: 1019.1278923229543,
 				ratingage: 1683328933,
-				changed: true
+				changed: true,
+				name: 'Guest1',
+				isbot: false,
+				ratingbase: 1000,
+				fatiguerating: 1000
 			}
 			const mock_black_result = {
 				id: 2,
@@ -123,7 +136,11 @@ describe('RatingService', () => {
 				rating: 1019.1278923229543,
 				maxrating: 1019.1278923229543,
 				ratingage: -18345807353.537495,
-				changed: true
+				changed: true,
+				name: 'Guest2',
+				isbot: false,
+				ratingbase: 1000,
+				fatiguerating: 1000
 			}
 			expect(mock_white_result).toMatchObject(white_result);
 			expect(mock_black_result).toMatchObject(black_result);
@@ -132,16 +149,20 @@ describe('RatingService', () => {
 
 	describe('Adjust Fatigue', () => {
 		it('should return adjusted fatigue', async () => {
-			const player_white = {
+			const player_white: Player = {
 				id: 1,
 				fatigue: {},
 				boost: 0,
 				ratedgames: 0,
 				rating: 1000,
 				maxrating: 1000,
-				ratingage: 1637395624533.48
+				ratingage: 1637395624533.48,
+				name: 'Guest1',
+				isbot: false,
+				ratingbase: 1000,
+				fatiguerating: 1000
 			}
-			const player_black = {
+			const player_black: Player = {
 				id: 2,
 				fatigue: {
 					"1": 0.10901345963072347
@@ -150,7 +171,11 @@ describe('RatingService', () => {
 				ratedgames: 0,
 				rating: 1000,
 				maxrating: 1000,
-				ratingage: 0
+				ratingage: 0,
+				name: 'Guest2',
+				isbot: false,
+				ratingbase: 1000,
+				fatiguerating: 1000
 			}
 			const sw = Math.pow(10, player_white.rating / 400);
 			const sb = Math.pow(10, player_black.rating / 400);
@@ -173,16 +198,24 @@ describe('RatingService', () => {
 				ratedgames: 0,
 				rating: 1000,
 				maxrating: 1000,
-				ratingage: 1637395624533.48
+				ratingage: 1637395624533.48,
+				name: 'Guest1',
+				isbot: false,
+				ratingbase: 1000,
+				fatiguerating: 1000
 			}
-			const player_black = {
+			const player_black: Player = {
 				id: 2,
 				fatigue: '{ "1": 0.10901345963072347}',
 				boost: 0,
 				ratedgames: 0,
 				rating: 1000,
 				maxrating: 1000,
-				ratingage: 0
+				ratingage: 0,
+				name: 'Guest2',
+				isbot: false,
+				ratingbase: 1000,
+				fatiguerating: 1000
 			}
 			const sw = Math.pow(10, player_white.rating / 400);
 			const sb = Math.pow(10, player_black.rating / 400);
@@ -199,24 +232,32 @@ describe('RatingService', () => {
 		});
 		
 		it('should delete the player fatigue', async () => {
-			const player_white = {
+			const player_white: Player = {
 				id: 1,
 				fatigue: {},
 				boost: 0,
 				ratedgames: 0,
 				rating: 1000,
 				maxrating: 1000,
-				ratingage: 1637395624533.48
+				ratingage: 1637395624533.48,
+				name: 'Guest1',
+				isbot: false,
+				ratingbase: 1000,
+				fatiguerating: 1000
 			}
 			// fatigue opponent is 0 and less that 0.01
-			const player_black = {
+			const player_black: Player = {
 				id: 2,
 				fatigue: { "0": 0.00901345963072347},
 				boost: 0,
 				ratedgames: 0,
 				rating: 1000,
 				maxrating: 1000,
-				ratingage: 0
+				ratingage: 0,
+				name: 'Guest2',
+				isbot: false,
+				ratingbase: 1000,
+				fatiguerating: 1000
 			}
 			const sw = Math.pow(10, player_white.rating / 400);
 			const sb = Math.pow(10, player_black.rating / 400);
@@ -239,16 +280,20 @@ describe('RatingService', () => {
 				date: 1683328933,
 			}
 
-			const player_white = {
+			const player_white: Player = {
 				id: 1,
 				fatigue: {},
 				boost: 0,
 				ratedgames: 0,
 				rating: 1600,
 				maxrating: 1000,
-				ratingage: 1637395624533.48
+				ratingage: 1637395624533.48,
+				name: 'Guest1',
+				isbot: false,
+				ratingbase: 1000,
+				fatiguerating: 1000
 			}
-			const player_black = {
+			const player_black: Player = {
 				id: 2,
 				fatigue: {
 					"1": 0.10901345963072347
@@ -257,7 +302,11 @@ describe('RatingService', () => {
 				ratedgames: 0,
 				rating: 1000,
 				maxrating: 1000,
-				ratingage: 0
+				ratingage: 0,
+				name: 'Guest2',
+				isbot: false,
+				ratingbase: 1000,
+				fatiguerating: 1000
 			}
 			
 			const white_result = await service.adjustedRating(player_white, mockGame.date, PARTICIPATION_CUTOFF, RATING_RETENTION, MAX_DROP, PARTICIPATION_LIMIT);
@@ -271,14 +320,18 @@ describe('RatingService', () => {
 				result: 'R-0',
 				date: 1683328933,
 			}
-			const player_white = {
+			const player_white: Player = {
 				id: 1,
 				fatigue: {},
 				boost: 0,
 				ratedgames: 0,
 				rating: 1700,
 				maxrating: 1000,
-				ratingage: 1637395624533.48
+				ratingage: 1637395624533.48,
+				name: 'Guest1',
+				isbot: false,
+				ratingbase: 1000,
+				fatiguerating: 1000
 			}
 			const white_result = await service.adjustedRating(player_white, mockGame.date, PARTICIPATION_CUTOFF, RATING_RETENTION, MAX_DROP, PARTICIPATION_LIMIT);
 			expect(white_result).toEqual(1700);

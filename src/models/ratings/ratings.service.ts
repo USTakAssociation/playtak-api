@@ -385,7 +385,7 @@ export class RatingService {
 	}
 
 	public adjustedRating(
-		player: any,
+		player: Player,
 		date: number,
 		PARTICIPATION_CUTOFF: number,
 		RATING_RETENTION: number,
