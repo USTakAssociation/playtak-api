@@ -9,9 +9,15 @@ export class RatingTask {
 
 	constructor(private _service: RatingService) {}
 
-	// TODO enable this when ready to move away from rating script
-	//@Cron('30 */1 * * *')
-	//@Cron('* * * * *')
+	// * * * * * *
+	// | | | | | |
+	// | | | | | day of week
+	// | | | | months
+	// | | | day of month
+	// | | hours
+	// | minutes
+	// seconds (optional)
+	@Cron('0 15 * * * *')
 	handleCron() {
 		this.logger.debug('Running rating task');
 		this._service.generateRating();
