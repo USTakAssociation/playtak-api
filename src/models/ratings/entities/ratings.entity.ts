@@ -1,30 +1,33 @@
-
+/* eslint-disable indent */
 import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
 @Entity({
 	name: 'players'
 })
 export class Ratings {
 	@PrimaryGeneratedColumn()
-		id: number;
-		
+	id: number;
+
 	@Column()
-		name: string;
-		
+	name: string;
+
 	@Column()
-		rating: number;
-	
+	rating: number;
+
 	@Column()
-		maxrating: number;
-		
+	maxrating: number;
+
 	@Column()
-		ratedgames: number;
-		
+	ratedgames: number;
+
 	@Column()
-		isbot: boolean;
-		
+	isbot: boolean;
+
 	@Column()
-		ratingbase?: number;
-		
+	ratingbase?: number;
+
 	@Column()
-		unrated?: number;
+	fatiguerating: number;
+
+	@Column()
+	unrated?: number;
 }

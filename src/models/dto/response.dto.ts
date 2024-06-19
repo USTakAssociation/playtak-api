@@ -1,13 +1,10 @@
 /* eslint-disable indent */
 import { ApiProperty } from '@nestjs/swagger';
 
-export class DefaultExceptionDto {
+export class DefaultReposeDto {
 	@ApiProperty()
-	statusCode: number;
-
+	status: number;
+	
 	@ApiProperty()
 	message: string;
-
-	@ApiProperty()
-	error: string;
 }

@@ -1,30 +1,44 @@
+/* eslint-disable indent */
 import { ApiProperty } from "@nestjs/swagger";
+
 export class Rating {
 	@ApiProperty()
-		id: number;
+	id: number;
+
 	@ApiProperty()
-		name: string;
+	name: string;
+
 	@ApiProperty()
-		rating: number;
+	rating: number;
+
 	@ApiProperty()
-		maxrating: number;
+	maxrating: number;
+
 	@ApiProperty()
-		ratedgames: number;
+	ratedgames: number;
+	
 	@ApiProperty()
-		isbot: boolean;
+	fatiguerating: number;
+
+	@ApiProperty()
+	isbot: boolean;
 }
 
 export class RatingList {
 	@ApiProperty()
-		items: Array<Rating>;
+	items: Array<Rating>;
+
 	@ApiProperty()
-		total: number;
+	total: number;
+
 	@ApiProperty()
-		perPage: number;
+	perPage: number;
+
 	@ApiProperty()
-		page: number;
+	page: number;
+
 	@ApiProperty()
-		totalPages: number;
+	totalPages: number;
 }
 
 export class RatingQuery {
@@ -32,37 +46,43 @@ export class RatingQuery {
 		description: 'Number of results per page for pagination. Optional.',
 		required: false
 	})
-		limit?: string;
+	limit?: string;
+
 	@ApiProperty({
 		description: 'Page number for pagination. Optional.',
 		required: false
 	})
-		page?: string;
+	page?: string;
+
 	@ApiProperty({
 		description: 'Number of items to skip for pagination. Can use this instead of a page number. Optional.',
 		required: false,
 	})
-		skip?: string;
+	skip?: string;
+
 	@ApiProperty({
 		description: 'Order By either ASC or DESC for sorting. Optional.',
 		enum: ['ASC', 'DESC'],
 		required: false
 	})
-		order?: 'ASC' | 'DESC';
+	order?: 'ASC' | 'DESC';
+
 	@ApiProperty({
 		description: 'Which column to sort by for sorting. Optional.',
 		required: false
 	})
-		sort?: string;
+	sort?: string;
+
 	@ApiProperty({
 		description: 'Player ID. Optional.',
 		required: false
 	})
-		id?: number;
+	id?: number;
+
 	@ApiProperty({
 		description: 'Player username. Optional.',
 		required: false
 	})
-		name?: string;
+	name?: string;
 }
 

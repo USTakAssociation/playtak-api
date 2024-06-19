@@ -1,51 +1,61 @@
+/* eslint-disable indent */
 import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
 @Entity()
 export class Players {
 	@PrimaryGeneratedColumn()
-		id: number;
+	id: number;
 
 	@Column()
-		name: string;
+	name: string;
 
 	@Column({ select: false })
-		password: string;
+	password: string;
 
 	@Column()
-		email: string;
+	email: string;
 		
 	@Column()
-		rating: number;
+	rating: number;
 
 	@Column()
-		boost: number;
+	boost: number;
 
 	@Column()
-		maxrating: number;
+	maxrating: number;
 
 	@Column()
-		ratedgames: number;
+	ratedgames: number;
 
 	@Column()
-		isbot: boolean;
+	isbot: boolean;
+
+	@Column()
+	ratinggage: number;
+
+	@Column()
+	ratingbase: number;
+
+	@Column()
+	unrated: boolean;
+
+	@Column()
+	fatigue: string;
 	
 	@Column()
-		ratinggage: number;
-		
+	fatiguerating: number;
+
 	@Column()
-		ratingbase: number;
-		
+	is_admin: boolean;
+
 	@Column()
-		unrated: boolean
-		
+	is_mod: boolean;
+	
 	@Column()
-		fatigue: string
-		
+	is_gagged: boolean;
+	
 	@Column()
-		is_admin: boolean
-		
+	is_banned: boolean;
+
 	@Column()
-		is_mod: boolean
-		
-	@Column()
-		primary_account: number
+	primary_account: number;
 }

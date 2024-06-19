@@ -2,10 +2,12 @@ import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Like, MoreThan, Repository } from 'typeorm';
 import { Ratings } from './entities/ratings.entity';
-import { RatingQuery } from './dto/ratings.dto';
+import { Rating, RatingList, RatingQuery } from '../dto/rating/ratings.dto';
 import { access, readFile, writeFile } from 'fs/promises';
 import { Players } from './entities/players.entity';
 import { Games } from '../games-history/entities/games.entity';
+import { Player } from '../dto/players/player.dto';
+import { DefaultExceptionDto } from '../dto/error.dto';
 
 @Injectable()
 export class RatingService {
@@ -13,19 +15,19 @@ export class RatingService {
 
 	constructor(
 		@InjectRepository(Ratings, 'default')
-		private ratingRespository: Repository<Ratings>,
+		private ratingRepository: Repository<Ratings>,
 		@InjectRepository(Players, 'default')
 		private playersRepository: Repository<Players>,
 		@InjectRepository(Games, 'games')
 		private gamesRepository: Repository<Games>,
 	) {}
 
-	async getAll(query?: RatingQuery): Promise<any> {
+	async getAll(query?: RatingQuery): Promise<RatingList | DefaultExceptionDto> {
 		const limit = parseInt(query.limit) || 50;
 		const skip = parseInt(query.skip) || 0;
 		const page = parseInt(query.page) || 0;
 		const order: 'ASC' | 'DESC' = query.order || 'DESC';
-		const sort = query.sort ? query.sort : 'rating';
+		const sort = query.sort ? query.sort : 'fatiguerating';
 		const whereSearch = {
 			ratingbase: 0,
 			unrated: 0,
@@ -34,8 +36,8 @@ export class RatingService {
 		if(query.name){ whereSearch['name'] = Like(`${query.name}`); }
 		if(query.id){ whereSearch['id'] = query.id; }
 		try {
-			const results = await this.ratingRespository.findAndCount({
-				select: ['name', 'rating', 'ratedgames', 'maxrating', 'isbot'],
+			const results = await this.ratingRepository.findAndCount({
+				select: ['name', 'rating', 'ratedgames', 'maxrating', 'fatiguerating', 'isbot'],
 				where: whereSearch,
 				order: {
 					[sort]: order,
@@ -56,10 +58,10 @@ export class RatingService {
 		}
 	}
 
-	public async getPlayersRating(name: string): Promise<any> {
+	public async getPlayersRating(name: string): Promise<Rating | DefaultExceptionDto> {
 		try {
-			const result = await this.ratingRespository.findOne({
-				select: ['name', 'rating', 'ratedgames', 'maxrating', 'isbot'],
+			const result = await this.ratingRepository.findOne({
+				select: ['name', 'rating', 'ratedgames', 'fatiguerating', 'maxrating', 'isbot'],
 				where: { name: name }
 			});
 			if (!result) {
@@ -72,7 +74,7 @@ export class RatingService {
 		}
 	}
 
-	public async generateRating() {
+	public async generateRating(): Promise<void> {
 		let has_error = false;
 		let previous = '0 0';
 		try {
@@ -108,18 +110,18 @@ export class RatingService {
 			// get al the players
 			const getPlayersQuery =
 				'select id,name,ratingbase,unrated,isbot,rating,boost,ratedgames,maxrating,ratingage,fatigue FROM players WHERE ratingbase = 0 AND unrated = 0;';
-			const p = await this.playersRepository.query(getPlayersQuery);
-			for (let i = 0; i < p.length; i++) {
-				p[i].fatigue = p[i].fatigue.replace(/\\/g, '');
-				// if fatigure starts with " then remove it
-				if (p[i].fatigue.startsWith('"'))
-					p[i].fatigue = p[i].fatigue.slice(1);
-				// if fatigure ends with " then remove it
-				if (p[i].fatigue.endsWith('"'))
-					p[i].fatigue = p[i].fatigue.slice(0, -1);
-				p[i].fatigue = JSON.parse(p[i].fatigue);
-				p[i].changed = false;
-				playersArray.push(p[i]);
+			const playersData = await this.playersRepository.query(getPlayersQuery);
+			for (let i = 0; i < playersData.length; i++) {
+				playersData[i].fatigue = playersData[i].fatigue.replace(/\\/g, '');
+				// if fatigue starts with " then remove it
+				if (playersData[i].fatigue.startsWith('"'))
+					playersData[i].fatigue = playersData[i].fatigue.slice(1);
+				// if fatigue ends with " then remove it
+				if (playersData[i].fatigue.endsWith('"'))
+					playersData[i].fatigue = playersData[i].fatigue.slice(0, -1);
+				playersData[i].fatigue = JSON.parse(playersData[i].fatigue);
+				playersData[i].changed = false;
+				playersArray.push(playersData[i]);
 			}
 
 			// get all the games
@@ -127,46 +129,43 @@ export class RatingService {
 				SELECT id, date, player_white, player_black, result, unrated, size, timertime, timerinc, pieces, capstones, length(notation) as notationlength FROM games 
 				where date>1461430800000 and id > ${lastUsedGame} 
 				order by id asc limit 50000;`;
-			const g = await gameRunner.manager.query(gamesQuery);
+			const gamesData = await gameRunner.manager.query(gamesQuery);
 
 			// start transaction
 			let updating = true;
 
 			// update game query
-			async function updateGame(rw, rb, rwa, rba, id) {
+			async function updateGame(whiteRating: number, blackRating: number, whiteRatingAdjusted: number, blackRatingAdjusted: number, id: number): Promise<void> {
 				const updateGameQuery = `UPDATE games SET 
 				rating_white=?, rating_black=?, rating_change_white=?, rating_change_black=? where id=?;`;
 				try {
-					await gameRunner.manager.query(updateGameQuery, [rw, rb, rwa, rba, id ]);
+					await gameRunner.manager.query(updateGameQuery, [whiteRating, blackRating, whiteRatingAdjusted, blackRatingAdjusted, id ]);
 				} catch (error) {
 					has_error = true;
+					this.logger.error('Error updating game. ', error);
 					throw new Error(error);
 				}
 			}
 
 			// Update games loop
 			this.logger.debug('Updating games');
-			for (let i = 0; i < g.length; i++) {
-				const game = g[i];
+			for (let i = 0; i < gamesData.length; i++) {
+				const game = gamesData[i];
 				let player_white =
 					playersArray[
-						playersArray.findIndex(
-							(p) => p.name == game.player_white,
-						)
+						playersArray.findIndex((p) => p.name == game.player_white)
 					];
 				let player_black =
 					playersArray[
-						playersArray.findIndex(
-							(p) => p.name == game.player_black,
-						)
+						playersArray.findIndex((p) => p.name == game.player_black)
 					];
-				let rtw = 0;
-				let rtb = 0;
-				let artw = 0;
-				let artb = 0;
+				let whiteRating = 0;
+				let blackRating = 0;
+				let whiteAdjustedRating = 0;
+				let blackAdjustedRating = 0;
 				if (player_white) {
-					rtw = player_white.rating;
-					artw = this.adjustedRating(
+					whiteRating = player_white.rating;
+					whiteAdjustedRating = this.adjustedRating(
 						player_white,
 						game.date,
 						PARTICIPATION_CUTOFF,
@@ -176,8 +175,8 @@ export class RatingService {
 					);
 				}
 				if (player_black) {
-					rtb = player_black.rating;
-					artb = this.adjustedRating(
+					blackRating = player_black.rating;
+					blackAdjustedRating = this.adjustedRating(
 						player_black,
 						game.date,
 						PARTICIPATION_CUTOFF,
@@ -186,26 +185,27 @@ export class RatingService {
 						PARTICIPATION_LIMIT,
 					);
 				}
-				const quickresult = {'R-0': 1, 'F-0': 1, '1-0': 1, '0-R': 0, '0-F': 0, '0-1': 0, '1/2-1/2': 0.5}[game.result];
+				const quickResult = {'R-0': 1, 'F-0': 1, '1-0': 1, '0-R': 0, '0-F': 0, '0-1': 0, '1/2-1/2': 0.5}[game.result];
 				if (player_white && player_black && this.isGameEligible(game) && game.unrated == 0 && player_white != player_black) {
 					if (updating) {
+						this.logger.debug('Updating game: ', game.id, player_white, player_black);
 						if (game.notationlength > 6) {
 							lastUsedGame = game.id;
-							if (quickresult === undefined) {
-								await updateGame(Math.floor(artw), Math.floor(artb), -2000, -2000, game.id);
+							if (quickResult === undefined) {
+								await updateGame(Math.floor(whiteAdjustedRating), Math.floor(blackAdjustedRating), -2000, -2000, game.id);
 							} else {
-								const sw = Math.pow(10, rtw / 400);
-								const sb = Math.pow(10, rtb / 400);
+								const sw = Math.pow(10, whiteRating / 400);
+								const sb = Math.pow(10, blackRating / 400);
 								const expected = sw / (sw + sb);
 								const fairness = expected * (1 - expected);
-								const fatiguefactor =
+								const fatigueFactor =
 									(1 -(player_white.fatigue[player_black.id] || 0) * 0.4) *
 									(1 -(player_black.fatigue[player_white.id] || 0) * 0.4);
 								player_white = this.adjustPlayer(
 									player_white,
-									quickresult - expected,
+									quickResult - expected,
 									fairness,
-									fatiguefactor,
+									fatigueFactor,
 									game.date,
 									BONUS_FACTOR,
 									BONUS_RATING,
@@ -214,9 +214,9 @@ export class RatingService {
 								);
 								player_black = this.adjustPlayer(
 									player_black,
-									expected - quickresult,
+									expected - quickResult,
 									fairness,
-									fatiguefactor,
+									fatigueFactor,
 									game.date,
 									BONUS_FACTOR,
 									BONUS_RATING,
@@ -225,15 +225,15 @@ export class RatingService {
 								);
 								player_white = this.updateFatigue(
 									player_white,
-									player_black.id.toString(),
-									fairness * fatiguefactor,
+									`${player_black.id}`,
+									fairness * fatigueFactor,
 								);
 								player_black = this.updateFatigue(
 									player_black,
-									player_white.id.toString(),
-									fairness * fatiguefactor,
+									`${player_white.id}`,
+									fairness * fatigueFactor,
 								);
-								const artw2 = this.adjustedRating(
+								const whiteAdjustedRating2 = this.adjustedRating(
 									player_white,
 									game.date,
 									PARTICIPATION_CUTOFF,
@@ -241,7 +241,7 @@ export class RatingService {
 									MAX_DROP,
 									PARTICIPATION_LIMIT,
 								);
-								const artb2 = this.adjustedRating(
+								const blackAdjustedRating2 = this.adjustedRating(
 									player_black,
 									game.date,
 									PARTICIPATION_CUTOFF,
@@ -250,22 +250,22 @@ export class RatingService {
 									PARTICIPATION_LIMIT,
 								);
 								await updateGame(
-									Math.floor(artw),
-									Math.floor(artb),
-									Math.round((artw2 - artw) * 10),
-									Math.round((artb2 - artb) * 10),
+									Math.floor(whiteAdjustedRating),
+									Math.floor(blackAdjustedRating),
+									Math.round((whiteAdjustedRating2 - whiteAdjustedRating) * 10),
+									Math.round((blackAdjustedRating2 - blackAdjustedRating) * 10),
 									game.id,
 								);
 							}
 						} else {
 							if (
-								quickresult === undefined &&
+								quickResult === undefined &&
 								game.date > RECENT_LIMIT
 							) {
 								updating = false;
 							} else {
 								lastUsedGame = game.id;
-								await updateGame(Math.floor(artw), Math.floor(artb), -2000, -2000, game.id);
+								await updateGame(Math.floor(whiteAdjustedRating), Math.floor(blackAdjustedRating), -2000, -2000, game.id);
 							}
 						}
 					}
@@ -273,26 +273,28 @@ export class RatingService {
 					if (updating) {
 						lastUsedGame = game.id;
 					}
-					await updateGame(Math.floor(artw), Math.floor(artb), -2000, -2000, game.id);
+					await updateGame(Math.floor(whiteAdjustedRating), Math.floor(blackAdjustedRating), -2000, -2000, game.id);
 				}
 			}
 
-			async function updatePlayer(r, b, rg, mr, ra, f, id) {
+			async function updatePlayer(rating: number, boost: number, ratedGames, maxRating, ratingAge, fatigueObject, id, fatigueRating) {
 				// update player query
 				const updatePlayerQuery = `UPDATE players SET
-				rating=?, boost=?, ratedgames=?, maxrating=?, ratingage=?, fatigue=? where id=?;`;
+				rating=?, boost=?, ratedgames=?, maxrating=?, ratingage=?, fatigue=?, fatiguerating=? where id=?;`;
 				try {
 					await playerRunner.manager.query(updatePlayerQuery, [
-						r,
-						b,
-						rg,
-						mr,
-						ra,
-						JSON.stringify(f),
+						rating,
+						boost,
+						ratedGames,
+						maxRating,
+						ratingAge,
+						JSON.stringify(fatigueObject),
+						fatigueRating,
 						id,
 					]);
 				} catch (error) {
 					has_error = true;
+					this.logger.error('Error updating player. ', error);
 					throw new Error(error);
 				}
 			}
@@ -306,13 +308,18 @@ export class RatingService {
 						playersArray[i].maxrating,
 						playersArray[i].ratingage,
 						JSON.stringify(playersArray[i].fatigue),
+						this.adjustedRating(playersArray[i], Date.now(), PARTICIPATION_CUTOFF, RATING_RETENTION, MAX_DROP, PARTICIPATION_LIMIT),
 						playersArray[i].id,
 					);
 				}
+				// always update fatiguerating
+				const updateFatigueRatingQuery = `UPDATE players SET fatiguerating=? where id=?;`;
+				await playerRunner.manager.query(updateFatigueRatingQuery, [this.adjustedRating(playersArray[i], Date.now(), PARTICIPATION_CUTOFF, RATING_RETENTION, MAX_DROP, PARTICIPATION_LIMIT), playersArray[i].id]);
 			}
 			await playerRunner.commitTransaction();
 			await gameRunner.commitTransaction();
 		} catch (error) {
+			console.error(error);
 			this.logger.error("Error processing player and game ratings, rolling back transaction. ", error);
 			playerRunner.rollbackTransaction();
 			gameRunner.rollbackTransaction();
@@ -328,18 +335,18 @@ export class RatingService {
 
 	// returns the adjusted rating of a player
 	public adjustPlayer(
-		player: any,
+		player: Player,
 		amount: number,
 		fairness: number,
-		fatiguefactor: number,
+		fatigueFactor: number,
 		date: number,
 		BONUS_FACTOR: number,
 		BONUS_RATING: number,
 		RATING_RETENTION: number,
 		INITIAL_RATING: number,
-	) {
+	): Player{
 		const bonus = Math.min(
-			Math.max(0, (fatiguefactor * amount * Math.max(player.boost, 1) * BONUS_FACTOR) / BONUS_RATING),
+			Math.max(0, (fatigueFactor * amount * Math.max(player.boost, 1) * BONUS_FACTOR) / BONUS_RATING),
 			player.boost,
 		);
 		player.boost -= bonus;
@@ -347,12 +354,12 @@ export class RatingService {
 			10 +
 			15 * Math.pow(0.5, player.ratedgames / 200) +
 			15 * Math.pow(0.5, (player.maxrating - INITIAL_RATING) / 300);
-		player.rating += fatiguefactor * amount * k + bonus;
+		player.rating += fatigueFactor * amount * k + bonus;
 		if (player.ratingage == 0) {
 			player.ratingage = date - RATING_RETENTION;
 		}
 		let participation = 20 * Math.pow(0.5, (date - player.ratingage) / RATING_RETENTION);
-		participation += fairness * fatiguefactor;
+		participation += fairness * fatigueFactor;
 		participation = Math.min(20, participation);
 		player.ratingage = Math.log2(participation / 20) * RATING_RETENTION + date;
 		player.ratedgames++;
@@ -362,19 +369,19 @@ export class RatingService {
 	}
 
 	// returns the new fatigue value
-	public updateFatigue(player: any, opid: string, gamefactor: number) {
-		const MULTIPLIER = 1 - gamefactor * 0.4;
+	public updateFatigue(player: Player, opponentID: string, gameFactor: number) {
+		const MULTIPLIER = 1 - gameFactor * 0.4;
 		// check if player fatigue is a string adn throw error
 		if (typeof player.fatigue == 'string') {
 			throw new Error('Fatigue is a string, needs to be an object');
 		}
 		for (const a in player.fatigue) {
 			player.fatigue[a] *= MULTIPLIER;
-			if (a != opid && player.fatigue[a] < 0.01) {
+			if (a != opponentID && player.fatigue[a] < 0.01) {
 				delete player.fatigue[a];
 			}
 		}
-		return (player.fatigue[opid] = (player.fatigue[opid] || 0) + gamefactor);
+		return (player.fatigue[opponentID] = (player.fatigue[opponentID] || 0) + gameFactor);
 	}
 
 	public adjustedRating(

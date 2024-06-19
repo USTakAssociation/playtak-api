@@ -4,7 +4,7 @@ import { Between, In, Like, MoreThan, Repository } from 'typeorm';
 import { Games } from './entities/games.entity';
 import { stat } from 'fs/promises';
 import { PTNService } from './services/ptn.service';
-import { GameQuery } from './dto/games.dto';
+import { GameQuery } from '../dto/games/games.dto';
 @Injectable()
 export class GamesService {
 	constructor(

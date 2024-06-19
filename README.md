@@ -60,14 +60,11 @@ Ratings
 - /v1/ratings/{player_name}
 
 ## TODO
-
-- Finish up migrating rerating to nest
-- endpoints for getting rating data
 - create user auth endpoints and test
 
 
 ## Contributing
-PlayTak is an OPEN Open Source Project. This means that:
+PlayTak is an Open Source Project. This means that:
 
 > Individuals making significant and valuable contributions are given commit-access to the project to contribute as they see fit.
 

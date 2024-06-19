@@ -1,26 +1,36 @@
+/* eslint-disable indent */
 import { ApiProperty } from "@nestjs/swagger";
 
 export class Event {
 	@ApiProperty()
-		category: string;
+	category: string;
+
 	@ApiProperty()
-		details: string;
+	details: string;
+
 	@ApiProperty()
-		end_date: string;
+	end_date: string;
+
 	@ApiProperty()
-		event: string;
+	event: string;
+
 	@ApiProperty()
-		name: string;
+	name: string;
+
 	@ApiProperty()
-		registration: string | null;
+	registration: string | null;
+
 	@ApiProperty()
-		start_date: string;
+	start_date: string;
+
 }
 
 export class EventList {
 	@ApiProperty()
-		categories: Array<string>;
+	categories: Array<string>;
+
 		
 	@ApiProperty()
-		data: Array<Event>;
+	data: Array<Event>;
+
 }
