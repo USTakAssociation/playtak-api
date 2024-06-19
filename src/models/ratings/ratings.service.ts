@@ -203,7 +203,6 @@ export class RatingService {
 				const quickResult = {'R-0': 1, 'F-0': 1, '1-0': 1, '0-R': 0, '0-F': 0, '0-1': 0, '1/2-1/2': 0.5}[game.result];
 				if (player_white && player_black && this.isGameEligible(game) && game.unrated == 0 && player_white != player_black) {
 					if (updating) {
-						this.logger.debug('Updating game: ', game.id, player_white, player_black);
 						// checks if there are more than 6 moves in the game
 						if (game.notationlength > 6) {
 							lastUsedGame = game.id;
