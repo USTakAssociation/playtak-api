@@ -72,9 +72,11 @@ jobs:
             rm -rf playtak-api-tmp
             mkdir playtak-api-tmp
             tar -xzf artifact.tar.gz -C ./playtak-api-tmp
+            cp /var/apps/playtak-api-prod/previous.txt playtak-api-tmp/previous.txt
             sudo rm -rf /var/apps/playtak-api-prod
             sudo mv playtak-api-tmp/dist/ /var/apps/playtak-api-prod
-            rm -rf playtak-api-temp
+            cp playtak-api-tmp/previous.txt /var/apps/playtak-api-prod/previous.txt
+            rm -rf playtak-api-tmp
             rm artifact.tar.gz
             pm2 restart playtak-api-prod --update-env
           '
