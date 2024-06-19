@@ -314,6 +314,14 @@ export class RatingService {
 			// Update players loop
 			this.logger.debug('Updating players');
 			for (let i = 0; i < playersArray.length; i++) {
+				playersArray[i].fatiguerating = this.adjustedRating(
+					playersArray[i],
+					Date.now(),
+					PARTICIPATION_CUTOFF,
+					RATING_RETENTION,
+					MAX_DROP,
+					PARTICIPATION_LIMIT,
+				);
 				if (playersArray[i].changed) {
 					await updatePlayer(
 						playersArray[i].rating,
@@ -322,13 +330,13 @@ export class RatingService {
 						playersArray[i].maxrating,
 						playersArray[i].ratingage,
 						JSON.stringify(playersArray[i].fatigue),
-						this.adjustedRating(playersArray[i], Date.now(), PARTICIPATION_CUTOFF, RATING_RETENTION, MAX_DROP, PARTICIPATION_LIMIT),
 						playersArray[i].id,
+						playersArray[i].fatiguerating,
 					);
 				} else {
 					// always update a players fatiguerating even if they haven't changed
 					const updateFatigueRatingQuery = `UPDATE players SET fatiguerating=? where id=?;`;
-					await playerRunner.manager.query(updateFatigueRatingQuery, [this.adjustedRating(playersArray[i], Date.now(), PARTICIPATION_CUTOFF, RATING_RETENTION, MAX_DROP, PARTICIPATION_LIMIT), playersArray[i].id]);
+					await playerRunner.manager.query(updateFatigueRatingQuery, [playersArray[i].fatiguerating, playersArray[i].id]);
 				}
 			}
 			await playerRunner.commitTransaction();
