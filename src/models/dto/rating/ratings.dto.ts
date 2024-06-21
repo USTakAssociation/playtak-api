@@ -18,7 +18,7 @@ export class Rating {
 	ratedgames: number;
 	
 	@ApiProperty()
-	fatiguerating: number;
+	participation_rating: number;
 
 	@ApiProperty()
 	isbot: boolean;

@@ -26,7 +26,7 @@ export class Ratings {
 	ratingbase?: number;
 
 	@Column()
-	fatiguerating: number;
+	participation_rating: number;
 
 	@Column()
 	unrated?: number;

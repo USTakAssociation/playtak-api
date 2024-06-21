@@ -8,6 +8,8 @@ import { Players } from './entities/players.entity';
 import { Games } from '../games-history/entities/games.entity';
 import { Player } from '../dto/players/player.dto';
 import { DefaultExceptionDto } from '../dto/error.dto';
+import { gzipSync } from 'zlib';
+import { writeFileSync } from 'fs';
 
 @Injectable()
 export class RatingService {
@@ -27,7 +29,7 @@ export class RatingService {
 		const skip = parseInt(query.skip) || 0;
 		const page = parseInt(query.page) || 0;
 		const order: 'ASC' | 'DESC' = query.order || 'DESC';
-		const sort = query.sort ? query.sort : 'fatiguerating';
+		const sort = query.sort ? query.sort : 'participation_rating';
 		const whereSearch = {
 			ratingbase: 0,
 			unrated: 0,
@@ -37,7 +39,7 @@ export class RatingService {
 		if(query.id){ whereSearch['id'] = query.id; }
 		try {
 			const results = await this.ratingRepository.findAndCount({
-				select: ['name', 'rating', 'ratedgames', 'maxrating', 'fatiguerating', 'isbot'],
+				select: ['name', 'rating', 'ratedgames', 'maxrating', 'participation_rating', 'isbot'],
 				where: whereSearch,
 				order: {
 					[sort]: order,
@@ -61,7 +63,7 @@ export class RatingService {
 	public async getPlayersRating(name: string): Promise<Rating | DefaultExceptionDto> {
 		try {
 			const result = await this.ratingRepository.findOne({
-				select: ['name', 'rating', 'ratedgames', 'fatiguerating', 'maxrating', 'isbot'],
+				select: ['name', 'rating', 'ratedgames', 'participation_rating', 'maxrating', 'isbot'],
 				where: { name: name }
 			});
 			if (!result) {
@@ -84,6 +86,7 @@ export class RatingService {
 	// it loops through the players data and updates the players rating for that player if they have changed
 	// it updates the players fatigue rating even if they haven't changed
 	// it tries to commit the transactions and if there is an error it rolls back the transactions
+	// it creates a rating.json file for the ratings.html page
 	// if there is no error it writes the last used game id to the previous.txt file
 	public async generateRating(): Promise<void> {
 		let has_error = false;
@@ -110,7 +113,7 @@ export class RatingService {
 		const RATING_RETENTION = 1000 * 60 * 60 * 24 * 240;
 
 		const playersArray = [];
-
+		const playersRatingList=[]
 		const playerRunner = this.playersRepository.manager.connection.createQueryRunner();
 		const gameRunner = this.gamesRepository.manager.connection.createQueryRunner();
 		await playerRunner.connect();
@@ -290,9 +293,9 @@ export class RatingService {
 			}
 
 			// update player query function
-			async function updatePlayer(rating: number, boost: number, ratedGames, maxRating, ratingAge, fatigueObject, id, fatigueRating) {
+			async function updatePlayer(rating: number, boost: number, ratedGames, maxRating, ratingAge, fatigueObject, id, participation_rating) {
 				const updatePlayerQuery = `UPDATE players SET
-				rating=?, boost=?, ratedgames=?, maxrating=?, ratingage=?, fatigue=?, fatiguerating=? where id=?;`;
+				rating=?, boost=?, ratedgames=?, maxrating=?, ratingage=?, fatigue=?, participation_rating=? where id=?;`;
 				try {
 					await playerRunner.manager.query(updatePlayerQuery, [
 						rating,
@@ -301,7 +304,7 @@ export class RatingService {
 						maxRating,
 						ratingAge,
 						JSON.stringify(fatigueObject),
-						fatigueRating,
+						participation_rating,
 						id,
 					]);
 				} catch (error) {
@@ -314,7 +317,7 @@ export class RatingService {
 			// Update players loop
 			this.logger.debug('Updating players');
 			for (let i = 0; i < playersArray.length; i++) {
-				playersArray[i].fatiguerating = this.adjustedRating(
+				playersArray[i].participation_rating = this.adjustedRating(
 					playersArray[i],
 					Date.now(),
 					PARTICIPATION_CUTOFF,
@@ -331,12 +334,21 @@ export class RatingService {
 						playersArray[i].ratingage,
 						JSON.stringify(playersArray[i].fatigue),
 						playersArray[i].id,
-						playersArray[i].fatiguerating,
+						playersArray[i].participation_rating,
 					);
 				} else {
-					// always update a players fatiguerating even if they haven't changed
-					const updateFatigueRatingQuery = `UPDATE players SET fatiguerating=? where id=?;`;
-					await playerRunner.manager.query(updateFatigueRatingQuery, [playersArray[i].fatiguerating, playersArray[i].id]);
+					// always update a players participation_rating even if they haven't changed
+					const updateParticipationRatingQuery = `UPDATE players SET participation_rating=? where id=?;`;
+					await playerRunner.manager.query(updateParticipationRatingQuery, [playersArray[i].participation_rating, playersArray[i].id]);
+				}
+				if(playersArray[i].ratedgames > 0 || (playersArray[i].unrated && playersArray[i].isbot)){
+					playersRatingList.push([
+						playersArray[i].name,
+						playersArray[i].participation_rating,
+						Math.floor(playersArray[i].rating),
+						playersArray[i].ratedgames,
+						playersArray[i].isbot ? 1 : 0
+					])
 				}
 			}
 			await playerRunner.commitTransaction();
@@ -351,6 +363,16 @@ export class RatingService {
 			if (!has_error) {
 				this.logger.debug('Finished updating ratings');
 				await writeFile('previous.txt', lastUsedGame + ' ' + 'hash');
+
+				// sort the playersRatingList by participation_rating
+				playersRatingList.sort(function(b,a){return a[1]-b[1]})
+				for(let a = 0; a < playersRatingList.length;a++){
+					playersRatingList[a][1]=Math.floor(playersRatingList[a][1])
+				}
+				// write the playersRatingList to a json file
+				const jsonList = JSON.stringify(playersRatingList)
+				const gzipList = gzipSync(jsonList,{level:9})
+				writeFileSync(process.env.RATING_OUTPUT_PATH+'ratinglist.json.gz', gzipList)
 			}
 		}
 	}

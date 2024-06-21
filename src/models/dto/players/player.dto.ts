@@ -35,7 +35,7 @@ export class Player {
 	ratingbase: number;
 		
 	@ApiProperty()
-	fatiguerating: number;
+	participation_rating: number;
 		
 	@ApiProperty()
 	fatigue: Fatigue | string | null;

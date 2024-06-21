@@ -42,7 +42,7 @@ export class Players {
 	fatigue: string;
 	
 	@Column()
-	fatiguerating: number;
+	participation_rating: number;
 
 	@Column()
 	is_admin: boolean;

@@ -45,6 +45,7 @@ jobs:
             DB_PATH: ${{ secrets.DB_PATH }}
             APP_ENV: ${{ secrets.APP_ENV }} 
             PREVIOUS_FILE: ${{ secrets.PREVIOUS_FILE }}
+            RATING_OUTPUT_PATH: ${{ secrets.RATING_OUTPUT_PATH }}
         run : |
             rm .env
             touch .env
@@ -55,6 +56,7 @@ jobs:
             echo "DB_PATH = ${DB_PATH}" >> .env
             echo "APP_ENV = ${APP_ENV}" >> .env
             echo "PREVIOUS_FILE = ${PREVIOUS_FILE}" >> .env
+            echo "RATING_OUTPUT_PATH = ${RATING_OUTPUT_PATH}" >> .env
             mv .env ./dist
             mv node_modules ./dist
             mv previous.txt ./dist

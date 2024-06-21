@@ -86,7 +86,7 @@ describe('RatingService', () => {
 				name: 'Guest1',
 				isbot: false,
 				ratingbase: 1000,
-				fatiguerating: 1000
+				participation_rating: 1000
 			}
 			const player_black: Player = {
 				id: 2,
@@ -101,7 +101,7 @@ describe('RatingService', () => {
 				name: 'Guest2',
 				isbot: false,
 				ratingbase: 1000,
-				fatiguerating: 1000
+				participation_rating: 1000
 			}
 
 			const sw = Math.pow(10, player_white.rating / 400);
@@ -126,7 +126,7 @@ describe('RatingService', () => {
 				name: 'Guest1',
 				isbot: false,
 				ratingbase: 1000,
-				fatiguerating: 1000
+				participation_rating: 1000
 			}
 			const mock_black_result = {
 				id: 2,
@@ -140,7 +140,7 @@ describe('RatingService', () => {
 				name: 'Guest2',
 				isbot: false,
 				ratingbase: 1000,
-				fatiguerating: 1000
+				participation_rating: 1000
 			}
 			expect(mock_white_result).toMatchObject(white_result);
 			expect(mock_black_result).toMatchObject(black_result);
@@ -160,7 +160,7 @@ describe('RatingService', () => {
 				name: 'Guest1',
 				isbot: false,
 				ratingbase: 1000,
-				fatiguerating: 1000
+				participation_rating: 1000
 			}
 			const player_black: Player = {
 				id: 2,
@@ -175,7 +175,7 @@ describe('RatingService', () => {
 				name: 'Guest2',
 				isbot: false,
 				ratingbase: 1000,
-				fatiguerating: 1000
+				participation_rating: 1000
 			}
 			const sw = Math.pow(10, player_white.rating / 400);
 			const sb = Math.pow(10, player_black.rating / 400);
@@ -202,7 +202,7 @@ describe('RatingService', () => {
 				name: 'Guest1',
 				isbot: false,
 				ratingbase: 1000,
-				fatiguerating: 1000
+				participation_rating: 1000
 			}
 			const player_black: Player = {
 				id: 2,
@@ -215,7 +215,7 @@ describe('RatingService', () => {
 				name: 'Guest2',
 				isbot: false,
 				ratingbase: 1000,
-				fatiguerating: 1000
+				participation_rating: 1000
 			}
 			const sw = Math.pow(10, player_white.rating / 400);
 			const sb = Math.pow(10, player_black.rating / 400);
@@ -243,7 +243,7 @@ describe('RatingService', () => {
 				name: 'Guest1',
 				isbot: false,
 				ratingbase: 1000,
-				fatiguerating: 1000
+				participation_rating: 1000
 			}
 			// fatigue opponent is 0 and less that 0.01
 			const player_black: Player = {
@@ -257,7 +257,7 @@ describe('RatingService', () => {
 				name: 'Guest2',
 				isbot: false,
 				ratingbase: 1000,
-				fatiguerating: 1000
+				participation_rating: 1000
 			}
 			const sw = Math.pow(10, player_white.rating / 400);
 			const sb = Math.pow(10, player_black.rating / 400);
@@ -291,7 +291,7 @@ describe('RatingService', () => {
 				name: 'Guest1',
 				isbot: false,
 				ratingbase: 1000,
-				fatiguerating: 1000
+				participation_rating: 1000
 			}
 			const player_black: Player = {
 				id: 2,
@@ -306,7 +306,7 @@ describe('RatingService', () => {
 				name: 'Guest2',
 				isbot: false,
 				ratingbase: 1000,
-				fatiguerating: 1000
+				participation_rating: 1000
 			}
 			
 			const white_result = await service.adjustedRating(player_white, mockGame.date, PARTICIPATION_CUTOFF, RATING_RETENTION, MAX_DROP, PARTICIPATION_LIMIT);
@@ -331,7 +331,7 @@ describe('RatingService', () => {
 				name: 'Guest1',
 				isbot: false,
 				ratingbase: 1000,
-				fatiguerating: 1000
+				participation_rating: 1000
 			}
 			const white_result = await service.adjustedRating(player_white, mockGame.date, PARTICIPATION_CUTOFF, RATING_RETENTION, MAX_DROP, PARTICIPATION_LIMIT);
 			expect(white_result).toEqual(1700);
