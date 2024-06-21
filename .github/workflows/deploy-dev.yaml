@@ -46,6 +46,7 @@ jobs:
             APP_ENV: ${{ secrets.APP_ENV }} 
             PREVIOUS_FILE: ${{ secrets.PREVIOUS_FILE }}
             RATING_OUTPUT_PATH: ${{ secrets.RATING_OUTPUT_PATH }}
+            RATING_CRON_VALUE: ${{ secrets.RATING_CRON_VALUE }}
         run : |
             rm .env
             touch .env
@@ -57,6 +58,7 @@ jobs:
             echo "APP_ENV = ${APP_ENV}" >> .env
             echo "PREVIOUS_FILE = ${PREVIOUS_FILE}" >> .env
             echo "RATING_OUTPUT_PATH = ${RATING_OUTPUT_PATH}" >> .env
+            echo "RATING_CRON_VALUE = ${RATING_CRON_VALUE}" >> .env
             mv .env ./dist
             mv node_modules ./dist
             mv previous.txt ./dist
