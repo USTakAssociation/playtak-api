@@ -39,7 +39,7 @@ describe('GamesService', () => {
 				GamesService,
 				PTNService,
 				{
-					provide: getRepositoryToken(Games),
+					provide: getRepositoryToken(Games, 'games'),
 					useValue: mockRepo,
 				},
 			],

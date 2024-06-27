@@ -1,0 +1,30 @@
+meta {
+  name: Get player rating
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{url}}/v1/ratings/bcreature
+  body: none
+  auth: none
+}
+
+tests {
+  test("Expect status code to be 200", () => {
+    expect(res.getStatus()).to.equal(200);
+  });
+  
+  test("Expect response to be an object", () => {
+    const body = res.getBody();
+    expect(body).to.be.an('object');
+  });
+  
+  test("Expect response to include required fields", () => {
+    const body = res.getBody();
+    expect(body.name).to.exist;
+    expect(body.rating).to.exist;
+    expect(body.maxrating).to.exist;
+    expect(body.ratedgames).to.exist;
+  });
+}

@@ -1,58 +1,34 @@
+/* eslint-disable indent */
 import { ApiProperty } from "@nestjs/swagger";
 export class Game {
-	@ApiProperty()
-		id: number;
-	@ApiProperty()
-		capstones: number;
-	@ApiProperty()
-		date: number;
-	@ApiProperty()
-		komi: number;
-	@ApiProperty()
-		notation: string;
-	@ApiProperty()
-		pieces: number;
-	@ApiProperty()
-		player_black: string;
-	@ApiProperty()
-		player_white: string;
-	@ApiProperty()
-		rating_black: number;
-	@ApiProperty()
-		rating_change_black: number;
-	@ApiProperty()
-		rating_change_white: number;
-	@ApiProperty()
-		rating_white: number;
-	@ApiProperty()
-		result: string;
-	@ApiProperty()
-		size: number;
-	@ApiProperty()
-		timerinc: number;
-	@ApiProperty()
-		timertime: number;
-	@ApiProperty()
-		tournament: number;
-	@ApiProperty()
-		unrated: number;
-	@ApiProperty()
-		extra_time_amount: number;
-	@ApiProperty()
-		extra_time_trigger: number;
+	id: number;
+	capstones: number;
+	date:number;
+	komi:number;
+	notation: string;
+	pieces: number;
+	player_black: string;
+	player_white: string;
+	rating_black: number;
+	rating_change_black: number;
+	rating_change_white: number;
+	rating_white: number;
+	result: string;
+	size:number;
+	timerinc: number;
+	timertime: number;
+	tournament: number;
+	unrated: number;
+	extra_time_amount: number;
+	extra_time_trigger: number;
 }
 
 export class GamesList {
-	@ApiProperty()
-		items: Array<Game>;
-	@ApiProperty()
-		total: number;
-	@ApiProperty()
-		perPage: number;
-	@ApiProperty()
-		page: number;
-	@ApiProperty()
-		totalPages: number;
+	items: Array<Game>;
+	total: number;
+	perPage: number;
+	page: number;
+	totalPages: number;
 }
 
 export class GameQuery {
@@ -60,67 +36,79 @@ export class GameQuery {
 		description: 'Number of results per page',
 		required: false
 	})
-		limit?: string;
+	limit?: string;
+
 	@ApiProperty({
 		description: 'page number',
 		required: false
 	})
-		page?: string;
+	page?: string;
+
 	@ApiProperty({
 		description: 'Optional skip if you dont use page',
 		required: false,
 	})
-		skip?: string;
+	skip?: string;
+
 	@ApiProperty({
 		description: 'Order By',
 		enum: ['ASC', 'DESC'],
 		required: false
 	})
-		order?: 'ASC' | 'DESC';
+	order?: 'ASC' | 'DESC';
+
 	@ApiProperty({
 		description: 'Column sort',
 		required: false
 	})
-		sort?: string;
+	sort?: string;
+
 	@ApiProperty({
 		description: 'Game id',
 		required: false
 	})
-		id?: string;
+	id?: string;
+
 	@ApiProperty({
 		description: 'Player white username',
 		required: false
 	})
-		player_white?: string;
+	player_white?: string;
+	
 	@ApiProperty({
 		description: 'Player black username',
 		required: false
 	})
-		player_black?: string;
+	player_black?: string;
+	
 	@ApiProperty({
 		description: 'Game result',
 		enum: ['X-0', 'R-0', 'F-0', '1-0', '0-X', '0-R', '0-F', '0-1', '1/2-1/2'],
 		required: false
 	})
-		game_result?: string;
+	game_result?: string;
+
 	@ApiProperty({
 		description: 'Board size',
 		enum: [3,4,5,6,7,8],
 		required: false
 	})
-		size?: 3 | 4 | 5| 6| 7 | 8;
+	size?: 3 | 4 | 5| 6| 7 | 8;
+
 	@ApiProperty({
 		description: 'Game Type',
 		enum: ['normal', 'tournament', 'unrated'],
 		required: false
 	})
-		type?: 'normal' | 'tournament' | 'unrated';
+	type?: 'normal' | 'tournament' | 'unrated';
+
 	@ApiProperty({
 		description: 'Mirror search results',
 		enum: ['true', 'false'],
 		required: false
 	})
-		mirror: string;
+	mirror: string;
+
 }
 
 export class GamePTN {
@@ -129,39 +117,57 @@ export class GamePTN {
 
 export class AnonDetails {
 	@ApiProperty()
-		atime: string;
+	atime: string;
+
 	@ApiProperty()
-		atimeMs: number;
+	atimeMs: number;
+
 	@ApiProperty()
-		birthtime: string;
+	birthtime: string;
+
 	@ApiProperty()
-		birthtimeMs: number;
+	birthtimeMs: number;
+
 	@ApiProperty()
-		blksize: number;
+	blksize: number;
+
 	@ApiProperty()
-		blocks: number;
+	blocks: number;
+
 	@ApiProperty()
-		ctime: string;
+	ctime: string;
+
 	@ApiProperty()
-		ctimeMs: number;
+	ctimeMs: number;
+
 	@ApiProperty()
-		dev: number;
+	dev: number;
+
 	@ApiProperty()
-		gid: number;
+	gid: number;
+
 	@ApiProperty()
-		ino: number;
+	ino: number;
+
 	@ApiProperty()
-		mode: number;
+	mode: number;
+
 	@ApiProperty()
-		mtime: string;
+	mtime: string;
+
 	@ApiProperty()
-		mtimeMs: number;
+	mtimeMs: number;
+
 	@ApiProperty()
-		nlink: number;
+	nlink: number;
+
 	@ApiProperty()
-		rdev: number;
+	rdev: number;
+
 	@ApiProperty()
-		size: number;
+	size: number;
+
 	@ApiProperty()
-		uid: number;
+	uid: number;
+
 }

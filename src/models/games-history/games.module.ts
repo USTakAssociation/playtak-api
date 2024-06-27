@@ -1,3 +1,4 @@
+/* istanbul ignore file */
 import { Module } from '@nestjs/common';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -9,7 +10,7 @@ import { PTNService } from './services/ptn.service';
 @Module({
 	controllers: [GamesController],
 	imports: [
-		TypeOrmModule.forFeature([Games]),
+		TypeOrmModule.forFeature([Games], 'games'),
 		ThrottlerModule.forRootAsync({
 			useFactory: () => ({
 				ttl: 60,

@@ -1,12 +1,15 @@
-# Playtak-api 
+# PlayTak-API 
 
 ## Description
 
-![Unit Tests](https://github.com/USTakAssociation/playtak-api/actions/workflows/ci.yml/badge.svg
-)
+![Unit Tests](https://github.com/USTakAssociation/playtak-api/actions/workflows/ci.yml/badge.svg)
 
 
-This is the Play Tak API projects which contains multiple endpoints for serivcing data to the Play Tak UI
+This is the Play Tak API project which contains multiple endpoints for servicing data to the Play Tak UI
+
+## Requirements
+- node v16.17.1
+- sqlite3
 
 ## Installation
 
@@ -16,6 +19,8 @@ $ npm install
 
 ## Running the app
 
+
+*Note: be sure to update the .env file with the correct paths to where the sqlite db files are located*
 ```bash
 # development
 $ npm run start
@@ -47,21 +52,31 @@ https://api.playtak.com/api
 
 https://api.{env}.playtak.com
 
+Events
 - /events
+
+Games History
 - /v1/games-history/
 - /v1/games-history/{id}
-- /v1/games-historoy/ptn/{id}
+- /v1/games-history/ptn/{id}
 - /v1/hames-history/db
 
-## TODO
+Ratings
+- /v1/ratings
+- /v1/ratings/{player_name}
 
-- Finish up migrating rerating to nest
-- endpoints for getting rating data
+## TODO
 - create user auth endpoints and test
+- dockerize app
+- automatically setup db files in the project and fill with dummy data
+- setup API key registration to track usage
+- add automated versioning and setup release artifacts with github
+- build out more robust deploy and rollback
+- add health check endpoint
 
 
 ## Contributing
-PlayTak is an OPEN Open Source Project. This means that:
+PlayTak is an Open Source Project. This means that:
 
 > Individuals making significant and valuable contributions are given commit-access to the project to contribute as they see fit.
 
@@ -78,7 +93,7 @@ Please read [CONTRIBUTING.md](docs/CONTRIBUTING.md) for details on our code of c
 We use [SemVer](http://semver.org/) for versioning. For the versions available, see the tags on this repository.
 
 ## Contributors
-Play tak is only possible due to the excellent work of the following contributors:
+PlayTak is only possible due to the excellent work of the following contributors:
 
 ||
 :----:|

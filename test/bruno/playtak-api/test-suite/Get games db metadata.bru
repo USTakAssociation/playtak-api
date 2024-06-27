@@ -1,0 +1,27 @@
+meta {
+  name: Get games db metadata
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{url}}/v1/games-history/db
+  body: none
+  auth: none
+}
+
+tests {
+  test("Expect status code to be 200", () => {
+    expect(res.getStatus()).to.equal(200);
+  });
+  
+  test("Expect response to be an Object", () => {
+    const body = res.getBody();
+    expect(body).to.be.an('object');
+  });
+  
+  test("Expect response to have size", () => {
+    const body = res.getBody();
+    expect(body.size).to.exist;
+  });
+}

@@ -1,7 +1,7 @@
 import { CacheInterceptor, Controller, Get, Header, UseInterceptors } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { DefaultExceptionDto } from '../games-history/dto/error.dto';
-import { EventList } from '../games-history/dto/events.dto';
+import { DefaultExceptionDto } from '../dto/error.dto';
+import { EventList } from '../dto/events/events.dto';
 import { EventsService } from './events.service';
 
 @ApiTags('Events')
