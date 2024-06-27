@@ -1,43 +1,20 @@
-/* eslint-disable indent */
 import { ApiProperty } from "@nestjs/swagger";
 
 export class Rating {
-	@ApiProperty()
 	id: number;
-
-	@ApiProperty()
 	name: string;
-
-	@ApiProperty()
 	rating: number;
-
-	@ApiProperty()
 	maxrating: number;
-
-	@ApiProperty()
-	ratedgames: number;
-	
-	@ApiProperty()
+	ratedgames: number;	
 	participation_rating: number;
-
-	@ApiProperty()
 	isbot: boolean;
 }
 
 export class RatingList {
-	@ApiProperty()
 	items: Array<Rating>;
-
-	@ApiProperty()
 	total: number;
-
-	@ApiProperty()
 	perPage: number;
-
-	@ApiProperty()
 	page: number;
-
-	@ApiProperty()
 	totalPages: number;
 }
 

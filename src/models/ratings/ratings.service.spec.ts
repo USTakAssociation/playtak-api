@@ -41,6 +41,21 @@ describe('RatingService', () => {
 	const PARTICIPATION_CUTOFF = 1500;
 	const MAX_DROP = 200;
 	const RATING_RETENTION = 1000 * 60 * 60 * 24 * 240;
+	
+	const getPlayerDefaults: any = (id: number, overrides: Partial<Player>): Player => ({
+		fatigue: {},
+		boost: 0,
+		ratedgames: 0,
+		rating: 1000,
+		maxrating: 1000,
+		ratingage: 0,
+		isbot: false,
+		ratingbase: 1000,
+		participation_rating: 1000,
+		name: `testPlayer${id}`,
+		id,
+		...overrides,
+	});
 		
 	beforeEach(async () => {
 		const module: TestingModule = await Test.createTestingModule({
@@ -74,74 +89,39 @@ describe('RatingService', () => {
 				result: 'R-0',
 				date: 1683328933,
 			}
-			const quickresult = {'R-0': 1, 'F-0': 1, '1-0': 1, '0-R': 0, '0-F': 0, '0-1': 0, '1/2-1/2': 0.5}[mockGame.result];
-			const player_white: Player = {
-				id: 1,
-				fatigue: {},
-				boost: 0,
-				ratedgames: 0,
-				rating: 1000,
-				maxrating: 1000,
+			const quickResult = {'R-0': 1, 'F-0': 1, '1-0': 1, '0-R': 0, '0-F': 0, '0-1': 0, '1/2-1/2': 0.5}[mockGame.result];
+			const player_white: Player = getPlayerDefaults(1, {
 				ratingage: 1637395624533.48,
-				name: 'Guest1',
-				isbot: false,
-				ratingbase: 1000,
-				participation_rating: 1000
-			}
-			const player_black: Player = {
-				id: 2,
-				fatigue: {
-					"1": 0.10901345963072347
-				},
-				boost: 0,
-				ratedgames: 0,
-				rating: 1000,
-				maxrating: 1000,
-				ratingage: 0,
-				name: 'Guest2',
-				isbot: false,
-				ratingbase: 1000,
-				participation_rating: 1000
-			}
+			})
+			const player_black: Player = getPlayerDefaults(2, {
+				fatigue: { "1": 0.10901345963072347 }
+			})
 
 			const sw = Math.pow(10, player_white.rating / 400);
 			const sb = Math.pow(10, player_black.rating / 400);
 			const expected = sw / (sw + sb);
 			const fairness = expected * (1 - expected);
-			const fatiguefactor =
+			const fatigueFactor =
 				(1 -(player_white.fatigue[player_black.id] || 0) * 0.4) *
 				(1 -(player_black.fatigue[player_white.id] || 0) * 0.4);
 			
-			const white_result = await service.adjustPlayer(player_white, quickresult - expected, fairness, fatiguefactor, mockGame.date, BONUS_FACTOR, BONUS_RATING, RATING_RETENTION, INITIAL_RATING);
-			const black_result = await service.adjustPlayer(player_black, quickresult - expected, fairness, fatiguefactor, mockGame.date, BONUS_FACTOR, BONUS_RATING, RATING_RETENTION, INITIAL_RATING);
-			const mock_white_result =  {
-				id: 1,
-				fatigue: {},
-				boost: 0,
+			const white_result = await service.adjustPlayer(player_white, quickResult - expected, fairness, fatigueFactor, mockGame.date, BONUS_FACTOR, BONUS_RATING, RATING_RETENTION, INITIAL_RATING);
+			const black_result = await service.adjustPlayer(player_black, quickResult - expected, fairness, fatigueFactor, mockGame.date, BONUS_FACTOR, BONUS_RATING, RATING_RETENTION, INITIAL_RATING);
+			const mock_white_result = getPlayerDefaults(1, {
 				ratedgames: 1,
 				rating: 1019.1278923229543,
 				maxrating: 1019.1278923229543,
 				ratingage: 1683328933,
 				changed: true,
-				name: 'Guest1',
-				isbot: false,
-				ratingbase: 1000,
-				participation_rating: 1000
-			}
-			const mock_black_result = {
-				id: 2,
+			})
+			const mock_black_result = getPlayerDefaults(2, {
 				fatigue: { '1': 0.10901345963072347 },
-				boost: 0,
 				ratedgames: 1,
 				rating: 1019.1278923229543,
 				maxrating: 1019.1278923229543,
 				ratingage: -18345807353.537495,
 				changed: true,
-				name: 'Guest2',
-				isbot: false,
-				ratingbase: 1000,
-				participation_rating: 1000
-			}
+			})
 			expect(mock_white_result).toMatchObject(white_result);
 			expect(mock_black_result).toMatchObject(black_result);
 		});
@@ -149,124 +129,50 @@ describe('RatingService', () => {
 
 	describe('Adjust Fatigue', () => {
 		it('should return adjusted fatigue', async () => {
-			const player_white: Player = {
-				id: 1,
-				fatigue: {},
-				boost: 0,
-				ratedgames: 0,
-				rating: 1000,
-				maxrating: 1000,
-				ratingage: 1637395624533.48,
-				name: 'Guest1',
-				isbot: false,
-				ratingbase: 1000,
-				participation_rating: 1000
-			}
-			const player_black: Player = {
-				id: 2,
-				fatigue: {
-					"1": 0.10901345963072347
-				},
-				boost: 0,
-				ratedgames: 0,
-				rating: 1000,
-				maxrating: 1000,
-				ratingage: 0,
-				name: 'Guest2',
-				isbot: false,
-				ratingbase: 1000,
-				participation_rating: 1000
-			}
+			const player_white: Player = getPlayerDefaults(1, { ratingage: 1637395624533.48 })
+			const player_black: Player = getPlayerDefaults(2, { fatigue: { "1": 0.10901345963072347 } })
 			const sw = Math.pow(10, player_white.rating / 400);
 			const sb = Math.pow(10, player_black.rating / 400);
 			const expected = sw / (sw + sb);
 			const fairness = expected * (1 - expected);
-			const fatiguefactor =
+			const fatigueFactor =
 				(1 -(player_white.fatigue[player_black.id] || 0) * 0.4) *
 				(1 -(player_black.fatigue[player_white.id] || 0) * 0.4);
-			const white_result = await service.updateFatigue(player_white, player_black.id.toString(), fairness * fatiguefactor);
-			const black_result = await service.updateFatigue(player_black, player_white.id.toString(), fairness * fatiguefactor);
+			const white_result = await service.updateFatigue(player_white, player_black.id.toString(), fairness * fatigueFactor);
+			const black_result = await service.updateFatigue(player_black, player_white.id.toString(), fairness * fatigueFactor);
 			expect(white_result).toEqual(0.23909865403692765);
 			expect(black_result).toEqual(0.3376861250798051);
 		});
 		
 		it('should return an error if fatigue is a string', async () => {
-			const player_white = {
-				id: 1,
-				fatigue: {},
-				boost: 0,
-				ratedgames: 0,
-				rating: 1000,
-				maxrating: 1000,
-				ratingage: 1637395624533.48,
-				name: 'Guest1',
-				isbot: false,
-				ratingbase: 1000,
-				participation_rating: 1000
-			}
-			const player_black: Player = {
-				id: 2,
-				fatigue: '{ "1": 0.10901345963072347}',
-				boost: 0,
-				ratedgames: 0,
-				rating: 1000,
-				maxrating: 1000,
-				ratingage: 0,
-				name: 'Guest2',
-				isbot: false,
-				ratingbase: 1000,
-				participation_rating: 1000
-			}
+			const player_white: Player = getPlayerDefaults(1, { ratingage: 1637395624533.48 })
+			const player_black: Player = getPlayerDefaults(2, { fatigue: '{ "1": 0.10901345963072347}' })
 			const sw = Math.pow(10, player_white.rating / 400);
 			const sb = Math.pow(10, player_black.rating / 400);
 			const expected = sw / (sw + sb);
 			const fairness = expected * (1 - expected);
-			const fatiguefactor =
+			const fatigueFactor =
 				(1 -(player_white.fatigue[player_black.id] || 0) * 0.4) *
 				(1 -(0) * 0.4);
 			try {
-				await service.updateFatigue(player_black, player_white.id.toString(), fairness * fatiguefactor);
+				await service.updateFatigue(player_black, player_white.id.toString(), fairness * fatigueFactor);
 			} catch (error) {
 				expect(error.message).toEqual("Fatigue is a string, needs to be an object");
 			}
 		});
 		
 		it('should delete the player fatigue', async () => {
-			const player_white: Player = {
-				id: 1,
-				fatigue: {},
-				boost: 0,
-				ratedgames: 0,
-				rating: 1000,
-				maxrating: 1000,
-				ratingage: 1637395624533.48,
-				name: 'Guest1',
-				isbot: false,
-				ratingbase: 1000,
-				participation_rating: 1000
-			}
 			// fatigue opponent is 0 and less that 0.01
-			const player_black: Player = {
-				id: 2,
-				fatigue: { "0": 0.00901345963072347},
-				boost: 0,
-				ratedgames: 0,
-				rating: 1000,
-				maxrating: 1000,
-				ratingage: 0,
-				name: 'Guest2',
-				isbot: false,
-				ratingbase: 1000,
-				participation_rating: 1000
-			}
+			const player_white: Player = getPlayerDefaults(1, { ratingage: 1637395624533.48 })
+			const player_black: Player = getPlayerDefaults(2, { fatigue: { "0": 0.00901345963072347 } })
 			const sw = Math.pow(10, player_white.rating / 400);
 			const sb = Math.pow(10, player_black.rating / 400);
 			const expected = sw / (sw + sb);
 			const fairness = expected * (1 - expected);
-			const fatiguefactor =
+			const fatigueFactor =
 				(1 -(player_white.fatigue[player_black.id] || 0) * 0.4) *
 				(1 -(0) * 0.4);
-			const result = await service.updateFatigue(player_black, player_white.id.toString(), fairness * fatiguefactor);
+			const result = await service.updateFatigue(player_black, player_white.id.toString(), fairness * fatigueFactor);
 			expect(result).toEqual(0.25);
 		});
 		
@@ -279,36 +185,8 @@ describe('RatingService', () => {
 				result: 'R-0',
 				date: 1683328933,
 			}
-
-			const player_white: Player = {
-				id: 1,
-				fatigue: {},
-				boost: 0,
-				ratedgames: 0,
-				rating: 1600,
-				maxrating: 1000,
-				ratingage: 1637395624533.48,
-				name: 'Guest1',
-				isbot: false,
-				ratingbase: 1000,
-				participation_rating: 1000
-			}
-			const player_black: Player = {
-				id: 2,
-				fatigue: {
-					"1": 0.10901345963072347
-				},
-				boost: 0,
-				ratedgames: 0,
-				rating: 1000,
-				maxrating: 1000,
-				ratingage: 0,
-				name: 'Guest2',
-				isbot: false,
-				ratingbase: 1000,
-				participation_rating: 1000
-			}
-			
+			const player_white: Player = getPlayerDefaults(1, { ratingage: 1637395624533.48, rating: 1600 })
+			const player_black: Player = getPlayerDefaults(2, { fatigue: { "1": 0.10901345963072347 } })
 			const white_result = await service.adjustedRating(player_white, mockGame.date, PARTICIPATION_CUTOFF, RATING_RETENTION, MAX_DROP, PARTICIPATION_LIMIT);
 			const black_result = await service.adjustedRating(player_black, mockGame.date, PARTICIPATION_CUTOFF, RATING_RETENTION, MAX_DROP, PARTICIPATION_LIMIT);
 			expect(white_result).toEqual(1600);
@@ -320,19 +198,7 @@ describe('RatingService', () => {
 				result: 'R-0',
 				date: 1683328933,
 			}
-			const player_white: Player = {
-				id: 1,
-				fatigue: {},
-				boost: 0,
-				ratedgames: 0,
-				rating: 1700,
-				maxrating: 1000,
-				ratingage: 1637395624533.48,
-				name: 'Guest1',
-				isbot: false,
-				ratingbase: 1000,
-				participation_rating: 1000
-			}
+			const player_white: Player = getPlayerDefaults(1, { ratingage: 1637395624533.48, rating: 1700 })
 			const white_result = await service.adjustedRating(player_white, mockGame.date, PARTICIPATION_CUTOFF, RATING_RETENTION, MAX_DROP, PARTICIPATION_LIMIT);
 			expect(white_result).toEqual(1700);
 		});

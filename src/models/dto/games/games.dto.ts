@@ -1,81 +1,33 @@
 /* eslint-disable indent */
 import { ApiProperty } from "@nestjs/swagger";
 export class Game {
-	@ApiProperty()
 	id: number;
-
-	@ApiProperty()
 	capstones: number;
-
-	@ApiProperty()
 	date:number;
-
-	@ApiProperty()
 	komi:number;
-
-	@ApiProperty()
 	notation: string;
-
-	@ApiProperty()
 	pieces: number;
-
-	@ApiProperty()
 	player_black: string;
-
-	@ApiProperty()
 	player_white: string;
-
-	@ApiProperty()
 	rating_black: number;
-
-	@ApiProperty()
 	rating_change_black: number;
-
-	@ApiProperty()
 	rating_change_white: number;
-
-	@ApiProperty()
 	rating_white: number;
-
-	@ApiProperty()
 	result: string;
-
-	@ApiProperty()
 	size:number;
-
-	@ApiProperty()
 	timerinc: number;
-
-	@ApiProperty()
 	timertime: number;
-
-	@ApiProperty()
 	tournament: number;
-
-	@ApiProperty()
 	unrated: number;
-
-	@ApiProperty()
 	extra_time_amount: number;
-
-	@ApiProperty()
 	extra_time_trigger: number;
 }
 
 export class GamesList {
-	@ApiProperty()
 	items: Array<Game>;
-	
-	@ApiProperty()
 	total: number;
-	
-	@ApiProperty()
 	perPage: number;
-	
-	@ApiProperty()
 	page: number;
-	
-	@ApiProperty()
 	totalPages: number;
 }
 
