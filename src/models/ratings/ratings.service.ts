@@ -6,7 +6,7 @@ import { Rating, RatingList, RatingQuery } from '../dto/rating/ratings.dto';
 import { access, readFile, writeFile } from 'fs/promises';
 import { Players } from './entities/players.entity';
 import { Games } from '../games-history/entities/games.entity';
-import { Player } from '../dto/players/player.dto';
+import { Fatigue, Player } from '../dto/players/player.dto';
 import { DefaultExceptionDto } from '../dto/error.dto';
 import { gzipSync } from 'zlib';
 import { writeFileSync } from 'fs';
@@ -75,6 +75,30 @@ export class RatingService {
 			throw new HttpException("Error getting players rating. ", 500, {cause: error});
 		}
 	}
+	
+	public parseFatigue(player: Player): Player {
+		if (player.fatigue === null) {
+			return player;
+		  }
+		
+		if (typeof player.fatigue === 'string') {
+			let fatigueStr: string = player.fatigue;
+			
+			// Clean up the string
+			fatigueStr = fatigueStr.replace(/\\/g, '');
+			fatigueStr = fatigueStr.startsWith('"') ? fatigueStr.slice(1) : fatigueStr;
+			fatigueStr = fatigueStr.endsWith('"') ? fatigueStr.slice(0, -1) : fatigueStr;
+			
+			try {
+				player.fatigue = JSON.parse(fatigueStr) as Fatigue;
+			} catch (error) {
+				console.error(`Failed to parse fatigue for player ${player.id}:`, error);
+				player.fatigue = null;
+			}
+		}
+	
+		return player;
+	}
 
 	// generates the games and players ratings
 	// the rating calculation is based on Nohatcoders Elo rating system
@@ -96,7 +120,7 @@ export class RatingService {
 			previous = await readFile(process.env.PREVIOUS_FILE, 'utf-8');
 		} catch (error) {
 			this.logger.error(error);
-			return;
+			throw new Error(error);
 		}
 		const previousData = previous.split(' ');
 		let lastUsedGame = previousData[0];
@@ -112,7 +136,7 @@ export class RatingService {
 		const MAX_DROP = 200;
 		const RATING_RETENTION = 1000 * 60 * 60 * 24 * 240;
 
-		const playersArray = [];
+		let playersArray: Array<Player> = [];
 		const playersRatingList=[]
 		const playerRunner = this.playersRepository.manager.connection.createQueryRunner();
 		const gameRunner = this.gamesRepository.manager.connection.createQueryRunner();
@@ -124,20 +148,12 @@ export class RatingService {
 			// get all the players
 			const getPlayersQuery =
 				'select id,name,ratingbase,unrated,isbot,rating,boost,ratedgames,maxrating,ratingage,fatigue FROM players WHERE ratingbase = 0 AND unrated = 0;';
-			const playersData = await this.playersRepository.query(getPlayersQuery);
+			const playersData: Array<Player> = await this.playersRepository.query(getPlayersQuery);
 			// loop through the players to parse the players fatigue, add a changed boolean, and push them to the playersArray
-			for (let i = 0; i < playersData.length; i++) {
-				playersData[i].fatigue = playersData[i].fatigue.replace(/\\/g, '');
-				// if fatigue starts with " then remove it
-				if (playersData[i].fatigue.startsWith('"'))
-					playersData[i].fatigue = playersData[i].fatigue.slice(1);
-				// if fatigue ends with " then remove it
-				if (playersData[i].fatigue.endsWith('"'))
-					playersData[i].fatigue = playersData[i].fatigue.slice(0, -1);
-				playersData[i].fatigue = JSON.parse(playersData[i].fatigue);
-				playersData[i].changed = false;
-				playersArray.push(playersData[i]);
-			}
+			playersArray = playersData.map(player => ({
+				...player,
+				changed: false,
+			  })).map(this.parseFatigue);
 
 			// get all the games
 			const gamesQuery = `
@@ -167,11 +183,11 @@ export class RatingService {
 			for (let i = 0; i < gamesData.length; i++) {
 				const game = gamesData[i];
 				// get the player white and player black from the playersArray
-				let player_white =
+				let player_white: Player =
 					playersArray[
 						playersArray.findIndex((p) => p.name == game.player_white)
 					];
-				let player_black =
+				let player_black: Player =
 					playersArray[
 						playersArray.findIndex((p) => p.name == game.player_black)
 					];
@@ -415,7 +431,7 @@ export class RatingService {
 
 	// mutates the player fatigue object
 	// called when looping through the gamesData
-	public updateFatigue(player: Player, opponentID: string, gameFactor: number) {
+	public updateFatigue(player: Player, opponentID: string, gameFactor: number): Player {
 		const MULTIPLIER = 1 - gameFactor * 0.4;
 		// check if player fatigue is a string and throw error
 		if (typeof player.fatigue == 'string') {
@@ -427,7 +443,8 @@ export class RatingService {
 				delete player.fatigue[a];
 			}
 		}
-		return (player.fatigue[opponentID] = (player.fatigue[opponentID] || 0) + gameFactor);
+		player.fatigue[opponentID] = (player.fatigue[opponentID] || 0) + gameFactor;
+		return player;
 	}
 
 	// returns the players adjusted rating

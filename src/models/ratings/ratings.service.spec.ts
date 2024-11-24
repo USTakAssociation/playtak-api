@@ -51,6 +51,7 @@ describe('RatingService', () => {
 		ratingage: 0,
 		isbot: false,
 		ratingbase: 1000,
+		unrated: false,
 		participation_rating: 1000,
 		name: `testPlayer${id}`,
 		id,
@@ -127,6 +128,16 @@ describe('RatingService', () => {
 		});
 	})
 
+	describe('Parse Fatigue', () => {
+		it('should return parsed fatigue', async () => {
+			const player_white: any = {
+				fatigue: "{ \"1\": 0.10901345963072347 }"
+			}
+			const white_result = await service.parseFatigue(player_white);
+			expect(white_result).toEqual({ fatigue: { "1": 0.10901345963072347 } });
+		});
+	})
+
 	describe('Adjust Fatigue', () => {
 		it('should return adjusted fatigue', async () => {
 			const player_white: Player = getPlayerDefaults(1, { ratingage: 1637395624533.48 })
@@ -140,8 +151,8 @@ describe('RatingService', () => {
 				(1 -(player_black.fatigue[player_white.id] || 0) * 0.4);
 			const white_result = await service.updateFatigue(player_white, player_black.id.toString(), fairness * fatigueFactor);
 			const black_result = await service.updateFatigue(player_black, player_white.id.toString(), fairness * fatigueFactor);
-			expect(white_result).toEqual(0.23909865403692765);
-			expect(black_result).toEqual(0.3376861250798051);
+			expect(white_result.fatigue).toEqual({"2": 0.23909865403692765});
+			expect(black_result.fatigue).toEqual({"1": 0.3376861250798051});
 		});
 		
 		it('should return an error if fatigue is a string', async () => {
@@ -173,7 +184,7 @@ describe('RatingService', () => {
 				(1 -(player_white.fatigue[player_black.id] || 0) * 0.4) *
 				(1 -(0) * 0.4);
 			const result = await service.updateFatigue(player_black, player_white.id.toString(), fairness * fatigueFactor);
-			expect(result).toEqual(0.25);
+			expect(result.fatigue).toEqual({"1": 0.25});
 		});
 		
 		

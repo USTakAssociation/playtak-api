@@ -15,6 +15,7 @@ export class Player {
 	ratingage: number;
 	ratingbase: number;
 	participation_rating: number;
-	fatigue: Fatigue | string | null;
+	fatigue?: Fatigue;
+	unrated: boolean
 	changed?: boolean;
 }
