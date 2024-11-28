@@ -33,7 +33,7 @@ export class RatingTask implements OnModuleInit {
 	// | | hours
 	// | minutes
 	// seconds (optional)
-	//@Cron('0 15 * * * *')
+	//@Cron('0 15 * * * *') commented out because we are using the onModuleInit method
 	handleTask() {
 		this.logger.debug('Running rating task');
 		this._service.generateRating();

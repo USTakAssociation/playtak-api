@@ -92,7 +92,7 @@ export class RatingService {
 			try {
 				player.fatigue = JSON.parse(fatigueStr) as Fatigue;
 			} catch (error) {
-				console.error(`Failed to parse fatigue for player ${player.id}:`, error);
+				this.logger.error(`Failed to parse fatigue for player ${player.id}:`, error);
 				player.fatigue = null;
 			}
 		}
@@ -137,7 +137,7 @@ export class RatingService {
 		const RATING_RETENTION = 1000 * 60 * 60 * 24 * 240;
 
 		let playersArray: Array<Player> = [];
-		const playersRatingList=[]
+		const playersRatingList = [];
 		const playerRunner = this.playersRepository.manager.connection.createQueryRunner();
 		const gameRunner = this.gamesRepository.manager.connection.createQueryRunner();
 		await playerRunner.connect();
@@ -147,14 +147,13 @@ export class RatingService {
 		try {
 			// get all the players
 			const getPlayersQuery =
-				'select id,name,ratingbase,unrated,isbot,rating,boost,ratedgames,maxrating,ratingage,fatigue FROM players WHERE ratingbase = 0 AND unrated = 0;';
+				'select id,name,ratingbase,unrated,isbot,rating,boost,ratedgames,maxrating,ratingage,fatigue FROM players;';
 			const playersData: Array<Player> = await this.playersRepository.query(getPlayersQuery);
 			// loop through the players to parse the players fatigue, add a changed boolean, and push them to the playersArray
 			playersArray = playersData.map(player => ({
 				...player,
 				changed: false,
 			  })).map(this.parseFatigue);
-
 			// get all the games
 			const gamesQuery = `
 				SELECT id, date, player_white, player_black, result, unrated, size, timertime, timerinc, pieces, capstones, length(notation) as notationlength FROM games 
