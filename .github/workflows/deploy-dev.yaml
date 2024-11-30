@@ -44,6 +44,9 @@ jobs:
             ANON_DB_PATH: ${{ secrets.ANON_DB_PATH }}
             DB_PATH: ${{ secrets.DB_PATH }}
             APP_ENV: ${{ secrets.APP_ENV }} 
+            PREVIOUS_FILE: ${{ secrets.PREVIOUS_FILE }}
+            RATING_OUTPUT_PATH: ${{ secrets.RATING_OUTPUT_PATH }}
+            RATING_CRON_VALUE: ${{ secrets.RATING_CRON_VALUE }}
         run : |
             rm .env
             touch .env
@@ -53,8 +56,12 @@ jobs:
             echo "ANON_DB_PATH = ${ANON_DB_PATH}" >> .env
             echo "DB_PATH = ${DB_PATH}" >> .env
             echo "APP_ENV = ${APP_ENV}" >> .env
+            echo "PREVIOUS_FILE = ${PREVIOUS_FILE}" >> .env
+            echo "RATING_OUTPUT_PATH = ${RATING_OUTPUT_PATH}" >> .env
+            echo "RATING_CRON_VALUE = ${RATING_CRON_VALUE}" >> .env
             mv .env ./dist
             mv node_modules ./dist
+            mv previous.txt ./dist
             tar -czf artifact.tar.gz ./dist 
       - name: Deploy
         env: 
@@ -70,9 +77,11 @@ jobs:
             rm -rf playtak-api-dev-tmp
             mkdir playtak-api-dev-tmp
             tar -xzf artifact.tar.gz -C ./playtak-api-dev-tmp
+            cp /var/apps/playtak-api-beta/previous.txt playtak-api-dev-tmp/previous.txt
             sudo rm -rf /var/apps/playtak-api-beta
             sudo mv playtak-api-dev-tmp/dist/ /var/apps/playtak-api-beta
-            rm -rf playtak-api-dev-temp
+            cp playtak-api-dev-tmp/previous.txt /var/apps/playtak-api-beta/previous.txt
+            rm -rf playtak-api-dev-tmp
             rm artifact.tar.gz
             pm2 restart playtak-api-beta --update-env
           '

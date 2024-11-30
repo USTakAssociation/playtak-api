@@ -1,3 +1,4 @@
+/* istanbul ignore file */
 import { CacheInterceptor, CacheModule, Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';

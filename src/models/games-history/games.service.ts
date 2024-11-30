@@ -4,13 +4,13 @@ import { Between, In, Like, MoreThan, Repository } from 'typeorm';
 import { Games } from './entities/games.entity';
 import { stat } from 'fs/promises';
 import { PTNService } from './services/ptn.service';
-import { GameQuery } from './dto/games.dto';
+import { GameQuery } from '../dto/games/games.dto';
 @Injectable()
 export class GamesService {
 	constructor(
-		@InjectRepository(Games)
+		@InjectRepository(Games, 'games')
 		private repository: Repository<Games>,
-		private ptnSerivce: PTNService,
+		private ptnService: PTNService,
 	) {}
 
 	validateIdQuery(id: string) {
@@ -19,7 +19,7 @@ export class GamesService {
 			return false;
 		}
 		
-		// cannot conatin both a hyphen and a comma
+		// cannot contain both a hyphen and a comma
 		if (id.includes("-") && id.includes(",")) {
 			return false;
 		}
@@ -248,7 +248,7 @@ export class GamesService {
 			if (!result) {
 				return new NotFoundException();
 			}
-			const ptn = this.ptnSerivce.getPTN(result);
+			const ptn = this.ptnService.getPTN(result);
 			return ptn;
 		} catch (error) {
 			console.error(error);
