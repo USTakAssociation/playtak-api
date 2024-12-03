@@ -1,4 +1,5 @@
-import { CacheInterceptor, Controller, Get, Header, UseInterceptors } from '@nestjs/common';
+import { Controller, Get, Header, UseInterceptors } from '@nestjs/common';
+import { CacheInterceptor } from '@nestjs/cache-manager'
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { DefaultExceptionDto } from '../dto/error.dto';
 import { EventList } from '../dto/events/events.dto';
