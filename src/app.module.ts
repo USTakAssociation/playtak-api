@@ -15,14 +15,14 @@ import * as path from 'path';
 		ConfigModule.forRoot(),
 		TypeOrmModule.forRoot({
 			name: 'games',
-			type: 'sqlite',
+			type: 'better-sqlite3',
 			database: path.join(process.env.DB_PATH, 'games.db'),
 			entities: [path.join(__dirname, '/**/*.entity{.ts,.js}')],
 			synchronize: false,
 		}),
 		TypeOrmModule.forRoot({
 			name: 'default',
-			type: 'sqlite',
+			type: 'better-sqlite3',
 			database: path.join(process.env.DB_PATH, 'players.db'),
 			entities: [path.join(__dirname, '/**/*.entity{.ts,.js}')],
 			synchronize: false,
