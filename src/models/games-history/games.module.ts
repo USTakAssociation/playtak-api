@@ -12,10 +12,10 @@ import { PTNService } from './services/ptn.service';
 	imports: [
 		TypeOrmModule.forFeature([Games], 'games'),
 		ThrottlerModule.forRootAsync({
-			useFactory: () => ({
+			useFactory: () => [{
 				ttl: 60,
 				limit: 60,
-			}),
+			}],
 		}),
 	],
 	providers: [GamesService, PTNService],
