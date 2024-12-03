@@ -33,7 +33,7 @@ export default [{
 
 		parserOptions: {
 			project: "tsconfig.json",
-			tsconfigRootDir: "/Users/braydonharris/dev/personal-projects/tak/playtak-api",
+			tsconfigRootDir: "./",
 		},
 	},
 
