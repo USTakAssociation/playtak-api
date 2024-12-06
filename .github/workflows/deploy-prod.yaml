@@ -11,7 +11,7 @@ jobs:
     environment: Prod
     strategy:
       matrix:
-        node-version: [16.x]
+        node-version: [22.x]
 
     steps:
       - uses: actions/checkout@v2
@@ -82,5 +82,5 @@ jobs:
             cp playtak-api-tmp/previous.txt /var/apps/playtak-api-prod/previous.txt
             rm -rf playtak-api-tmp
             rm artifact.tar.gz
-            pm2 restart playtak-api-prod --update-env
+            pm2 restart playtak-api-prod --update-env --interpreter=/home/ubuntu/.nvm/versions/node/v22.11.0/bin/node
           '
