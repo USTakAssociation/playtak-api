@@ -83,5 +83,5 @@ jobs:
             cp playtak-api-dev-tmp/previous.txt /var/apps/playtak-api-beta/previous.txt
             rm -rf playtak-api-dev-tmp
             rm artifact.tar.gz
-            pm2 restart playtak-api-beta --update-env
+            pm2 restart playtak-api-dev --update-env --interpreter=/home/ubuntu/.nvm/versions/node/v22.11.0/bin/node
           '

@@ -43,7 +43,8 @@ async function bootstrap() {
 			  callback(null, true);
 			  return;
 			}
-			if ( process.env.CORS_DOMAIN.split(',').includes(origin) ) {
+			const allowedOrigins = process.env.CORS_DOMAIN.split(',');
+			if (allowedOrigins[0] === '*' || allowedOrigins.includes(origin)){
 			  callback(null, true);
 			} else {
 			  console.error('blocked cors for:', origin);
