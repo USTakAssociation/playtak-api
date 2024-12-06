@@ -232,8 +232,32 @@ export class GamesService {
 
 	async getDBInfo() {
 		try {
-			const result = await stat(process.env.ANON_DB_PATH);
-			return result;
+			const stats = await stat(process.env.ANON_DB_PATH);
+			return {
+				// Basic stats
+				dev: stats.dev,
+				mode: stats.mode,
+				nlink: stats.nlink,
+				uid: stats.uid,
+				gid: stats.gid,
+				rdev: stats.rdev,
+				blksize: stats.blksize,
+				ino: stats.ino,
+				size: stats.size,
+				blocks: stats.blocks,
+		
+				// Timestamp information (ensuring full timestamp data)
+				atimeMs: stats.atimeMs,
+				mtimeMs: stats.mtimeMs,
+				ctimeMs: stats.ctimeMs,
+				birthtimeMs: stats.birthtimeMs,
+		
+				// Adding formatted date objects for readability
+				atime: stats.atime,
+				mtime: stats.mtime,
+				ctime: stats.ctime,
+				birthtime: stats.birthtime
+			  };
 		} catch (error) {
 			console.error(error);
 			throw new Error('Could not get DB info. ' + error);
