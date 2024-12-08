@@ -15,10 +15,10 @@ import { Games } from '../games-history/entities/games.entity';
 		TypeOrmModule.forFeature([Ratings, Players], 'default'),
 		TypeOrmModule.forFeature([Games], 'games'),
 		ThrottlerModule.forRootAsync({
-			useFactory: () => ({
+			useFactory: () => [{
 				ttl: 60,
 				limit: 60,
-			}),
+			}],
 		}),
 	],
 	providers: [RatingTask, RatingService],
