@@ -1,14 +1,16 @@
-name: Playtak API service deploy Prod
+name: PlayTak API service deploy Dev
 
 on:
   push:
-    branches: [ main ]
+    branches: [ dev ]
+    paths:
+      - 'api/**'
 
 jobs:
   build:
 
     runs-on: ubuntu-20.04
-    environment: Prod
+    environment: Beta
     strategy:
       matrix:
         node-version: [22.x]
@@ -43,7 +45,7 @@ jobs:
             CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
             ANON_DB_PATH: ${{ secrets.ANON_DB_PATH }}
             DB_PATH: ${{ secrets.DB_PATH }}
-            APP_ENV: ${{ secrets.APP_ENV }}
+            APP_ENV: ${{ secrets.APP_ENV }} 
             PREVIOUS_FILE: ${{ secrets.PREVIOUS_FILE }}
             RATING_OUTPUT_PATH: ${{ secrets.RATING_OUTPUT_PATH }}
             RATING_CRON_VALUE: ${{ secrets.RATING_CRON_VALUE }}
@@ -61,6 +63,7 @@ jobs:
             echo "RATING_CRON_VALUE = ${RATING_CRON_VALUE}" >> .env
             mv .env ./dist
             mv node_modules ./dist
+            mv previous.txt ./dist
             tar -czf artifact.tar.gz ./dist 
       - name: Deploy
         env: 
@@ -73,14 +76,14 @@ jobs:
           scp -P ${SSH_PORT} -o StrictHostKeyChecking=no -i private_key.pem artifact.tar.gz ${USER_NAME}@${HOSTNAME}:~
           ssh -p ${SSH_PORT} -o StrictHostKeyChecking=no -i private_key.pem ${USER_NAME}@${HOSTNAME} '
             source ~/.nvm/nvm.sh
-            rm -rf playtak-api-tmp
-            mkdir playtak-api-tmp
-            tar -xzf artifact.tar.gz -C ./playtak-api-tmp
-            cp /var/apps/playtak-api-prod/previous.txt playtak-api-tmp/previous.txt
-            sudo rm -rf /var/apps/playtak-api-prod
-            sudo mv playtak-api-tmp/dist/ /var/apps/playtak-api-prod
-            cp playtak-api-tmp/previous.txt /var/apps/playtak-api-prod/previous.txt
-            rm -rf playtak-api-tmp
+            rm -rf playtak-api-dev-tmp
+            mkdir playtak-api-dev-tmp
+            tar -xzf artifact.tar.gz -C ./playtak-api-dev-tmp
+            cp /var/apps/playtak-api-beta/previous.txt playtak-api-dev-tmp/previous.txt
+            sudo rm -rf /var/apps/playtak-api-beta
+            sudo mv playtak-api-dev-tmp/dist/ /var/apps/playtak-api-beta
+            cp playtak-api-dev-tmp/previous.txt /var/apps/playtak-api-beta/previous.txt
+            rm -rf playtak-api-dev-tmp
             rm artifact.tar.gz
-            pm2 restart playtak-api-prod --update-env --interpreter=/home/ubuntu/.nvm/versions/node/v22.11.0/bin/node
+            pm2 restart playtak-api-beta --update-env --interpreter=/home/ubuntu/.nvm/versions/node/v22.11.0/bin/node
           '
