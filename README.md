@@ -1,13 +1,13 @@
 # PlayTak 
 
-This is the new monorepo for the playtak services 
+This is the new monorepo for the PlayTak services 
 
 ## Description
 
 ![Unit Tests](https://github.com/USTakAssociation/playtak-api/actions/workflows/ci.yml/badge.svg)
 
 
-This is repo contains the api and ta server for servicing data to the Play Tak UI client and games ui
+This is repo contains the api and Tak server for servicing data to the Play Tak UI client and games ui
 
 ## Requirements
 - docker
