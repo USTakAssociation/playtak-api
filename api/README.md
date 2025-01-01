@@ -8,7 +8,7 @@
 This is the Play Tak API project which contains multiple endpoints for servicing data to the Play Tak UI
 
 ## Requirements
-- node v16.17.1
+- node v20
 - sqlite3
 
 ## Installation
@@ -19,8 +19,29 @@ $ npm install
 
 ## Running the app
 
+There are 2 options to run the project either manually or with docker (*recommended)
 
-*Note: be sure to update the .env file with the correct paths to where the sqlite db files are located*
+Either option you go you will need to create 2 databases which can be done with the following bash script
+
+```bash
+sh ../script/development/create_databases.sh
+```
+This creates the players and games sqlite dbs
+
+Optionally, you can then use the script `scripts/development/add_user.sh` to add users to the local players database with a password of "password".
+
+```bash
+./scripts/development/add_user.sh mylocalacct ./players.db
+# See scripts/development/add_user.sh comments for more options.
+```
+
+### docker
+In the root of the repo run the following command
+```bash
+docker compose up -d --build
+```
+
+### manual
 ```bash
 # development
 $ npm run start
@@ -48,9 +69,10 @@ $ npm run test:cov
 ## Endpoints
 
 SwaggerOpenAPI Documentation
+
 https://api.playtak.com/api
 
-https://api.{env}.playtak.com
+https://api.beta.playtak.com/api
 
 Events
 - /events
@@ -64,43 +86,3 @@ Games History
 Ratings
 - /v1/ratings
 - /v1/ratings/{player_name}
-
-## TODO
-- create user auth endpoints and test
-- dockerize app
-- automatically setup db files in the project and fill with dummy data
-- setup API key registration to track usage
-- add automated versioning and setup release artifacts with github
-- build out more robust deploy and rollback
-- add health check endpoint
-
-
-## Contributing
-PlayTak is an Open Source Project. This means that:
-
-> Individuals making significant and valuable contributions are given commit-access to the project to contribute as they see fit.
-
-Please read [CONTRIBUTING.md](docs/CONTRIBUTING.md) for details on our code of conduct, and the process for submitting pull requests to us.
-
-1. Fork it!
-2. Create your feature branch: git checkout -b my-new-feature
-3. Add your changes: git add .
-4. Commit your changes: git commit -am 'Add some feature'
-5. Push to the branch: git push origin my-new-feature
-6. Submit a pull request
-
-## Versioning
-We use [SemVer](http://semver.org/) for versioning. For the versions available, see the tags on this repository.
-
-## Contributors
-PlayTak is only possible due to the excellent work of the following contributors:
-
-||
-:----:|
-|[InvaderB](https://github.com/invaderb)|
-
-See also the list of contributors who participated in this project.
-
-License
-MIT License © USTA see LICENSE.md file
-

@@ -1,0 +1,60 @@
+meta {
+  name: Create Seek
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{url}}/api/v1/seeks
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "pntId": 0,
+    "creator": "Guest1",
+    "opponent": "Guest2",
+    "timeContingent": 300,
+    "timeIncrement": 30,
+    "extraTimeTriggerMove": 30,
+    "extraTimeAmount": 300,
+    "komi": 2,
+    "boardSize": 5,
+    "capstones": 1,
+    "pieces": 30,
+    "unrated": 1,
+    "tournament": 1,
+    "color": "BLACK"
+  }
+}
+
+tests {
+  test("Expect status code to be 200", () => {
+    expect(res.getStatus()).to.equal(200);
+  });
+  
+  test("Expect response to be an object", () => {
+    const body = res.getBody();
+    expect(body).to.be.an('object');
+  });
+  
+  test("Expect response to have an id", () => {
+    const body = res.getBody();
+    expect(body.id).to.exist;
+    expect(body.pntId).to.exist;
+    expect(body.creator).to.exist;
+    expect(body.opponent).to.exist;
+    expect(body.timeContingent).to.exist;
+    expect(body.timeIncrement).to.exist;
+    expect(body.extraTimeTriggerMove).to.exist;
+    expect(body.extraTimeAmount).to.exist;
+    expect(body.komi).to.exist;
+    expect(body.boardSize).to.exist;
+    expect(body.capstones).to.exist;
+    expect(body.pieces).to.exist;
+    expect(body.unrated).to.exist;
+    expect(body.tournament).to.exist;
+    expect(body.color).to.exist;
+  });
+}

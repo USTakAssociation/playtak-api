@@ -1,0 +1,63 @@
+name: playtak-services
+
+services:
+  playtak-api:
+    container_name: playtak-api
+    platform: linux/amd64
+    build:
+      context: ./api
+      target: development
+    ports:
+      - 3004:3004
+      - 9231:9231
+    volumes:
+      - type: bind
+        source: ./api/
+        target: /usr/src/app
+      - type: bind
+        source: ./playtakdb
+        target: /playtakdb
+    command: npm run start:debug
+    networks:
+      - webnet
+    # depends_on:
+    #   - playtak-db
+
+  playtak-server:
+    container_name: playtak-server
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    ports:
+      - 10000:10000
+      - 9999:9999
+      - 9998:9998
+    volumes:
+      - type: bind
+        source: ./playtakdb
+        target: /playtakdb
+
+    networks:
+      - webnet
+    # depends_on:
+    #   - playtak-db
+
+  # playtak-db:
+  #   image: mariadb:10.4
+  #   container_name: playtak-db
+  #   volumes:
+  #     - ./run/var:/var/lib/mysql
+  #   environment:
+  #     - MYSQL_ROOT_PASSWORD=mydb123
+  #     - MYSQL_DATABASE=playtak_db
+  #     - MYSQL_USER=dbuser
+  #     - MYSQL_PASSWORD=mydb123
+  #   ports: 
+  #   - 3306:3306
+  #   networks:
+  #     webnet:
+  #       aliases:
+  #         - db
+
+networks:
+  webnet:

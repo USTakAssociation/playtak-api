@@ -1,0 +1,29 @@
+<playtak.com>
+  <email>
+    <host>smtp.mailprovider.com</host>
+    <user>userid@domain.com</user>
+    <password>password</password>
+    <from>userid@domain.com</from>
+  </email>
+
+  <irc>
+    <enabled>false</enabled>
+    <server>irc.freenode.net</server>
+    <nick>nickname</nick>
+    <login>nickname</login>
+    <channel>#channel</channel>
+    <password>password</password>
+  </irc>
+
+  <game>
+    <reconnection-time>120</reconnection-time>
+  </game>
+  
+  <server-settings>
+    <port>10000</port>
+    <portws>9999</portws>
+    <porthttp>9998</porthttp>
+    <db-path>/playtakdb/</db-path>
+    <event-subscriber-url>http://tak-api/v1/tournaments/game/update</event-subscriber-url>
+  </server-settings>
+</playtak.com>

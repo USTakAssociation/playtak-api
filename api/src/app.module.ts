@@ -9,21 +9,22 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { RatingsModule } from './models/ratings/ratings.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import * as path from 'path';
+import { AppController } from './app.controller';
 
 @Module({
 	imports: [
 		ConfigModule.forRoot(),
 		TypeOrmModule.forRoot({
-			name: 'games',
+			name: 'default',
 			type: 'better-sqlite3',
-			database: path.join(process.env.DB_PATH, 'games.db'),
+			database: path.join(process.env.DB_PATH, 'players.db'),
 			entities: [path.join(__dirname, '/**/*.entity{.ts,.js}')],
 			synchronize: false,
 		}),
 		TypeOrmModule.forRoot({
-			name: 'default',
+			name: 'games',
 			type: 'better-sqlite3',
-			database: path.join(process.env.DB_PATH, 'players.db'),
+			database: path.join(process.env.DB_PATH, 'games.db'),
 			entities: [path.join(__dirname, '/**/*.entity{.ts,.js}')],
 			synchronize: false,
 		}),
@@ -32,7 +33,7 @@ import * as path from 'path';
 		GamesModule,
 		RatingsModule,
 	],
-	controllers: [],
+	controllers: [AppController],
 	providers: [
 		{
 			provide: APP_GUARD,
