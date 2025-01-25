@@ -16,6 +16,24 @@ import { AppController } from './app.controller';
 		ConfigModule.forRoot(),
 		TypeOrmModule.forRoot({
 			name: 'default',
+			type: process.env.DB_TYPE as 'mysql' || 'mysql',
+			host: process.env.DB_HOST || 'localhost',
+			port: parseInt(process.env.DB_PORT) || 3306,
+			username: process.env.DB_USERNAME,
+			password: process.env.DB_PASSWORD,
+			database: process.env.DB_NAME,
+			entities: [__dirname + '/**/*.entity{.ts,.js}'],
+			synchronize: false,
+			connectTimeout: 30000,
+			extra: {
+				idleTimeout: 30000,
+				maxIdle: 0,
+				enableKeepAlive: true,
+				keepAliveInitialDelay: 300,
+			}
+		}),
+		TypeOrmModule.forRoot({
+			name: 'players',
 			type: 'better-sqlite3',
 			database: path.join(process.env.DB_PATH, 'players.db'),
 			entities: [path.join(__dirname, '/**/*.entity{.ts,.js}')],

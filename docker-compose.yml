@@ -20,8 +20,8 @@ services:
     command: npm run start:debug
     networks:
       - webnet
-    # depends_on:
-    #   - playtak-db
+    depends_on:
+      - playtak-db
 
   playtak-server:
     container_name: playtak-server
@@ -39,25 +39,25 @@ services:
 
     networks:
       - webnet
-    # depends_on:
-    #   - playtak-db
+    depends_on:
+      - playtak-db
 
-  # playtak-db:
-  #   image: mariadb:10.4
-  #   container_name: playtak-db
-  #   volumes:
-  #     - ./run/var:/var/lib/mysql
-  #   environment:
-  #     - MYSQL_ROOT_PASSWORD=mydb123
-  #     - MYSQL_DATABASE=playtak_db
-  #     - MYSQL_USER=dbuser
-  #     - MYSQL_PASSWORD=mydb123
-  #   ports: 
-  #   - 3306:3306
-  #   networks:
-  #     webnet:
-  #       aliases:
-  #         - db
+  playtak-db:
+    image: mariadb:10.4
+    container_name: playtak-db
+    volumes:
+      - ./run/var:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=mydb123
+      - MYSQL_DATABASE=playtak_db
+      - MYSQL_USER=dbuser
+      - MYSQL_PASSWORD=mydb123
+    ports: 
+    - 3306:3306
+    networks:
+      webnet:
+        aliases:
+          - db
 
 networks:
   webnet:
