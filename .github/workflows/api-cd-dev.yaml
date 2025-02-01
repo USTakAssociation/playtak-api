@@ -74,7 +74,6 @@ jobs:
             echo "RATING_CRON_VALUE = ${RATING_CRON_VALUE}" >> .env
             mv .env ./dist
             mv node_modules ./dist
-            mv previous.txt ./dist
             tar -czf artifact.tar.gz ./dist 
 
       - name: Deploy
