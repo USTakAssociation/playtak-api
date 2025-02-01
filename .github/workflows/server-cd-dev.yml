@@ -1,0 +1,65 @@
+name: Tak Server CI/CD Beta
+
+on:
+  push:
+    branches: [ "dev" ]
+    paths:
+      - 'server/**'
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    environment: dev
+
+    defaults:
+      run:
+        working-directory: ./server
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up JDK 21
+      uses: actions/setup-java@v3
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: maven
+    - name: Build with Maven
+      run: |
+        mvn -B compile
+        mvn -B package
+    - name: Prep Artifact
+      env:
+        PROPERTIES : ${{ secrets.PROPERTIES }}
+      run : |
+        rm properties.xml
+        touch properties.xml
+        echo "${PROPERTIES}" >> properties.xml
+        mkdir dist
+        mv properties.xml ./dist
+        mv ./target/takserver-jar-with-dependencies.jar ./dist/takserver-beta.jar
+        tar -czf artifact-beta.tar.gz ./dist/*
+    - name: Deploy
+      env:
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY  }}
+          HOSTNAME : ${{ secrets.HOSTNAME }}
+          USER_NAME : ${{ secrets.USER_NAME }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+      run: |
+        echo "$PRIVATE_KEY" > private_key.pem && chmod 0400 private_key.pem
+        scp -P ${SSH_PORT} -o StrictHostKeyChecking=no -i private_key.pem artifact-beta.tar.gz ${USER_NAME}@${HOSTNAME}:~
+        ssh -p ${SSH_PORT} -o StrictHostKeyChecking=no -i private_key.pem ${USER_NAME}@${HOSTNAME} '
+          source /etc/profile
+          echo "setting up tmp folder"
+          rm -rf playtak-server-beta-tmp
+          mkdir playtak-server-beta-tmp
+          echo "extracting artifact"
+          tar -xzf artifact-beta.tar.gz -C ./playtak-server-beta-tmp
+          echo "stopping existing beta takserver"
+          sudo systemctl stop takserver-beta.service
+          echo "rsyncing files into beta folder"
+          sudo rsync -a playtak-server-beta-tmp/dist/ /var/apps/playtak-server-beta
+          echo "Starting app"
+          sudo systemctl start takserver-beta.service
+        '

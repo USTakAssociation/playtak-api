@@ -1,0 +1,22 @@
+meta {
+  name: Get Seek List
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{url}}/api/v1/seeks
+  body: none
+  auth: none
+}
+
+tests {
+  test("Expect status code to be 200", () => {
+    expect(res.getStatus()).to.equal(200);
+  });
+  
+  test("Expect response to be an array", () => {
+    const body = res.getBody();
+    expect(body).to.be.an('array');
+  });
+}
