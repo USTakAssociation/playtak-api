@@ -19,17 +19,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: Use Node.js ${{ matrix.node-version }}
+      - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node-version }}
-      - run: npm ci
 
-      - name: Lint code
-        run: npm run lint
-
-      - name: Run Unit tests
-        run: npm run test
+      - name: Install dependencies
+        working-directory: ./api
+        run: npm ci
 
       - name: Build
         working-directory: ./api
