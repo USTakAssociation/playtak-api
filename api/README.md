@@ -7,6 +7,7 @@
 This is the Play Tak API project which contains multiple endpoints for servicing data to the Play Tak UI
 
 ## Requirements
+
 - node v20
 - sqlite3
 
@@ -35,12 +36,14 @@ Optionally, you can then use the script `scripts/development/add_user.sh` to add
 ```
 
 ### docker
+
 In the root of the repo run the following command
 ```bash
 docker compose up -d --build
 ```
 
 ### manual
+
 ```bash
 # development
 $ npm run start
