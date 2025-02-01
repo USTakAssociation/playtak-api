@@ -3,7 +3,6 @@ name: playtak-services
 services:
   playtak-api:
     container_name: playtak-api
-    platform: linux/amd64
     build:
       context: ./api
       target: development
@@ -15,8 +14,8 @@ services:
         source: ./api/
         target: /usr/src/app
       - type: bind
-        source: ./playtakdb
-        target: /playtakdb
+        source: ./api/node_modules
+        target: /usr/src/app/node_modules
     command: npm run start:debug
     networks:
       - webnet
@@ -36,7 +35,6 @@ services:
       - type: bind
         source: ./playtakdb
         target: /playtakdb
-
     networks:
       - webnet
     depends_on:

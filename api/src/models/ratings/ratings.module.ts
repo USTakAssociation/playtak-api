@@ -12,8 +12,7 @@ import { Games } from '../games-history/entities/games.entity';
 @Module({
 	controllers: [RatingsController],
 	imports: [
-		TypeOrmModule.forFeature([Ratings, Players], 'default'),
-		TypeOrmModule.forFeature([Games], 'games'),
+		TypeOrmModule.forFeature([Ratings, Players, Games]),
 		ThrottlerModule.forRootAsync({
 			useFactory: () => [{
 				ttl: 60,

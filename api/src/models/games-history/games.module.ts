@@ -10,7 +10,7 @@ import { PTNService } from './services/ptn.service';
 @Module({
 	controllers: [GamesController],
 	imports: [
-		TypeOrmModule.forFeature([Games], 'games'),
+		TypeOrmModule.forFeature([Games]),
 		ThrottlerModule.forRootAsync({
 			useFactory: () => [{
 				ttl: 60,

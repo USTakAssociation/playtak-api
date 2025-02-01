@@ -20,7 +20,7 @@ export class RatingService {
 		private ratingRepository: Repository<Ratings>,
 		@InjectRepository(Players, 'default')
 		private playersRepository: Repository<Players>,
-		@InjectRepository(Games, 'games')
+		@InjectRepository(Games, 'default')
 		private gamesRepository: Repository<Games>,
 	) {}
 

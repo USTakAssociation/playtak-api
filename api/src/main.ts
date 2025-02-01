@@ -11,8 +11,6 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as path from 'path';
 import { writeFileSync } from 'fs';
 
-const port = process.env.PORT || 3000;
-
 async function bootstrap() {
 	const app = await NestFactory.create<NestFastifyApplication>(
 		AppModule,
@@ -56,6 +54,6 @@ async function bootstrap() {
 	await app.register(fastifyHelmet, {
 		contentSecurityPolicy: false, 
 	});
-	await app.listen(port, '0.0.0.0');
+	await app.listen(process.env.PORT || 3000, '0.0.0.0');
 }
 bootstrap();

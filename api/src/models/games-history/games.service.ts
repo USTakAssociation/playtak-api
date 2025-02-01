@@ -8,7 +8,7 @@ import { GameQuery } from '../dto/games/games.dto';
 @Injectable()
 export class GamesService {
 	constructor(
-		@InjectRepository(Games, 'games')
+		@InjectRepository(Games, 'default')
 		private repository: Repository<Games>,
 		private ptnService: PTNService,
 	) {}
