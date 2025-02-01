@@ -17,10 +17,6 @@ jobs:
       matrix:
         node-version: [22.x]
 
-    defaults:
-      run:
-        working-directory: ./api
-
     steps:
       - uses: actions/checkout@v2
       - name: Use Node.js ${{ matrix.node-version }}
@@ -36,6 +32,7 @@ jobs:
         run: npm run test
 
       - name: Build
+        working-directory: ./api
         env: 
             CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
@@ -43,7 +40,9 @@ jobs:
           touch ./src/assets/client_secret.json
           echo -n "${CLIENT_SECRET}" >> ./src/assets/client_secret.json
           npm run build
+
       - name: Prep Artifact
+        working-directory: ./api
         env: 
             PORT : ${{ secrets.PORT }}
             NODE_ENV: ${{ secrets.NODE_ENV }}
@@ -70,7 +69,9 @@ jobs:
             mv .env ./dist
             mv node_modules ./dist
             tar -czf artifact.tar.gz ./dist 
+
       - name: Deploy
+        working-directory: ./api
         env: 
             PRIVATE_KEY: ${{ secrets.PRIVATE_KEY  }}
             HOSTNAME : ${{ secrets.HOSTNAME }}
