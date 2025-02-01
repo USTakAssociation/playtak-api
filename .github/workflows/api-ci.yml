@@ -17,22 +17,21 @@ jobs:
       matrix:
         node-version: [22.x]
 
-    defaults:
-      run:
-        working-directory: ./api
-
     steps:
       - uses: actions/checkout@v3
-      - name: Use Node.js ${{ matrix.node-version }}
+      - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node-version }}
 
       - name: Install Dependencies
+        working-directory: ./api
         run: npm ci
 
       - name: Lint code
+        working-directory: ./api
         run: npm run lint
         
       - name: Run Unit tests
+        working-directory: ./api
         run: npm run test

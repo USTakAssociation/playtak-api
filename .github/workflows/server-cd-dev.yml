@@ -11,11 +11,7 @@ jobs:
 
     runs-on: ubuntu-latest
 
-    environment: dev
-
-    defaults:
-      run:
-        working-directory: ./server
+    environment: Beta
 
     steps:
     - uses: actions/checkout@v3
@@ -25,11 +21,15 @@ jobs:
         java-version: '21'
         distribution: 'temurin'
         cache: maven
+
     - name: Build with Maven
+      working-directory: ./server
       run: |
         mvn -B compile
         mvn -B package
+
     - name: Prep Artifact
+      working-directory: ./server
       env:
         PROPERTIES : ${{ secrets.PROPERTIES }}
       run : |
@@ -40,7 +40,9 @@ jobs:
         mv properties.xml ./dist
         mv ./target/takserver-jar-with-dependencies.jar ./dist/takserver-beta.jar
         tar -czf artifact-beta.tar.gz ./dist/*
+
     - name: Deploy
+      working-directory: ./server
       env:
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY  }}
           HOSTNAME : ${{ secrets.HOSTNAME }}

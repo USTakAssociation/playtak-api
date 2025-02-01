@@ -1,8 +1,6 @@
-# TakServer
+# Tak Server
 
-*Last updated on June 17th 2024*
-
-Server to handle online TAK games
+Tak Server to handle online TAK games
 
 ## Requirements
 - Java 21

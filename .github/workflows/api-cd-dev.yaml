@@ -13,29 +13,32 @@ jobs:
 
     environment: Beta
 
-    defaults:
-      run:
-        working-directory: ./api
-
     strategy:
       matrix:
         node-version: [22.x]
 
     steps:
       - uses: actions/checkout@v2
-      - name: Use Node.js ${{ matrix.node-version }}
+
+      - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node-version }}
-      - run: npm ci
+
+      - name: Install dependencies
+        working-directory: ./api
+        run: npm ci
 
       - name: Lint code
+        working-directory: ./api
         run: npm run lint
 
       - name: Run Unit tests
+        working-directory: ./api
         run: npm run test
 
       - name: Build
+        working-directory: ./api
         env: 
             CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
@@ -43,7 +46,9 @@ jobs:
           touch ./src/assets/client_secret.json
           echo -n "${CLIENT_SECRET}" >> ./src/assets/client_secret.json
           npm run build
+
       - name: Prep Artifact
+        working-directory: ./api
         env: 
             PORT : ${{ secrets.PORT }}
             NODE_ENV: ${{ secrets.NODE_ENV }}
@@ -69,9 +74,10 @@ jobs:
             echo "RATING_CRON_VALUE = ${RATING_CRON_VALUE}" >> .env
             mv .env ./dist
             mv node_modules ./dist
-            mv previous.txt ./dist
             tar -czf artifact.tar.gz ./dist 
+
       - name: Deploy
+        working-directory: ./api
         env: 
             PRIVATE_KEY: ${{ secrets.PRIVATE_KEY  }}
             HOSTNAME : ${{ secrets.HOSTNAME }}
