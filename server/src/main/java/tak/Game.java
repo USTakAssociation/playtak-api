@@ -1089,55 +1089,89 @@ public class Game implements Publisher<GameUpdate>{
 	}
 
 	private void insertEmpty() {
-		try {
-			String sql = "INSERT INTO games (date, size, player_white, player_black, timertime, timerinc, notation, result, rating_white, rating_black, unrated, tournament, komi, pieces, capstones, rating_change_white, rating_change_black, extra_time_amount, extra_time_trigger) " +
-				"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-			PreparedStatement stmt = Database.gamesConnection.prepareStatement
-				(sql, Statement.RETURN_GENERATED_KEYS);
-			stmt.setLong(1, time);
-			stmt.setInt(2, board.boardSize);
-			stmt.setString(3, white.getName());
-			stmt.setString(4, black.getName());
-			stmt.setLong(5, originalTime/1000);
-			stmt.setLong(6, incrementTime/1000);
-			stmt.setString(7, "");
-			stmt.setString(8, "0-0");
-			stmt.setInt(9, white.getRating(time));
-			stmt.setInt(10, black.getRating(time));
-			stmt.setInt(11, unrated);
-			
-			stmt.setInt(12, tournament);
-			stmt.setInt(13, komi);
-			stmt.setInt(14, tileCount);
-			stmt.setInt(15, capCount);
-			stmt.setInt(16, -1000);
-			stmt.setInt(17, -1000);
-			stmt.setInt(18, timeAmount / 1000);
-			stmt.setInt(19, triggerMove);
-			stmt.executeUpdate();
-			ResultSet inserted = stmt.getGeneratedKeys();
-			if (inserted.next())
-				no = inserted.getInt(1);
-			stmt.close();
-		} catch (SQLException ex) {
-			Logger.getLogger(Player.class.getName()).log(Level.SEVERE, null, ex);
+		int maxRetries = 3;
+    int retryDelayMs = 1000;
+		for (int attempt = 1; attempt <= maxRetries; attempt++) {
+			try {
+				String sql = "INSERT INTO games (date, size, player_white, player_black, timertime, timerinc, notation, result, rating_white, rating_black, unrated, tournament, komi, pieces, capstones, rating_change_white, rating_change_black, extra_time_amount, extra_time_trigger) " +
+					"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+				PreparedStatement stmt = Database.gamesConnection.prepareStatement
+					(sql, Statement.RETURN_GENERATED_KEYS);
+				stmt.setLong(1, time);
+				stmt.setInt(2, board.boardSize);
+				stmt.setString(3, white.getName());
+				stmt.setString(4, black.getName());
+				stmt.setLong(5, originalTime/1000);
+				stmt.setLong(6, incrementTime/1000);
+				stmt.setString(7, "");
+				stmt.setString(8, "0-0");
+				stmt.setInt(9, white.getRating(time));
+				stmt.setInt(10, black.getRating(time));
+				stmt.setInt(11, unrated);
+				
+				stmt.setInt(12, tournament);
+				stmt.setInt(13, komi);
+				stmt.setInt(14, tileCount);
+				stmt.setInt(15, capCount);
+				stmt.setInt(16, -1000);
+				stmt.setInt(17, -1000);
+				stmt.setInt(18, timeAmount / 1000);
+				stmt.setInt(19, triggerMove);
+				stmt.executeUpdate();
+				ResultSet inserted = stmt.getGeneratedKeys();
+				if (inserted.next())
+					no = inserted.getInt(1);
+				stmt.close();
+				return; // Success - exit method
+			} catch (SQLException ex) {
+				Logger.getLogger(Player.class.getName()).log(Level.WARNING, 
+						"Failed to insert empty game (attempt " + attempt + " of " + maxRetries + ")", ex);
+				if (attempt == maxRetries) {
+						Logger.getLogger(Player.class.getName()).log(Level.SEVERE, 
+								"Failed to insert empty game after " + maxRetries + " attempts", ex);
+						throw new RuntimeException("Failed to insert empty game after " + maxRetries + " attempts", ex);
+				}
+				try {
+						Thread.sleep(retryDelayMs * attempt); // Exponential backoff
+				} catch (InterruptedException ie) {
+						Thread.currentThread().interrupt();
+						throw new RuntimeException("Insert empty interrupted during retry delay", ie);
+				}
+			}
 		}
 	}
 
 	private void saveToDB() {
-		try {
-			String sql = "UPDATE games " +
-				"SET notation=?, result=? " +
-				"WHERE id=?";
-			PreparedStatement stmt = Database.gamesConnection.prepareStatement(sql);
-			stmt.setString(1, moveListString());
-			stmt.setString(2, gameStateString());
-			stmt.setInt(3, no);
-			stmt.executeUpdate();
-			stmt.close();
-		} catch (SQLException ex) {
-			Logger.getLogger(Player.class.getName()).log(Level.SEVERE, null, ex);
-		}
+		int maxRetries = 3;
+    int retryDelayMs = 1000;
+		for (int attempt = 1; attempt <= maxRetries; attempt++) {
+			try {
+					String sql = "UPDATE games " +
+							"SET notation=?, result=? " +
+							"WHERE id=?";
+					PreparedStatement stmt = Database.gamesConnection.prepareStatement(sql);
+					stmt.setString(1, moveListString());
+					stmt.setString(2, gameStateString());
+					stmt.setInt(3, no);
+					stmt.executeUpdate();
+					stmt.close();
+					return; // Success - exit method
+			} catch (SQLException ex) {
+					Logger.getLogger(Player.class.getName()).log(Level.WARNING, 
+							"Failed to save game to DB (attempt " + attempt + " of " + maxRetries + ")", ex);
+					if (attempt == maxRetries) {
+							Logger.getLogger(Player.class.getName()).log(Level.SEVERE, 
+									"Failed to save game to DB after " + maxRetries + " attempts", ex);
+							throw new RuntimeException("Failed to save game to DB after " + maxRetries + " attempts", ex);
+					}
+					try {
+							Thread.sleep(retryDelayMs * attempt); // Exponential backoff
+					} catch (InterruptedException ie) {
+							Thread.currentThread().interrupt();
+							throw new RuntimeException("Save to DB interrupted during retry delay", ie);
+					}
+			}
+	}
 	}
 
 	private void sendMove(Player p, String move) {
