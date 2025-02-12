@@ -126,6 +126,7 @@ public final class GameUpdateBroadcaster implements Runnable, Subscriber<GameUpd
 
 	@Override
 	public void onError(Throwable throwable) {
+		System.err.println("Broadcaster error");
 		logger.fine(throwable.toString());
 	}
 

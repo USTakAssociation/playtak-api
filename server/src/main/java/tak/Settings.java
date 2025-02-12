@@ -86,7 +86,13 @@ public class Settings {
 		TakServer.port = Integer.parseInt(element.getElementsByTagName("port").item(0).getTextContent());
 		TakServer.portws = Integer.parseInt(element.getElementsByTagName("portws").item(0).getTextContent());
 		TakServer.portHttp = Integer.parseInt(element.getElementsByTagName("porthttp").item(0).getTextContent());
-		Database.dbPath = element.getElementsByTagName("db-path").item(0).getTextContent();
+		// Database.dbPath = element.getElementsByTagName("db-path").item(0).getTextContent();
+		Database.dbHost = element.getElementsByTagName("db-host").item(0).getTextContent();
+		Database.dbPort = Integer.parseInt(element.getElementsByTagName("db-port").item(0).getTextContent());
+		Database.dbUsername = element.getElementsByTagName("db-username").item(0).getTextContent();
+		Database.dbPassword = element.getElementsByTagName("db-password").item(0).getTextContent();
+		Database.dbName = element.getElementsByTagName("db-name").item(0).getTextContent();
+		
 		try {
 			String fieldName = "event-subscriber-url";
 			GameUpdateBroadcaster.eventSubscriberUrl = new URL(element.getElementsByTagName(fieldName).item(0).getTextContent());

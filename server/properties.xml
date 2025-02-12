@@ -23,7 +23,12 @@
     <port>10000</port>
     <portws>9999</portws>
     <porthttp>9998</porthttp>
+    <db-host>host.docker.internal</db-host>
+    <db-port>3306</db-port>
+    <db-username>dbuser</db-username>
+    <db-password>mydb123</db-password>
+    <db-name>playtak_db</db-name>
     <db-path>/playtakdb/</db-path>
-    <event-subscriber-url>http://tak-api/v1/tournaments/game/update</event-subscriber-url>
+    <event-subscriber-url></event-subscriber-url>
   </server-settings>
 </playtak.com>

@@ -207,7 +207,7 @@ public class Player {
 	public void setModInDB(String name, int mod) {
 		String sql = "UPDATE players set is_mod = ? where name = ?;";
 		try {
-			PreparedStatement stmt = Database.playersConnection.prepareStatement(sql);
+			PreparedStatement stmt = Database.dbConnection.prepareStatement(sql);
 			stmt.setInt(1, mod);
 			stmt.setString(2, name);
 			stmt.executeUpdate();
@@ -234,7 +234,7 @@ public class Player {
 	public void setGagInDB(String name, int gagged){
 		String sql = "UPDATE players set is_gagged = ? where name = ?;";
 		try {
-			PreparedStatement stmt = Database.playersConnection.prepareStatement(sql);
+			PreparedStatement stmt = Database.dbConnection.prepareStatement(sql);
 			stmt.setInt(1, gagged);
 			stmt.setString(2, name);
 			stmt.executeUpdate();
@@ -266,7 +266,7 @@ public class Player {
 	public void setBanInDB(String name, int banned) {
 		String sql = "UPDATE players set is_banned = ? where name = ?;";
 		try {
-			PreparedStatement stmt = Database.playersConnection.prepareStatement(sql);
+			PreparedStatement stmt = Database.dbConnection.prepareStatement(sql);
 			stmt.setInt(1, banned);
 			stmt.setString(2, name);
 			stmt.executeUpdate();
@@ -329,7 +329,7 @@ public class Player {
 		Player np = new Player(name, email, Player.hash(tmpPass), false);
 		String sql = "INSERT INTO players (id,name,password,email) VALUES (?, ?, ?, ?)";
 		try {
-			PreparedStatement stmt = Database.playersConnection.prepareStatement(sql);
+			PreparedStatement stmt = Database.dbConnection.prepareStatement(sql);
 			stmt.setInt(1, np.id);
 			stmt.setString(2, np.name);
 			stmt.setString(3, np.password);
@@ -366,7 +366,7 @@ public class Player {
 		ResultSet rs=null;
 		try{
 			try( 
-				PreparedStatement stmt = Database.playersConnection.prepareStatement(sql)
+				PreparedStatement stmt = Database.dbConnection.prepareStatement(sql)
 			){
 				stmt.setInt(1, id);
 				rs = stmt.executeQuery();
@@ -387,7 +387,7 @@ public class Player {
 
 			if(ratingbase!=0){
 				try( 
-					PreparedStatement stmt=Database.playersConnection.prepareStatement(sql)
+					PreparedStatement stmt=Database.dbConnection.prepareStatement(sql)
 				){
 					stmt.setInt(1, ratingbase);
 					rs = stmt.executeQuery();
@@ -435,7 +435,7 @@ public class Player {
 		String sql = "UPDATE players set password = ? where id = ?;";
 		
 		try {
-			PreparedStatement stmt = Database.playersConnection.prepareStatement(sql);
+			PreparedStatement stmt = Database.dbConnection.prepareStatement(sql);
 			stmt.setString(1, this.password);
 			stmt.setInt(2, id);
 			stmt.executeUpdate();
@@ -459,7 +459,7 @@ public class Player {
 	
 	public static void loadFromDB() {
 		idCount=0;
-		try (Statement stmt = Database.playersConnection.createStatement();
+		try (Statement stmt = Database.dbConnection.createStatement();
 				ResultSet rs = stmt.executeQuery("SELECT * FROM players;")) {
 			while(rs.next()) {
 				Player np = new Player(

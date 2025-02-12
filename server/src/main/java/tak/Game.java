@@ -1092,7 +1092,7 @@ public class Game implements Publisher<GameUpdate>{
 		try {
 			String sql = "INSERT INTO games (date, size, player_white, player_black, timertime, timerinc, notation, result, rating_white, rating_black, unrated, tournament, komi, pieces, capstones, rating_change_white, rating_change_black, extra_time_amount, extra_time_trigger) " +
 				"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-			PreparedStatement stmt = Database.gamesConnection.prepareStatement
+			PreparedStatement stmt = Database.dbConnection.prepareStatement
 				(sql, Statement.RETURN_GENERATED_KEYS);
 			stmt.setLong(1, time);
 			stmt.setInt(2, board.boardSize);
@@ -1105,7 +1105,6 @@ public class Game implements Publisher<GameUpdate>{
 			stmt.setInt(9, white.getRating(time));
 			stmt.setInt(10, black.getRating(time));
 			stmt.setInt(11, unrated);
-			
 			stmt.setInt(12, tournament);
 			stmt.setInt(13, komi);
 			stmt.setInt(14, tileCount);
@@ -1118,7 +1117,6 @@ public class Game implements Publisher<GameUpdate>{
 			ResultSet inserted = stmt.getGeneratedKeys();
 			if (inserted.next())
 				no = inserted.getInt(1);
-			stmt.close();
 		} catch (SQLException ex) {
 			Logger.getLogger(Player.class.getName()).log(Level.SEVERE, null, ex);
 		}
@@ -1129,12 +1127,11 @@ public class Game implements Publisher<GameUpdate>{
 			String sql = "UPDATE games " +
 				"SET notation=?, result=? " +
 				"WHERE id=?";
-			PreparedStatement stmt = Database.gamesConnection.prepareStatement(sql);
+			PreparedStatement stmt = Database.dbConnection.prepareStatement(sql);
 			stmt.setString(1, moveListString());
 			stmt.setString(2, gameStateString());
 			stmt.setInt(3, no);
 			stmt.executeUpdate();
-			stmt.close();
 		} catch (SQLException ex) {
 			Logger.getLogger(Player.class.getName()).log(Level.SEVERE, null, ex);
 		}

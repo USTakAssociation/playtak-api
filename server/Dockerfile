@@ -1,6 +1,6 @@
 FROM maven:3-eclipse-temurin-21-alpine as base
 
-FROM base as dev
+FROM base as development
 RUN apk add npm
 RUN npm install -g amvn
 

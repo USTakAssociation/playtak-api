@@ -27,14 +27,15 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
+      target: development
     ports:
       - 10000:10000
       - 9999:9999
       - 9998:9998
     volumes:
       - type: bind
-        source: ./playtakdb
-        target: /playtakdb
+        source: ./server/
+        target: /app
     networks:
       - webnet
     depends_on:
