@@ -1090,7 +1090,7 @@ public class Game implements Publisher<GameUpdate>{
 
 	private void insertEmpty() {
 		int maxRetries = 3;
-    int retryDelayMs = 1000;
+		int retryDelayMs = 1000;
 		for (int attempt = 1; attempt <= maxRetries; attempt++) {
 			try {
 				String sql = "INSERT INTO games (date, size, player_white, player_black, timertime, timerinc, notation, result, rating_white, rating_black, unrated, tournament, komi, pieces, capstones, rating_change_white, rating_change_black, extra_time_amount, extra_time_trigger) " +
@@ -1143,7 +1143,7 @@ public class Game implements Publisher<GameUpdate>{
 
 	private void saveToDB() {
 		int maxRetries = 3;
-    int retryDelayMs = 1000;
+		int retryDelayMs = 1000;
 		for (int attempt = 1; attempt <= maxRetries; attempt++) {
 			try {
 					String sql = "UPDATE games " +
