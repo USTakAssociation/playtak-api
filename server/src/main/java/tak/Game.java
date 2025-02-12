@@ -1171,7 +1171,7 @@ public class Game implements Publisher<GameUpdate>{
 							throw new RuntimeException("Save to DB interrupted during retry delay", ie);
 					}
 			}
-	}
+		}
 	}
 
 	private void sendMove(Player p, String move) {
