@@ -307,6 +307,8 @@ export class RatingService {
 				}
 			}
 
+			await gameRunner.commitTransaction();
+			this.logger.debug('Finished updating games');
 			// update player query function
 			async function updatePlayer(rating: number, boost: number, ratedGames, maxRating, ratingAge, fatigueObject, id, participation_rating) {
 				const updatePlayerQuery = `UPDATE players SET
@@ -366,8 +368,8 @@ export class RatingService {
 					])
 				}
 			}
+
 			await playerRunner.commitTransaction();
-			await gameRunner.commitTransaction();
 		} catch (error) {
 			this.logger.error("Error processing player and game ratings, rolling back transaction. ", error);
 			playerRunner.rollbackTransaction();
