@@ -1,4 +1,4 @@
-name: Play Tak API CI
+name: PlayTak API CI
 
 on:
   pull_request:
