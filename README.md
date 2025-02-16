@@ -1,78 +1,92 @@
-# PlayTak-API 
+# PlayTak 
+
+This is the new monorepo for the PlayTak services 
 
 ## Description
 
 ![Unit Tests](https://github.com/USTakAssociation/playtak-api/actions/workflows/ci.yml/badge.svg)
 
 
-This is the Play Tak API project which contains multiple endpoints for servicing data to the Play Tak UI
+This repo contains the api and Tak server for servicing data to the PlayTak UI client and games ui
 
 ## Requirements
-- node v16.17.1
+- docker
+- nvm
+- node v20
 - sqlite3
 
-## Installation
+## Setup 
+
+Run the following commands to setup the api for local development
 
 ```bash
-$ npm install
+nvm use
+cd ./api
+npm ci
+cd ..
 ```
 
-## Running the app
+setup the local databases
 
 
-*Note: be sure to update the .env file with the correct paths to where the sqlite db files are located*
 ```bash
-# development
-$ npm run start
+sh ./script/development/create_databases.sh
+```
+This creates the players and games sqlite dbs in the playersdb folder
 
-# watch mode
-$ npm run start:dev
+Optionally, you can then use the script `./scripts/development/add_user.sh` to add users to the local players database with a password of "password".
 
-# production mode
-$ npm run start:prod
+```bash
+./scripts/development/add_user.sh mylocalacct ./players.db
+# See scripts/development/add_user.sh comments for more options.
+```
+
+## Running the services
+
+Run the following docker command to start all the needed services
+
+```bash
+docker compose up -d --build
 ```
 
 ## Test
 
+You can run tests for each of the apps 
+
 ```bash
-# unit tests
-$ npm run test
+cd ./api
+# unit test
+npm run test
 
 # e2e tests
-$ npm run test:e2e
+npm run test:e2e
 
 # test coverage
-$ npm run test:cov
+npm run test:cov
 ```
 
-## Endpoints
+You can also run integration tests using [Bruno](https://www.usebruno.com/)
 
-SwaggerOpenAPI Documentation
-https://api.playtak.com/api
+open the collections from each of the projects folders either under test/bruno or src/test/bruno
 
-https://api.{env}.playtak.com
+or you can install the bruno cli and run them like so
 
-Events
-- /events
+```bash
+npm install -g @usebruno/cli
+```
 
-Games History
-- /v1/games-history/
-- /v1/games-history/{id}
-- /v1/games-history/ptn/{id}
-- /v1/hames-history/db
-
-Ratings
-- /v1/ratings
-- /v1/ratings/{player_name}
+```bash
+cd ./api/test/bruno/playtak-api
+bru run test-suite --env local
+```
 
 ## TODO
+- migrate to mariadb
 - create user auth endpoints and test
-- dockerize app
-- automatically setup db files in the project and fill with dummy data
 - setup API key registration to track usage
 - add automated versioning and setup release artifacts with github
 - build out more robust deploy and rollback
-- add health check endpoint
+- java tests
 
 
 ## Contributing
@@ -82,13 +96,6 @@ PlayTak is an Open Source Project. This means that:
 
 Please read [CONTRIBUTING.md](docs/CONTRIBUTING.md) for details on our code of conduct, and the process for submitting pull requests to us.
 
-1. Fork it!
-2. Create your feature branch: git checkout -b my-new-feature
-3. Add your changes: git add .
-4. Commit your changes: git commit -am 'Add some feature'
-5. Push to the branch: git push origin my-new-feature
-6. Submit a pull request
-
 ## Versioning
 We use [SemVer](http://semver.org/) for versioning. For the versions available, see the tags on this repository.
 
@@ -97,6 +104,9 @@ PlayTak is only possible due to the excellent work of the following contributors
 
 ||
 :----:|
+|[chaitu](https://github.com/chaitu236)|
+|[Nohat](https://github.com/NoHatCoder)|
+|[Nitzel](https://github.com/nitzel)|
 |[InvaderB](https://github.com/invaderb)|
 
 See also the list of contributors who participated in this project.

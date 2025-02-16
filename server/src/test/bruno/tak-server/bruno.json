@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "tak-server",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}
