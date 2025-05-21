@@ -35,7 +35,6 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 	public int protocolVersion=0;
 
 	static AtomicInteger totalClients = new AtomicInteger(0);
-	static AtomicInteger onlineClients = new AtomicInteger(0);
 
 	static ConcurrentHashSet<Client> clientConnections = new ConcurrentHashSet<>();
 	protected ConcurrentHashSet<Subscriber<? super GameUpdate>> subscribers = new ConcurrentHashSet<>();
@@ -304,7 +303,8 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 			unspectateAll();
 
 			player.loggedOut();
-			sendAllOnline("Online "+onlineClients.decrementAndGet());
+			//sendAllOnline("Online "+onlineClients.decrementAndGet());
+			sendAllOnline("Online "+clientConnections.size());
 		}
 
 		websocket.kill(201);
@@ -406,7 +406,8 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 							Seek.registerListener(this);
 							Game.registerGameListListener(player);
 
-							sendAllOnline("Online "+onlineClients.incrementAndGet());
+							//sendAllOnline("Online "+onlineClients.incrementAndGet());
+							sendAllOnline("Online "+clientConnections.size());
 						}
 						finally{
 							Player.loginLock.unlock();
@@ -448,7 +449,8 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 										Seek.registerListener(this);
 										Game.registerGameListListener(player);
 
-										sendAllOnline("Online "+onlineClients.incrementAndGet());
+										// sendAllOnline("Online "+onlineClients.incrementAndGet());
+										sendAllOnline("Online "+clientConnections.size());
 									}
 								} else
 									send("Authentication failure");
