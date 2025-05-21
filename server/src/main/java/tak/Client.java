@@ -303,7 +303,6 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 			unspectateAll();
 
 			player.loggedOut();
-			//sendAllOnline("Online "+onlineClients.decrementAndGet());
 			sendAllOnline("Online "+clientConnections.size());
 		}
 
@@ -406,7 +405,6 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 							Seek.registerListener(this);
 							Game.registerGameListListener(player);
 
-							//sendAllOnline("Online "+onlineClients.incrementAndGet());
 							sendAllOnline("Online "+clientConnections.size());
 						}
 						finally{
@@ -449,7 +447,6 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 										Seek.registerListener(this);
 										Game.registerGameListListener(player);
 
-										// sendAllOnline("Online "+onlineClients.incrementAndGet());
 										sendAllOnline("Online "+clientConnections.size());
 									}
 								} else
