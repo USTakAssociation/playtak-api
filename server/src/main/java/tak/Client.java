@@ -35,7 +35,8 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 	Player player = null;
 	int clientNo;
 	public int protocolVersion=0;
-	private static final long STALE_CONNECTION_TIMEOUT = 60000; // 60 seconds
+	// 60 minutes in milliseconds
+	private static final long STALE_CONNECTION_TIMEOUT = 3600000; // 60 minutes
 	private static final long CLEANUP_INTERVAL = 30000; // 30 seconds
 	private static Timer cleanupTimer;
 	private long lastActivity;
@@ -780,43 +781,42 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 					// handle rematch request
 					else if (game == null && (m = rematchPattern.matcher(temp)).find()) {
 						// create a new private seek for rematch if both players send a rematch request then have the second player accept it
-						Seek.seekStuffLock.lock();
-						try{
-							if (seek != null) {
-								Seek.removeSeek(seek.no);
-							}
-							Seek sk = null;
-							// loop through all the seek hash map and check is a seek data contains the rematch id
-							for (Seek s : Seek.seeks.values()) {
-								if (s.rematchId == Integer.parseInt(m.group(1))) {
-									sk = s;
-									break;
-								}
-							}
-							// if the client player is the opponent of the rematch seek, accept it
-							if (sk != null && sk.opponent.toLowerCase().equals(player.getName().toLowerCase())) {
-								send("Accept Rematch " + sk.no);
-							} else  {
-								seek = Seek.newRematchSeek(
-										this,
-										Integer.parseInt(m.group(1)), // ID
-										Integer.parseInt(m.group(2)), // size
-										Integer.parseInt(m.group(3)), // time
-										Integer.parseInt(m.group(4)), // increment
-										m.group(5), // color
-										Integer.parseInt(m.group(6)), // komi
-										Integer.parseInt(m.group(7)), // pieces
-										Integer.parseInt(m.group(8)), // capstones
-										Integer.parseInt(m.group(9)), // unrated
-										Integer.parseInt(m.group(10)), // tournament
-										Integer.parseInt(m.group(11)), // triggerMove
-										Integer.parseInt(m.group(12)), // timeAmount
-										m.group(13)); // opponent
-								send("Rematch seek created with ID: " + seek.no);
-							}
+						if (seek != null) {
+							Seek.removeSeek(seek.no);
 						}
-						finally{
-							Seek.seekStuffLock.unlock();
+						Seek sk = null;
+						// Find existing rematch seek - should be done under lock
+						Seek.seekStuffLock.lock();
+						try {
+								for (Seek s : Seek.seeks.values()) {
+										if (s.rematchId == Integer.parseInt(m.group(1))) {
+												sk = s;
+												break;
+										}
+								}
+						} finally {
+								Seek.seekStuffLock.unlock();
+						}
+						// if the client player is the opponent of the rematch seek, accept it
+						if (sk != null && sk.opponent.toLowerCase().equals(player.getName().toLowerCase())) {
+							send("Accept Rematch " + sk.no);
+						} else  {
+							seek = Seek.newRematchSeek(
+									this,
+									Integer.parseInt(m.group(1)), // ID
+									Integer.parseInt(m.group(2)), // size
+									Integer.parseInt(m.group(3)), // time
+									Integer.parseInt(m.group(4)), // increment
+									m.group(5), // color
+									Integer.parseInt(m.group(6)), // komi
+									Integer.parseInt(m.group(7)), // pieces
+									Integer.parseInt(m.group(8)), // capstones
+									Integer.parseInt(m.group(9)), // unrated
+									Integer.parseInt(m.group(10)), // tournament
+									Integer.parseInt(m.group(11)), // triggerMove
+									Integer.parseInt(m.group(12)), // timeAmount
+									m.group(13)); // opponent
+							send("Rematch seek created with ID: " + seek.no);
 						}
 					}
 					//Handle place move

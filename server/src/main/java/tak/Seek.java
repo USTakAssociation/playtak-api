@@ -70,35 +70,29 @@ public class Seek {
 	}
 	
 	Seek(Client client, int boardSize, int timeContingent, int timeIncrement, COLOR clr, int komi, int pieces, int capstones, int unrated, int tournament, int triggerMove, int timeAmount, String opponent, Integer pntId, int rematchId) {
-		seekStuffLock.lock();
-		try{
-			this.client = client;
-			no = seekNo.incrementAndGet();
-			this.pntId = pntId;
-			this.rematchId = rematchId;
-			time = timeContingent;
-			incr = timeIncrement;
-			color = clr;
-			this.komi = Math.min(komi,8);
-			this.pieces = Math.max(Math.min(pieces,80),10);
-			this.capstones = Math.min(capstones,5);
-			this.unrated = unrated;
-			this.tournament = tournament;
-			this.triggerMove = triggerMove;
-			this.timeAmount = timeAmount;
-			this.opponent = opponent;
-			if (client.player.isBot()) {
-				this.botSeek = 1;
-			} else {
-				this.botSeek = 0;
-			}
-			if (boardSize < 3 || boardSize > 8)
-				boardSize = DEFAULT_SIZE;
-			this.boardSize = boardSize;
+		this.client = client;
+		no = seekNo.incrementAndGet();
+		this.pntId = pntId;
+		this.rematchId = rematchId;
+		time = timeContingent;
+		incr = timeIncrement;
+		color = clr;
+		this.komi = Math.min(komi,8);
+		this.pieces = Math.max(Math.min(pieces,80),10);
+		this.capstones = Math.min(capstones,5);
+		this.unrated = unrated;
+		this.tournament = tournament;
+		this.triggerMove = triggerMove;
+		this.timeAmount = timeAmount;
+		this.opponent = opponent;
+		if (client.player.isBot()) {
+			this.botSeek = 1;
+		} else {
+			this.botSeek = 0;
 		}
-		finally{
-			seekStuffLock.unlock();
-		}
+		if (boardSize < 3 || boardSize > 8)
+			boardSize = DEFAULT_SIZE;
+		this.boardSize = boardSize;
 	}
 
 	static void removeSeek(int b) {
