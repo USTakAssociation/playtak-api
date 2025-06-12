@@ -300,7 +300,6 @@ public class Websocket{
 			outstream.flush();
 		}
 		catch(Throwable t){
-			//TakServer.Log(t.getMessage());
 			kill(15);
 		}
 		finally{
@@ -317,10 +316,6 @@ public class Websocket{
 			socket.close();
 			
 			TakServer.Log("Stream dead "+String.valueOf(pos));
-			/*
-			TakServer.Log(String.valueOf(readbufferused)+" "+String.valueOf(messagebufferused));
-			TakServer.Log(new String(messagebuffer,0,messagebufferused,StandardCharsets.ISO_8859_1));
-			*/
 		}
 		catch(Throwable t){
 			

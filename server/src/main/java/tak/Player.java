@@ -29,6 +29,7 @@ public class Player {
 	public static Map<String, Player> players = new ConcurrentHashMap<>();
 	public static Map<String, Player> guestsByToken = new ConcurrentHashMap<>();
 	public static ConcurrentHashSet<Player> modList = new ConcurrentHashSet<>();
+	public static ConcurrentHashSet<Player> adminList = new ConcurrentHashSet<>();
 	public static ConcurrentHashSet<Player> gagList = new ConcurrentHashSet<>();
 	public static ConcurrentHashSet<Player> banList = new ConcurrentHashSet<>();
 	public static ConcurrentHashSet<String> takenName = new ConcurrentHashSet<>();
@@ -83,7 +84,7 @@ public class Player {
 		this.id = id;
 		this.guest = guest;
 		this.resetToken = "";
-		this.isbot=bot;
+		this.isbot = bot;
 		this.is_admin = admin;
 		this.is_mod = is_mod;
 		this.is_banned = is_banned;
@@ -92,6 +93,7 @@ public class Player {
 		if(is_mod){ setMod(); }
 		if(is_banned) { setBan(); }
 		if(is_gagged){ gag(); }
+		if(is_admin){ setAdmin(); }
 		
 		client = null;
 		game = null;
@@ -198,12 +200,14 @@ public class Player {
 	public boolean isMod() {
 		return is_mod;
 	}
-	
 	public void setMod() {
 		is_mod = true;
 		modList.add(this);
 	}
-
+	public void unMod() {
+		is_mod = false;
+		modList.remove(this);
+	}
 	public void setModInDB(String name, int mod) {
 		String sql = "UPDATE players set is_mod = ? where name = ?;";
 		try {
@@ -216,21 +220,64 @@ public class Player {
 			Logger.getLogger(Player.class.getName()).log(Level.SEVERE, null, ex);
 		}
 	}
-	
-	public void unMod() {
-		is_mod = false;
-		modList.remove(this);
-	}
 
 	public boolean isAdmin() {
 		return is_admin;
 	}
-	
+	public void setAdmin() {
+		is_admin = true;
+		adminList.add(this);
+	}
+	public void unAdmin() {
+		is_admin = false;
+		adminList.remove(this);
+	}
+	public void setAdminInDB(String name, int admin) {
+		String sql = "UPDATE players set is_admin = ? where name = ?;";
+		try {
+			PreparedStatement stmt = Database.playersConnection.prepareStatement(sql);
+			stmt.setInt(1, admin);
+			stmt.setString(2, name);
+			stmt.executeUpdate();
+			stmt.close();
+		} catch (SQLException ex) {
+			Logger.getLogger(Player.class.getName()).log(Level.SEVERE, null, ex);
+		}
+	}
+
+	public boolean isBot() {
+		return isbot;
+	}
+	public void setBot() {
+		isbot = true;
+	}
+	public void unBot() {
+		isbot = false;
+	}
+	public void setBotInDB(String name, int bot) {
+		String sql = "UPDATE players set isbot = ? where name = ?;";
+		try {
+			PreparedStatement stmt = Database.playersConnection.prepareStatement(sql);
+			stmt.setInt(1, bot);
+			stmt.setString(2, name);
+			stmt.executeUpdate();
+			stmt.close();
+		} catch (SQLException ex) {
+			Logger.getLogger(Player.class.getName()).log(Level.SEVERE, null, ex);
+		}
+	}
+
+	public boolean isGagged() {
+		return gag;
+	}
 	public void gag() {
 		gag = true;
 		Player.gagList.add(this);
 	}
-
+	public void unGag() {
+		gag = false;
+		Player.gagList.remove(this);
+	}
 	public void setGagInDB(String name, int gagged){
 		String sql = "UPDATE players set is_gagged = ? where name = ?;";
 		try {
@@ -243,26 +290,18 @@ public class Player {
 			Logger.getLogger(Player.class.getName()).log(Level.SEVERE, null, ex);
 		}
 	}
-	
-	public void unGag() {
-		gag = false;
-		Player.gagList.remove(this);
+
+	public boolean isBanned() {
+		return is_banned;
 	}
-	
-	public boolean isGagged() {
-		return gag;
-	}
-	
 	public void setBan() {
 		this.is_banned = true;
 		Player.banList.add(this);
 	}
-	
 	public void unBan() {
 		this.is_banned = false;
 		Player.banList.remove(this);
 	}
-
 	public void setBanInDB(String name, int banned) {
 		String sql = "UPDATE players set is_banned = ? where name = ?;";
 		try {
@@ -275,11 +314,7 @@ public class Player {
 			Logger.getLogger(Player.class.getName()).log(Level.SEVERE, null, ex);
 		}
 	}
-	
-	public boolean isBanned() {
-		return is_banned;
-	}
-	
+
 	public void loggedOut() {
 		this.client = null;
 		if(guest) {

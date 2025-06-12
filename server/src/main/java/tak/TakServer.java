@@ -34,8 +34,9 @@ public class TakServer extends Thread {
 		ServerSocket ssocket;
 		ServerSocket wsocket;
 		HttpServer httpServer;
-		var gameUpdateBroadcaster = new GameUpdateBroadcaster();
-		new Thread(gameUpdateBroadcaster).start();
+		// TODO disabling this for now till the native tournament is ready
+		// var gameUpdateBroadcaster = new GameUpdateBroadcaster();
+		// new Thread(gameUpdateBroadcaster).start();
 
 		try {
 			ssocket = new ServerSocket(port);
@@ -62,13 +63,15 @@ public class TakServer extends Thread {
 						Socket socket = ssocket.accept();
 						TakServer.Log("New Telnet client");
 						Client cc = new Client(new Telnet(socket));
-						cc.subscribe(gameUpdateBroadcaster);
+						// TODO disabling this for now till the native tournament is ready
+						//cc.subscribe(gameUpdateBroadcaster);
 						cc.start();
 					} else {
 						Socket socket = wsocket.accept();
 						TakServer.Log("New Websocket client");
 						Client cc = new Client(new Websocket(socket));
-						cc.subscribe(gameUpdateBroadcaster);
+						// TODO disabling this for now till the native tournament is ready
+						//cc.subscribe(gameUpdateBroadcaster);
 						cc.start();
 					}
 				} catch (SocketTimeoutException e) {
@@ -78,7 +81,8 @@ public class TakServer extends Thread {
 		} catch (IOException ex) {
 			logger.log(Level.SEVERE, null, ex);
 		}
-		gameUpdateBroadcaster.stop();
+		// TODO disabling this for now till the native tournament is ready
+		//gameUpdateBroadcaster.stop();
 	}
 
 	static void Log(Object obj) {

@@ -87,6 +87,7 @@ public class Game implements Publisher<GameUpdate>{
 	int timeAmount;
 	int playerWhiteMoveCount;
 	int playerBlackMoveCount;
+	boolean isBotGame;
 
 	class Board {
 		int boardSize;
@@ -276,7 +277,7 @@ public class Game implements Publisher<GameUpdate>{
 			this.timeAmount = timeAmount * 1000;
 			this.playerWhiteMoveCount = 0;
 			this.playerBlackMoveCount = 0;
-
+			this.isBotGame = p1.isbot || p2.isbot;
 			if(clr == Seek.COLOR.ANY) {
 				white = (rand==0)?p1:p2;
 				black = (rand==0)?p2:p1;
@@ -284,7 +285,7 @@ public class Game implements Publisher<GameUpdate>{
 				white = (clr == Seek.COLOR.WHITE)?p2:p1;
 				black = (clr == Seek.COLOR.WHITE)?p1:p2;
 			}
-			
+
 			if(black.isbot){
 				TimerTask tt=new TimerTask() {
 					@Override
@@ -1375,10 +1376,22 @@ public class Game implements Publisher<GameUpdate>{
 		gameLock.lock();
 		try{
 			Player otherP = otherPlayer(p);
-			
-			String msg = "Game Start " + no +" "+board.boardSize+" "+white.getName()+" vs "+black.getName();
-			String msg2 = (originalTime/1000) + " " + komi + " " + tileCount + " " + capCount + " " + triggerMove + " " + timeAmount / 1000;
-			p.send(msg+" "+((white==p)?"white":"black")+" "+msg2);
+			String m = "";
+			if(p.client.protocolVersion < 2) {
+				m += "Game Start " + no +" "+board.boardSize+" "+white.getName()+" vs "+black.getName() + " ";
+				m += ((white==p)?"white":"black")+" ";
+				m += (originalTime/1000) + " " + komi + " " + tileCount + " " + capCount + " " + triggerMove + " " + timeAmount / 1000;
+			} else {
+				m += "Game Start " + no + " " + white.getName() + " vs " + black.getName() + " ";
+				m += ((white==p)?"white":"black") + " ";
+				m += board.boardSize + " " + (originalTime/1000) + " " + incrementTime / 1000 + " " + komi + " " + tileCount + " " + capCount + " " + unrated + " " + tournament + " " + triggerMove + " " + timeAmount / 1000 + " ";
+				if (this.isBotGame) {
+					m += "1";
+				} else {
+					m += "0";
+				}
+			}
+			p.send(m);
 
 			sendMoveListTo(p);
 			updateTime(p);
@@ -1390,7 +1403,7 @@ public class Game implements Publisher<GameUpdate>{
 				logOutWhite+=1000000000000L;
 			}
 			else{
-				logOutBlack+=1000000000000L;				
+				logOutBlack+=1000000000000L;
 			}
 		}
 		finally{

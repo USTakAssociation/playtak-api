@@ -1,2 +1,4 @@
 playtakdb/
-run/
+
+run
+run/**

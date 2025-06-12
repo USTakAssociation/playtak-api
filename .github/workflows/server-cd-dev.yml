@@ -1,4 +1,4 @@
-name: Tak Server CI/CD Beta
+name: PlayTak Server CI/CD Beta
 
 on:
   push:

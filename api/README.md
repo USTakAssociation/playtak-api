@@ -4,7 +4,7 @@
 
 ![Unit Tests](https://github.com/USTakAssociation/playtak-api/actions/workflows/ci.yml/badge.svg)
 
-The Play Tak API is a nodejs built using the nestjs project which contains multiple endpoints for servicing data to the Play Tak UI
+The Play Tak API is a nodejs built using the nestjs project which contains multiple endpoints for servicing data to the Play Tak UI.
 
 ## Requirements
 
@@ -19,14 +19,14 @@ $ npm install
 
 ## Running the app
 
-There are 2 options to run the project either manually or with docker (*recommended)
+There are two options to run the project: manually, or with docker (recommended).
 
-Either option you go you will need to create 2 databases which can be done with the following bash script
+Either way, you will need to create two databases, which can be done with the following bash script:
 
 ```bash
 sh ../script/development/create_databases.sh
 ```
-This creates the players and games sqlite dbs
+This creates the players and games sqlite databases.
 
 Optionally, you can then use the script `scripts/development/add_user.sh` to add users to the local players database with a password of "password".
 
@@ -37,7 +37,7 @@ Optionally, you can then use the script `scripts/development/add_user.sh` to add
 
 ### docker
 
-In the root of the repo run the following command
+In the root of the repo, run the following command:
 ```bash
 docker compose up -d --build
 ```
