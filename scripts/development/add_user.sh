@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 
-# Script for developer purposes, generating SQL for creating a new user that can be authenticated
+# Script for development purposes, generating SQL for creating a new user that can be authenticated
 # with the password of literally "password". (Therefore: only for development/test setup.)
 #
 # Usage:
 #
-#   add_user.sh <username> <path-to-sqlite-db-file>
+#   add_user.sh <username>
 #
 # Examples:
 #
-#   add_user.sh localtestuser playtakdb/players.db
+#   add_user.sh localtestuser
 #
-#   for x in \$( seq 1 100 ) | do add_user.sh user$x playtakdb/players.db
+#   for x in \$( seq 1 100 ) | do add_user.sh user$x
 #
 # Requirements:
 #
-#   expects sqlite3 to be executable in shell
+#   expects containerized mariadb to be running
 #
 # Notes:
 #
@@ -33,13 +33,8 @@ if [ -z $1 ]; then
   exit 1
 fi
 
-if [ -z $2 ]; then
-  echo "Error: Must provide database (as path to sqlite file) as second argument" 1>&2
-  echo "See script source for usage notes." 1>&2
-  exit 1
-fi
-
-existing=$( sqlite3 $2 "select COUNT(name) FROM players WHERE name='$1'" )
+# docker exec -i playtak-db mariadb -uroot -pmydb123 --database=playtak_db < ./init-mariadb.sql
+existing=$( docker exec -i playtak-db mariadb -uroot -pmydb123 --database=playtak_db <<< "SELECT COUNT(name) FROM players WHERE name = '$1'" | tail -1)
 
 if [ $existing != 0 ]; then
   echo "User already exists with name $1"
@@ -47,13 +42,8 @@ if [ $existing != 0 ]; then
   exit 1
 fi
 
-# Determining next player ID, since table doesn't currently autoinc with a default.
-nextId=$( sqlite3 $2 "select 1 + IFNULL(MAX(id), 0) FROM players" )
-echo "Using next Player ID: $nextId"
-
 # password hash below is a precalculated bcrypt hash that authenticates to "password"
-# email is empty string, which currently is allowed
-# id is determined earlier and provided explicitly
-sql="INSERT INTO players (id, name, password, email, rating, boost, ratedgames, maxrating, ratingage, ratingbase, unrated, isbot, fatigue, is_admin, is_mod, is_gagged, is_banned) VALUES('$nextId', '$1','\$2a\$10\$JpGWa00gDsDtJK0Ttq/dD.F2zTj9kCkdcHwO5pIZFfWbT3CfDY/C6','',1000.0,750.0,0,1000.0,0,0,0,0,'{}',0,0,0,0);"
-echo $sql | sqlite3 $2
-echo "Created user $1 (#$nextId) with password: password"
+# email is just set as test@test.com
+sql="INSERT INTO players (name, password, email, rating, boost, ratedgames, maxrating, ratingage, ratingbase, unrated, isbot, fatigue, is_admin, is_mod, is_gagged, is_banned) VALUES('$1','\$2a\$10\$JpGWa00gDsDtJK0Ttq/dD.F2zTj9kCkdcHwO5pIZFfWbT3CfDY/C6','test@test.com',1000.0,750.0,0,1000.0,0,0,0,0,'{}',0,0,0,0);"
+docker exec -i playtak-db mariadb -uroot -pmydb123 --database=playtak_db <<< $sql
+echo "Created user $1 with password: password"
