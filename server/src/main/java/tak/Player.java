@@ -10,7 +10,7 @@ import java.security.SecureRandom;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.Connection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -210,14 +210,23 @@ public class Player {
 	}
 	public void setModInDB(String name, int mod) {
 		String sql = "UPDATE players set is_mod = ? where name = ?;";
-		try {
-			PreparedStatement stmt = Database.dbConnection.prepareStatement(sql);
-			stmt.setInt(1, mod);
-			stmt.setString(2, name);
-			stmt.executeUpdate();
-			stmt.close();
+		try (Connection conn = Database.ds.getConnection();
+			 PreparedStatement statement = conn.prepareStatement(sql)) {
+
+				// Set the parameters
+				statement.setInt(1, mod);
+				statement.setString(2, name);
+				
+				// Execute the update
+				int affectedRows = statement.executeUpdate();
+				
+				if (affectedRows > 0) {
+						System.out.println("Successfully updated moderator status for player: " + name);
+				} else {
+						System.out.println("No player found with name: " + name);
+				}
 		} catch (SQLException ex) {
-			Logger.getLogger(Player.class.getName()).log(Level.SEVERE, null, ex);
+				Logger.getLogger(Player.class.getName()).log(Level.SEVERE, "Error updating player mod status", ex);
 		}
 	}
 
@@ -234,14 +243,23 @@ public class Player {
 	}
 	public void setAdminInDB(String name, int admin) {
 		String sql = "UPDATE players set is_admin = ? where name = ?;";
-		try {
-			PreparedStatement stmt = Database.playersConnection.prepareStatement(sql);
-			stmt.setInt(1, admin);
-			stmt.setString(2, name);
-			stmt.executeUpdate();
-			stmt.close();
+		try (Connection conn = Database.ds.getConnection();
+			 PreparedStatement statement = conn.prepareStatement(sql)) {
+
+				// Set the parameters
+				statement.setInt(1, admin);
+				statement.setString(2, name);
+				
+				// Execute the update
+				int affectedRows = statement.executeUpdate();
+				
+				if (affectedRows > 0) {
+						System.out.println("Successfully updated admin status for player: " + name);
+				} else {
+						System.out.println("No player found with name: " + name);
+				}
 		} catch (SQLException ex) {
-			Logger.getLogger(Player.class.getName()).log(Level.SEVERE, null, ex);
+				Logger.getLogger(Player.class.getName()).log(Level.SEVERE, "Error updating player admin status", ex);
 		}
 	}
 
@@ -256,14 +274,20 @@ public class Player {
 	}
 	public void setBotInDB(String name, int bot) {
 		String sql = "UPDATE players set isbot = ? where name = ?;";
-		try {
-			PreparedStatement stmt = Database.playersConnection.prepareStatement(sql);
-			stmt.setInt(1, bot);
-			stmt.setString(2, name);
-			stmt.executeUpdate();
-			stmt.close();
+		try (Connection conn = Database.ds.getConnection();
+			 PreparedStatement statement = conn.prepareStatement(sql)) {
+				// Set the parameters
+				statement.setInt(1, bot);
+				statement.setString(2, name);
+				// Execute the update
+				int affectedRows = statement.executeUpdate();
+				if (affectedRows > 0) {
+						System.out.println("Successfully updated user bot status " + name);
+				} else {
+						System.out.println("No player found with name: " + name);
+				}
 		} catch (SQLException ex) {
-			Logger.getLogger(Player.class.getName()).log(Level.SEVERE, null, ex);
+				Logger.getLogger(Player.class.getName()).log(Level.SEVERE, "Error updating player bot status", ex);
 		}
 	}
 
@@ -363,21 +387,28 @@ public class Player {
 		
 		Player np = new Player(name, email, Player.hash(tmpPass), false);
 		String sql = "INSERT INTO players (id,name,password,email) VALUES (?, ?, ?, ?)";
-		try {
-			PreparedStatement stmt = Database.dbConnection.prepareStatement(sql);
-			stmt.setInt(1, np.id);
-			stmt.setString(2, np.name);
-			stmt.setString(3, np.password);
-			stmt.setString(4, np.email);
+		try (Connection conn = Database.ds.getConnection();
+			 PreparedStatement statement = conn.prepareStatement(sql)) {
 
-			stmt.executeUpdate();
-			stmt.close();
-			
-			EMail.send(np.email, "playtak.com password", "Hello "+np.name+", your password is "+tmpPass+" You can change it on playtak.com.");
-			players.put(np.name, np);
-			takeName(np.name);
+				// Set the parameters
+				statement.setInt(1, np.id);
+				statement.setString(2, np.name);
+				statement.setString(3, np.password);
+				statement.setString(4, np.email);
+				
+				// Execute the update
+				int affectedRows = statement.executeUpdate();
+				
+				if (affectedRows > 0) {
+						System.out.println("Successfully created the player: " + name);
+						EMail.send(np.email, "playtak.com password", "Hello "+np.name+", your password is "+tmpPass+" You can change it on playtak.com.");
+						players.put(np.name, np);
+						takeName(np.name);
+				} else {
+						System.out.println("Unable to save the player: " + name);
+				}
 		} catch (SQLException ex) {
-			Logger.getLogger(Player.class.getName()).log(Level.SEVERE, null, ex);
+				Logger.getLogger(Player.class.getName()).log(Level.SEVERE, "Error creating player: ", ex);
 		}
 		return np;
 	}
@@ -492,10 +523,13 @@ public class Player {
 		return password;
 	}
 	
+	// TODO refactor this to only load players when they login
 	public static void loadFromDB() {
 		idCount=0;
-		try (Statement stmt = Database.dbConnection.createStatement();
-				ResultSet rs = stmt.executeQuery("SELECT * FROM players;")) {
+		String sql = "SELECT * FROM players;";
+		try (Connection conn = Database.ds.getConnection();
+			PreparedStatement statement = conn.prepareStatement(sql)) {
+			ResultSet rs = statement.executeQuery();
 			while(rs.next()) {
 				Player np = new Player(
 					rs.getString("name"),
@@ -515,7 +549,7 @@ public class Player {
 					idCount=np.id;
 			}
 		} catch (SQLException ex) {
-			Logger.getLogger(Player.class.getName()).log(Level.SEVERE, null, ex);
+			Logger.getLogger(Player.class.getName()).log(Level.SEVERE, "Error loading player: ", ex);
 		}
 	}
 }

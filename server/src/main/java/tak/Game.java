@@ -7,7 +7,7 @@ package tak;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -1090,51 +1090,53 @@ public class Game implements Publisher<GameUpdate>{
 	}
 
 	private void insertEmpty() {
-		try {
-			String sql = "INSERT INTO games (date, size, player_white, player_black, timertime, timerinc, notation, result, rating_white, rating_black, unrated, tournament, komi, pieces, capstones, rating_change_white, rating_change_black, extra_time_amount, extra_time_trigger) " +
-				"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-			PreparedStatement stmt = Database.dbConnection.prepareStatement
-				(sql, Statement.RETURN_GENERATED_KEYS);
-			stmt.setLong(1, time);
-			stmt.setInt(2, board.boardSize);
-			stmt.setString(3, white.getName());
-			stmt.setString(4, black.getName());
-			stmt.setLong(5, originalTime/1000);
-			stmt.setLong(6, incrementTime/1000);
-			stmt.setString(7, "");
-			stmt.setString(8, "0-0");
-			stmt.setInt(9, white.getRating(time));
-			stmt.setInt(10, black.getRating(time));
-			stmt.setInt(11, unrated);
-			stmt.setInt(12, tournament);
-			stmt.setInt(13, komi);
-			stmt.setInt(14, tileCount);
-			stmt.setInt(15, capCount);
-			stmt.setInt(16, -1000);
-			stmt.setInt(17, -1000);
-			stmt.setInt(18, timeAmount / 1000);
-			stmt.setInt(19, triggerMove);
-			stmt.executeUpdate();
-			ResultSet inserted = stmt.getGeneratedKeys();
-			if (inserted.next())
-				no = inserted.getInt(1);
+		String sql = "INSERT INTO games (size, player_white, player_black, timertime, timerinc, notation, result, rating_white, rating_black, unrated, tournament, komi, pieces, capstones, rating_change_white, rating_change_black, extra_time_amount, extra_time_trigger) " +
+			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+		try (Connection conn = Database.ds.getConnection();
+			PreparedStatement statement = conn.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
+			statement.setInt(1, board.boardSize);
+			statement.setString(2, white.getName());
+			statement.setString(3, black.getName());
+			statement.setLong(4, originalTime / 1000);
+			statement.setLong(5, incrementTime / 1000);
+			statement.setString(6, "");
+			statement.setString(7, "0-0");
+			statement.setInt(8, white.getRating(time));
+			statement.setInt(9, black.getRating(time));
+			statement.setInt(10, unrated);
+			statement.setInt(11, tournament);
+			statement.setInt(12, komi);
+			statement.setInt(13, tileCount);
+			statement.setInt(14, capCount);
+			statement.setInt(15, -1000); // rating change white
+			statement.setInt(16, -1000); // rating change black
+			statement.setInt(17, timeAmount / 1000); // extra time amount
+			statement.setInt(18, triggerMove); // extra time trigger move
+
+			int affectedRows = statement.executeUpdate();
+			if (affectedRows > 0) {
+					// Get the generated ID
+					try (ResultSet generatedKeys = statement.getGeneratedKeys()) {
+							if (generatedKeys.next()) {
+									no = generatedKeys.getInt(1);
+							}
+					}
+			}
 		} catch (SQLException ex) {
-			Logger.getLogger(Player.class.getName()).log(Level.SEVERE, null, ex);
+				Logger.getLogger(Player.class.getName()).log(Level.SEVERE, "Error saving player", ex);
 		}
 	}
 
 	private void saveToDB() {
-		try {
-			String sql = "UPDATE games " +
-				"SET notation=?, result=? " +
-				"WHERE id=?";
-			PreparedStatement stmt = Database.dbConnection.prepareStatement(sql);
-			stmt.setString(1, moveListString());
-			stmt.setString(2, gameStateString());
-			stmt.setInt(3, no);
-			stmt.executeUpdate();
+		String sql = "UPDATE games SET notation=?, result=? WHERE id=?";
+		try (Connection conn = Database.ds.getConnection();
+			PreparedStatement statement = conn.prepareStatement(sql)) {
+			statement.setString(1, moveListString());
+			statement.setString(2, gameStateString());
+			statement.setInt(3, no);
+			statement.executeUpdate();
 		} catch (SQLException ex) {
-			Logger.getLogger(Player.class.getName()).log(Level.SEVERE, null, ex);
+				Logger.getLogger(Player.class.getName()).log(Level.SEVERE, "Error saving game to the db", ex);
 		}
 	}
 
