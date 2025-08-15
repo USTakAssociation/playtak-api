@@ -35,7 +35,7 @@ This creates the players and games sqlite dbs in the playtakdb folder
 Optionally, you can then use the script `./scripts/development/add_user.sh` to add users to the local players database with a password of "password".
 
 ```bash
-./scripts/development/add_user.sh username ./playtakdb/players.db
+./scripts/development/add_user.sh mynewusername ./playtakdb/players.db
 # See scripts/development/add_user.sh comments for more options.
 ```
 
