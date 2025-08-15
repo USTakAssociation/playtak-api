@@ -30,14 +30,14 @@ setup the local databases
 
 
 ```bash
-sh ./script/development/create_databases.sh
+./scripts/development/create_databases.sh
 ```
-This creates the players and games sqlite dbs in the playersdb folder
+This creates the players and games sqlite dbs in the playtakdb folder
 
 Optionally, you can then use the script `./scripts/development/add_user.sh` to add users to the local players database with a password of "password".
 
 ```bash
-./scripts/development/add_user.sh mylocalacct ./players.db
+./scripts/development/add_user.sh username ./playtakdb/players.db
 # See scripts/development/add_user.sh comments for more options.
 ```
 
