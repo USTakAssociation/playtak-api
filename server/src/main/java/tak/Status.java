@@ -10,27 +10,27 @@ package tak;
  * @author chaitu
  */
 public class Status {
-	private String msg;
-	private boolean ok;
-	
-	Status(String m, boolean ok) {
-		msg = m;
-		this.ok = ok;
-	}
-	
-	Status(boolean ok) {
-		this(null, ok);
-	}
-	
-	boolean isOk() {
-		return ok;
-	}
-	
-	String msg() {
-		return msg;
-	}
-	
-	public String toString() {
-		return (ok?"OK":"NOK")+" "+msg;
-	}
+    private String msg;
+    private boolean ok;
+
+    Status(String m, boolean ok) {
+        msg = m;
+        this.ok = ok;
+    }
+
+    Status(boolean ok) {
+        this(null, ok);
+    }
+
+    boolean isOk() {
+        return ok;
+    }
+
+    String msg() {
+        return msg;
+    }
+
+    public String toString() {
+        return (ok ? "OK" : "NOK") + " " + msg;
+    }
 }
