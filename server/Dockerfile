@@ -9,7 +9,7 @@ WORKDIR /app
 # Logged in users (not guests) will reconnected by the UI within ~12s.
 
 # consider removing clean for slightly faster compilation
-ENTRYPOINT amvn clean package exec:java --watch
+ENTRYPOINT exec amvn clean package exec:java --watch
 
 FROM base as production
 VOLUME /tmp
