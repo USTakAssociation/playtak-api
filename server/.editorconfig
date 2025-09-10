@@ -14,3 +14,7 @@ max_line_length = 120
 ij_java_align_multiline_chained_methods = false
 ij_java_method_call_chain_wrap = on_every_item
 ij_java_prefer_parameters_wrap = false
+ij_java_array_initializer_wrap = split_into_lines
+ij_java_array_initializer_new_line_after_left_brace = true
+ij_java_array_initializer_right_brace_on_new_line = true
+ij_java_space_before_array_initializer_left_brace = true

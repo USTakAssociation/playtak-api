@@ -31,7 +31,7 @@ public class BadWordFilter {
 						continue;
 					}
 					String word = content[0];
-					String[] ignore_in_combination_with_words = new String[]{};
+					String[] ignore_in_combination_with_words = new String[] {};
 					if (content.length > 1) {
 						ignore_in_combination_with_words = content[1].split("_");
 					}

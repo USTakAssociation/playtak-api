@@ -241,10 +241,44 @@ public class Seek {
 			if (color == COLOR.WHITE) clr = "W";
 			else if (color == COLOR.BLACK) clr = "B";
 			String playerName = client.player.getName();
-			String v1Seek = String.join(" ", new String[]{Integer.toString(no), playerName, Integer.toString(boardSize), Integer.toString(time), Integer.toString(incr), clr, Integer.toString(komi), Integer.toString(pieces), Integer.toString(capstones), Integer.toString(unrated), Integer.toString(tournament), Integer.toString(triggerMove), Integer.toString(timeAmount), opponent});
-			String v2Seek = String.join(" ", new String[]{Integer.toString(no), playerName, Integer.toString(boardSize), Integer.toString(time), Integer.toString(incr), clr, Integer.toString(komi), Integer.toString(pieces), Integer.toString(capstones), Integer.toString(unrated), Integer.toString(tournament), Integer.toString(triggerMove), Integer.toString(timeAmount), opponent.length() != 0 ? opponent : "0", client.player.isBot() ? "1" : "0"});
+			String v1Seek = String.join(" ", new String[] {
+				Integer.toString(no),
+				playerName,
+				Integer.toString(boardSize),
+				Integer.toString(time),
+				Integer.toString(incr),
+				clr,
+				Integer.toString(komi),
+				Integer.toString(pieces),
+				Integer.toString(capstones),
+				Integer.toString(unrated),
+				Integer.toString(tournament),
+				Integer.toString(triggerMove),
+				Integer.toString(timeAmount),
+				opponent
+			});
+			String v2Seek = String.join(" ", new String[] {
+				Integer.toString(no),
+				playerName,
+				Integer.toString(boardSize),
+				Integer.toString(time),
+				Integer.toString(incr),
+				clr,
+				Integer.toString(komi),
+				Integer.toString(pieces),
+				Integer.toString(capstones),
+				Integer.toString(unrated),
+				Integer.toString(tournament),
+				Integer.toString(triggerMove),
+				Integer.toString(timeAmount),
+				opponent.length() != 0 ? opponent : "0",
+				client.player.isBot() ? "1" : "0"
+			});
 			// return both v1 and v2 seek
-			return new String[]{v1Seek, v2Seek};
+			return new String[] {
+				v1Seek,
+				v2Seek
+			};
 		} finally {
 			seekStuffLock.unlock();
 		}
