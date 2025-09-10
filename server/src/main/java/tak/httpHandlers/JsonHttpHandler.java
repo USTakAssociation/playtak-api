@@ -17,8 +17,7 @@ public abstract class JsonHttpHandler implements HttpHandler {
 	final int METHOD_NOT_ALLOWED = 405;
 
 	protected Logger logger = Logger.getLogger(this.getClass().getName());
-	protected ObjectMapper jsonMapper = new ObjectMapper()
-		.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
+	protected ObjectMapper jsonMapper = new ObjectMapper().configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
 		.setVisibility(PropertyAccessor.FIELD, Visibility.DEFAULT);
 
 	protected Object GET(HttpExchange httpExchange) throws Exception {
@@ -37,9 +36,7 @@ public abstract class JsonHttpHandler implements HttpHandler {
 		throw new UnsupportedOperationException("DELETE is not supported on this endpoint");
 	}
 
-	private Object deriveResult(String httpMethod, HttpExchange httpExchange)
-		throws UnsupportedOperationException, Exception {
-
+	private Object deriveResult(String httpMethod, HttpExchange httpExchange) throws Exception {
 		switch (httpMethod.toUpperCase()) {
 			case "PUT":
 				return PUT(httpExchange);
@@ -59,7 +56,8 @@ public abstract class JsonHttpHandler implements HttpHandler {
 		Object result;
 		try {
 			String httpMethod = httpExchange.getRequestMethod();
-			logger.info(this.getClass().getSimpleName() + " handling " + httpMethod + " " + httpExchange.getRequestURI());
+			logger.info(this.getClass()
+				.getSimpleName() + " handling " + httpMethod + " " + httpExchange.getRequestURI());
 			result = deriveResult(httpMethod, httpExchange);
 		} catch (UnsupportedOperationException ex) {
 			logger.log(Level.WARNING, "Failed to handle request", ex);

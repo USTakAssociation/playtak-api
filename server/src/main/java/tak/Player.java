@@ -175,26 +175,22 @@ public class Player {
 	}
 
 	public void send(String msg) {
-		if (client != null)
-			client.send(msg);
+		if (client != null) client.send(msg);
 	}
 
 	public void sendNOK() {
-		if (client != null)
-			client.sendNOK();
+		if (client != null) client.sendNOK();
 	}
 
 	public void sendWithoutLogging(String msg) {
-		if (client != null)
-			client.sendWithoutLogging(msg);
+		if (client != null) client.sendWithoutLogging(msg);
 	}
 
 	public void login(Client c) {
 		this.client = c;
 		resetToken = "";//If a user is able to login, he has the password
 
-		if (game != null)
-			game.playerRejoin(this);
+		if (game != null) game.playerRejoin(this);
 	}
 
 	public void logout() {
@@ -423,9 +419,7 @@ public class Player {
 		int unrated = 1;
 		ResultSet rs = null;
 		try {
-			try (
-				PreparedStatement stmt = Database.playersConnection.prepareStatement(sql)
-			) {
+			try (PreparedStatement stmt = Database.playersConnection.prepareStatement(sql)) {
 				stmt.setInt(1, id);
 				rs = stmt.executeQuery();
 				if (rs.next()) {
@@ -443,9 +437,7 @@ public class Player {
 			}
 
 			if (ratingbase != 0) {
-				try (
-					PreparedStatement stmt = Database.playersConnection.prepareStatement(sql)
-				) {
+				try (PreparedStatement stmt = Database.playersConnection.prepareStatement(sql)) {
 					stmt.setInt(1, ratingbase);
 					rs = stmt.executeQuery();
 					if (rs.next()) {
@@ -514,25 +506,12 @@ public class Player {
 
 	public static void loadFromDB() {
 		idCount = 0;
-		try (Statement stmt = Database.playersConnection.createStatement();
-			 ResultSet rs = stmt.executeQuery("SELECT * FROM players;")) {
+		try (Statement stmt = Database.playersConnection.createStatement(); ResultSet rs = stmt.executeQuery("SELECT * FROM players;")) {
 			while (rs.next()) {
-				Player np = new Player(
-					rs.getString("name"),
-					rs.getString("email"),
-					rs.getString("password"),
-					rs.getInt("id"),
-					false,
-					rs.getInt("isbot") == 1,
-					rs.getInt("is_admin") == 1,
-					rs.getInt("is_mod") == 1,
-					rs.getInt("is_banned") == 1,
-					rs.getInt("is_gagged") == 1
-				);
+				Player np = new Player(rs.getString("name"), rs.getString("email"), rs.getString("password"), rs.getInt("id"), false, rs.getInt("isbot") == 1, rs.getInt("is_admin") == 1, rs.getInt("is_mod") == 1, rs.getInt("is_banned") == 1, rs.getInt("is_gagged") == 1);
 				players.put(np.name, np);
 				takeName(np.name);
-				if (idCount < np.id)
-					idCount = np.id;
+				if (idCount < np.id) idCount = np.id;
 			}
 		} catch (SQLException ex) {
 			Logger.getLogger(Player.class.getName()).log(Level.SEVERE, null, ex);

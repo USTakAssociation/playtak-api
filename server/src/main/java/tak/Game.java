@@ -63,8 +63,7 @@ public class Game implements Publisher<GameUpdate> {
 	protected ConcurrentHashSet<Subscriber<? super GameUpdate>> subscribers = new ConcurrentHashSet<>();
 
 	public enum gameS {
-		WHITE_ROAD, BLACK_ROAD, WHITE_TILE, BLACK_TILE, DRAW,
-		WHITE, BLACK, ABORT, NONE
+		WHITE_ROAD, BLACK_ROAD, WHITE_TILE, BLACK_TILE, DRAW, WHITE, BLACK, ABORT, NONE
 	}
 
 	List<String> moveList;
@@ -144,8 +143,7 @@ public class Game implements Publisher<GameUpdate> {
 			}
 
 			char topOfStack() {
-				if (stack.isEmpty())
-					return 0;
+				if (stack.isEmpty()) return 0;
 
 				return stack.getLast();
 			}
@@ -183,9 +181,7 @@ public class Game implements Publisher<GameUpdate> {
 			}
 		}
 
-		Board(int boardSize, int moveCount, int whiteCapstones,
-			  int blackCapstones, int whiteTilesCount, int blackTilesCount,
-			  Square[][] squares, int lastResetMove) {
+		Board(int boardSize, int moveCount, int whiteCapstones, int blackCapstones, int whiteTilesCount, int blackTilesCount, Square[][] squares, int lastResetMove) {
 			this.boardSize = boardSize;
 			this.moveCount = moveCount;
 			this.whiteCapstones = whiteCapstones;
@@ -198,10 +194,7 @@ public class Game implements Publisher<GameUpdate> {
 
 		@Override
 		public Board clone() {
-			Board clone = new Board(boardSize, moveCount,
-				whiteCapstones, blackCapstones,
-				whiteTilesCount, blackTilesCount,
-				getClonedSquares(), lastResetMove);
+			Board clone = new Board(boardSize, moveCount, whiteCapstones, blackCapstones, whiteTilesCount, blackTilesCount, getClonedSquares(), lastResetMove);
 
 			return clone;
 		}
@@ -218,18 +211,22 @@ public class Game implements Publisher<GameUpdate> {
 		}
 
 		private Square getSquare(char file, int rank) {
-			if (!boundsCheck(file, rank))
-				return null;
+			if (!boundsCheck(file, rank)) return null;
 			return board.squares[rank - 1][file - 'A'];
 		}
 
 		@Override
 		public String toString() {
 			StringBuilder sb = new StringBuilder();
-			sb.append("wc=").append(whiteCapstones).append(" bc=")
-				.append(blackCapstones).append(" wt=")
-				.append(whiteTilesCount).append(" bt=")
-				.append(blackTilesCount).append(" mc=")
+			sb.append("wc=")
+				.append(whiteCapstones)
+				.append(" bc=")
+				.append(blackCapstones)
+				.append(" wt=")
+				.append(whiteTilesCount)
+				.append(" bt=")
+				.append(blackTilesCount)
+				.append(" mc=")
 				.append(moveCount);
 			sb.append("\n").append(getBoardString());
 			return sb.toString();
@@ -374,10 +371,8 @@ public class Game implements Publisher<GameUpdate> {
 	void resign(Player p) {
 		gameLock.lock();
 		try {
-			if (p == white)
-				gameState = gameS.BLACK;
-			else
-				gameState = gameS.WHITE;
+			if (p == white) gameState = gameS.BLACK;
+			else gameState = gameS.WHITE;
 			whenGameEnd();
 		} finally {
 			gameLock.unlock();
@@ -543,7 +538,7 @@ public class Game implements Publisher<GameUpdate> {
 				.tournament(tournament > 0)
 				.timeContingent((int) (originalTime / 1000))
 				.timeIncrement((int) (incrementTime / 1000))
-				.extraTimeAmount((int) (timeAmount / 1000))
+				.extraTimeAmount(timeAmount / 1000)
 				.extraTimeTriggerMove(triggerMove)
 				.moves(moveList.toArray(String[]::new))
 				.result(result.equals("---") ? null : result)
@@ -587,8 +582,7 @@ public class Game implements Publisher<GameUpdate> {
 		gameLock.lock();
 		try {
 			Board.Square sq = board.getSquare(file, rank);
-			if (sq == null)
-				return "[]";
+			if (sq == null) return "[]";
 			return sq.stackString();
 		} finally {
 			gameLock.unlock();
@@ -596,10 +590,8 @@ public class Game implements Publisher<GameUpdate> {
 	}
 
 	private void checkOutOfPieces() {
-		if (gameState != gameS.NONE)
-			return;
-		if ((board.whiteTilesCount == 0 && board.whiteCapstones == 0) ||
-			(board.blackTilesCount == 0 && board.blackCapstones == 0)) {
+		if (gameState != gameS.NONE) return;
+		if ((board.whiteTilesCount == 0 && board.whiteCapstones == 0) || (board.blackTilesCount == 0 && board.blackCapstones == 0)) {
 			findWhoWon();
 		}
 	}
@@ -748,45 +740,33 @@ public class Game implements Publisher<GameUpdate> {
 		gameLock.lock();
 		try {
 			Board.Square sq = board.getSquare(file, rank);
-			if (!turnOf(p))
-				return new Status("Not your turn", false);
+			if (!turnOf(p)) return new Status("Not your turn", false);
 
 			if (sq != null && sq.isEmpty()) {
 				char ch;
-				if (capstone)
-					ch = CAPSTONE;
-				else if (wall)
-					ch = WALL;
-				else
-					ch = FLAT;
+				if (capstone) ch = CAPSTONE;
+				else if (wall) ch = WALL;
+				else ch = FLAT;
 
 				//First move should always be a flat
-				if (board.moveCount / 2 == 0 && !isFlat(ch))
-					return new Status("First move should be flat", false);
+				if (board.moveCount / 2 == 0 && !isFlat(ch)) return new Status("First move should be flat", false);
 
 				//White places with capitals
-				if (isWhitesTurn())
-					ch = (char) (ch - 'a' + 'A');
+				if (isWhitesTurn()) ch = (char) (ch - 'a' + 'A');
 
 				//first moves should be played with opponent pieces
 				if (board.moveCount / 2 == 0)
-					ch = Character.isUpperCase(ch) ? Character.toLowerCase(ch) :
-						Character.toUpperCase(ch);
+					ch = Character.isUpperCase(ch) ? Character.toLowerCase(ch) : Character.toUpperCase(ch);
 
 				//check if enough capstones, and decrement if there are
 				if (isCapstone(ch)) {
 					int caps = isWhitesTurn() ? board.whiteCapstones : board.blackCapstones;
-					if (caps == 0)
-						return new Status("You're out of capstones", false);
-					if (isWhitesTurn())
-						board.whiteCapstones--;
-					else
-						board.blackCapstones--;
+					if (caps == 0) return new Status("You're out of capstones", false);
+					if (isWhitesTurn()) board.whiteCapstones--;
+					else board.blackCapstones--;
 				} else {
-					if (isWhitesTurn())
-						board.whiteTilesCount--;
-					else
-						board.blackTilesCount--;
+					if (isWhitesTurn()) board.whiteTilesCount--;
+					else board.blackTilesCount--;
 				}
 
 				sq.add(ch);
@@ -825,43 +805,34 @@ public class Game implements Publisher<GameUpdate> {
 		gameLock.lock();
 		try {
 			//alternate turns
-			if (!turnOf(p))
-				return new Status("Not your turn", false);
+			if (!turnOf(p)) return new Status("Not your turn", false);
 
 			//first moves should be place moves
-			if (board.moveCount / 2 == 0)
-				return new Status("First move should be place", false);
+			if (board.moveCount / 2 == 0) return new Status("First move should be place", false);
 
 			//moves should be horizontal or vertical
-			if (f1 != f2 && r1 != r2)
-				return new Status("Move should be in straight line", false);
+			if (f1 != f2 && r1 != r2) return new Status("Move should be in straight line", false);
 
 			Board.Square startSq = board.getSquare(f1, r1);
 			Board.Square endSq = board.getSquare(f2, r2);
 			//bounds checking of squares
-			if (startSq == null || endSq == null)
-				return new Status("Out of bounds", false);
+			if (startSq == null || endSq == null) return new Status("Out of bounds", false);
 
 			//stack should be controlled by current player
-			if (p != stackController(startSq))
-				return new Status("You don't control stack", false);
+			if (p != stackController(startSq)) return new Status("You don't control stack", false);
 
 			//carry size should be less than or equal to boardSize and stack size
 			int carrySize = 0;
 			for (int v : vals)
 				carrySize += v;
-			if (carrySize > board.boardSize || carrySize > startSq.size())
-				return new Status("Invalid move", false);
+			if (carrySize > board.boardSize || carrySize > startSq.size()) return new Status("Invalid move", false);
 
 			//length of vals should be one less than no. of squares involved
 			int num = (f1 == f2) ? abs(r1 - r2) : abs(f1 - f2);
-			if (vals.length != num)
-				return new Status("Invalid move.", false);
+			if (vals.length != num) return new Status("Invalid move.", false);
 			//all other squares should be greater than 0
 			for (int i = 0; i < vals.length; i++)
-				if (vals[i] < 1)
-					return new Status("Should place atleast one tile in rest of"
-						+ " the squares", false);
+				if (vals[i] < 1) return new Status("Should place atleast one tile in rest of" + " the squares", false);
 
 			char top = startSq.topOfStack();
 			boolean capstone = isCapstone(top);
@@ -869,18 +840,15 @@ public class Game implements Publisher<GameUpdate> {
 			SquareIterator sqIt = new SquareIterator(this, f1, r1, f2, r2);
 			//check if none of the intermediate places are walls or capstones
 			for (Board.Square sqr = sqIt.next(); sqr != null; sqr = sqIt.next()) {
-				if (sqr == startSq)
-					continue;
+				if (sqr == startSq) continue;
 				char ttop = sqr.topOfStack();
 
 				//can't stack over capstones
-				if (isCapstone(ttop))
-					return new Status("Can't stack over capstones", false);
+				if (isCapstone(ttop)) return new Status("Can't stack over capstones", false);
 
 				//can't stack over walls.. but wall in last square can be flattened
 				if (isWall(ttop)) {
-					if (sqr != endSq)
-						return new Status("Can't stack over walls", false);
+					if (sqr != endSq) return new Status("Can't stack over walls", false);
 					else {
 						if (vals[vals.length - 1] != 1 || !capstone) {
 							return new Status("Capstone should be on top to flatten" + " walls", false);
@@ -894,8 +862,7 @@ public class Game implements Publisher<GameUpdate> {
 			int count = -1;
 			Stack<Character> moveStack = new Stack<>();
 
-			for (Board.Square sqr = sqIt.next(); sqr != null;
-				 sqr = sqIt.next(), count++) {
+			for (Board.Square sqr = sqIt.next(); sqr != null; sqr = sqIt.next(), count++) {
 				assert (count < vals.length);
 
 				//move to temporary stack
@@ -981,21 +948,17 @@ public class Game implements Publisher<GameUpdate> {
 				int xcnt = 0;
 				for (int j = 0; j < board.boardSize; j++) {
 					Board.Square sq = board.squares[i][j];
-					if (sq.isEmpty())
-						xcnt = 0;
+					if (sq.isEmpty()) xcnt = 0;
 					else {
 						ret += "x" + xcnt;
 						String cell = "";
 						for (int k = 0; k < sq.size(); k++) {
 							char ch = sq.get(k);
 							cell += isWhite(ch) ? "1" : "2";
-							if (isWall(ch))
-								cell += "S";
-							else if (isCapstone(ch))
-								cell += "C";
+							if (isWall(ch)) cell += "S";
+							else if (isCapstone(ch)) cell += "C";
 						}
-						if (j != board.boardSize - 1)
-							cell += ",";
+						if (j != board.boardSize - 1) cell += ",";
 					}
 				}
 				ret += "/";
@@ -1008,29 +971,23 @@ public class Game implements Publisher<GameUpdate> {
 	}
 
 	private void whenGameEnd() {
-		if (gameState == gameS.NONE)
-			return;
+		if (gameState == gameS.NONE) return;
 		String msg = "";
 		msg += gameStateString();
 
-		if (!abandoned)
-			msg = "Game#" + no + " Over " + msg;
+		if (!abandoned) msg = "Game#" + no + " Over " + msg;
 		else {
 			Player abandoningPlayer;
-			if (gameState == gameS.WHITE)
-				abandoningPlayer = black;
-			else
-				abandoningPlayer = white;
+			if (gameState == gameS.WHITE) abandoningPlayer = black;
+			else abandoningPlayer = white;
 
 			msg = "Game#" + no + " Abandoned. " + abandoningPlayer.getName() + " quit";
 		}
 
 		white.removeGame();
 		black.removeGame();
-		if (!(abandoned && gameState == gameS.BLACK))
-			white.send(msg);
-		if (!(abandoned && gameState == gameS.WHITE))
-			black.send(msg);
+		if (!(abandoned && gameState == gameS.BLACK)) white.send(msg);
+		if (!(abandoned && gameState == gameS.WHITE)) black.send(msg);
 		sendToSpectators(msg);
 
 		saveToDB();
@@ -1074,10 +1031,8 @@ public class Game implements Publisher<GameUpdate> {
 
 	private void insertEmpty() {
 		try {
-			String sql = "INSERT INTO games (date, size, player_white, player_black, timertime, timerinc, notation, result, rating_white, rating_black, unrated, tournament, komi, pieces, capstones, rating_change_white, rating_change_black, extra_time_amount, extra_time_trigger) " +
-				"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-			PreparedStatement stmt = Database.gamesConnection.prepareStatement
-				(sql, Statement.RETURN_GENERATED_KEYS);
+			String sql = "INSERT INTO games (date, size, player_white, player_black, timertime, timerinc, notation, result, rating_white, rating_black, unrated, tournament, komi, pieces, capstones, rating_change_white, rating_change_black, extra_time_amount, extra_time_trigger) " + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+			PreparedStatement stmt = Database.gamesConnection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
 			stmt.setLong(1, time);
 			stmt.setInt(2, board.boardSize);
 			stmt.setString(3, white.getName());
@@ -1100,8 +1055,7 @@ public class Game implements Publisher<GameUpdate> {
 			stmt.setInt(19, triggerMove);
 			stmt.executeUpdate();
 			ResultSet inserted = stmt.getGeneratedKeys();
-			if (inserted.next())
-				no = inserted.getInt(1);
+			if (inserted.next()) no = inserted.getInt(1);
 			stmt.close();
 		} catch (SQLException ex) {
 			Logger.getLogger(Player.class.getName()).log(Level.SEVERE, null, ex);
@@ -1110,9 +1064,7 @@ public class Game implements Publisher<GameUpdate> {
 
 	private void saveToDB() {
 		try {
-			String sql = "UPDATE games " +
-				"SET notation=?, result=? " +
-				"WHERE id=?";
+			String sql = "UPDATE games " + "SET notation=?, result=? " + "WHERE id=?";
 			PreparedStatement stmt = Database.gamesConnection.prepareStatement(sql);
 			stmt.setString(1, moveListString());
 			stmt.setString(2, gameStateString());
@@ -1131,10 +1083,8 @@ public class Game implements Publisher<GameUpdate> {
 	}
 
 	private void sendToOtherPlayer(Player p, String move) {
-		if (white == p)
-			black.sendWithoutLogging(move);
-		else
-			white.sendWithoutLogging(move);
+		if (white == p) black.sendWithoutLogging(move);
+		else white.sendWithoutLogging(move);
 	}
 
 	private void sendToSpectators(final String msg) {
@@ -1149,31 +1099,24 @@ public class Game implements Publisher<GameUpdate> {
 			for (int j = 0; j < board.boardSize; j++) {
 				char ch = board.squares[i][j].topOfStack();
 				if (ch != 0 && !isWall(ch) && !isCapstone(ch)) {
-					if (isWhite(ch))
-						whiteCount++;
-					else
-						blackCount++;
+					if (isWhite(ch)) whiteCount++;
+					else blackCount++;
 				}
 			}
 		}
 		whiteCount *= 2;
 		blackCount *= 2;
 		blackCount += komi;
-		if (whiteCount == blackCount)
-			gameState = gameS.DRAW;
-		else if (whiteCount > blackCount)
-			gameState = gameS.WHITE_TILE;
-		else
-			gameState = gameS.BLACK_TILE;
+		if (whiteCount == blackCount) gameState = gameS.DRAW;
+		else if (whiteCount > blackCount) gameState = gameS.WHITE_TILE;
+		else gameState = gameS.BLACK_TILE;
 	}
 
 	private void checkOutOfSquares() {
-		if (gameState != gameS.NONE)
-			return;
+		if (gameState != gameS.NONE) return;
 		for (int i = 0; i < board.boardSize; i++) {
 			for (int j = 0; j < board.boardSize; j++) {
-				if (board.squares[i][j].isEmpty())
-					return;
+				if (board.squares[i][j].isEmpty()) return;
 			}
 		}
 		System.out.println("Out of squares");
@@ -1181,8 +1124,7 @@ public class Game implements Publisher<GameUpdate> {
 	}
 
 	private void checkStaleGame() {
-		if (gameState != gameS.NONE)
-			return;
+		if (gameState != gameS.NONE) return;
 		if (board.lastResetMove + 50 <= board.moveCount) {
 			gameState = gameS.DRAW;
 		}
@@ -1214,8 +1156,7 @@ public class Game implements Publisher<GameUpdate> {
 			}
 
 			boolean merge(Graph g) {
-				if (g == this)
-					return false;
+				if (g == this) return false;
 				boolean ret = false;
 				for (Board.Square sq : g.squares) {
 					ret |= add(sq);
@@ -1247,8 +1188,7 @@ public class Game implements Publisher<GameUpdate> {
 				sq.graphNo = -1;
 
 				char ch = sq.topOfStack();
-				if (ch == 0 || isWall(ch))
-					continue;
+				if (ch == 0 || isWall(ch)) continue;
 				graph[i + j * board.boardSize].add(sq);
 
 				boolean left = false;
@@ -1263,10 +1203,8 @@ public class Game implements Publisher<GameUpdate> {
 					}
 				}
 				if (over) {
-					if (isWhite(ch))
-						whiteWin = true;
-					else
-						blackWin = true;
+					if (isWhite(ch)) whiteWin = true;
+					else blackWin = true;
 				}
 
 				Board.Square tsq = board.getSquare((char) ('A' + i), j - 1 + 1);
@@ -1278,10 +1216,8 @@ public class Game implements Publisher<GameUpdate> {
 					}
 				}
 				if (over) {
-					if (isWhite(ch))
-						whiteWin = true;
-					else
-						blackWin = true;
+					if (isWhite(ch)) whiteWin = true;
+					else blackWin = true;
 				}
 			}
 		}
@@ -1419,10 +1355,8 @@ public class Game implements Publisher<GameUpdate> {
 			assert (f1 == f2 || r1 == r2);
 			assert (boundsCheck(f1, r1) && boundsCheck(f2, r2));
 
-			if (f1 == f2)
-				direction = (r2 - r1) > 0 ? NORTH : SOUTH;
-			else
-				direction = (f2 - f1) > 0 ? EAST : WEST;
+			if (f1 == f2) direction = (r2 - r1) > 0 ? NORTH : SOUTH;
+			else direction = (f2 - f1) > 0 ? EAST : WEST;
 
 			switch (direction) {
 				case EAST:
@@ -1441,8 +1375,7 @@ public class Game implements Publisher<GameUpdate> {
 		}
 
 		Board.Square next() {
-			if (count >= total)
-				return null;
+			if (count >= total) return null;
 
 			Board.Square ret = null;
 

@@ -18,7 +18,8 @@ public class BadWordFilter {
 	public static void loadConfigs() {
 		try {
 			words.clear();
-			BufferedReader reader = new BufferedReader(new InputStreamReader(new URL("https://docs.google.com/spreadsheets/d/1eVhQjZe1wbZdPQ4a2IlZ-jJUsgZmVoyrzXAjlQpA7hk/export?format=csv").openConnection().getInputStream()));
+			BufferedReader reader = new BufferedReader(new InputStreamReader(new URL("https://docs.google.com/spreadsheets/d/1eVhQjZe1wbZdPQ4a2IlZ-jJUsgZmVoyrzXAjlQpA7hk/export?format=csv").openConnection()
+				.getInputStream()));
 			String line;
 			int counter = 0;
 			while ((line = reader.readLine()) != null) {
@@ -112,7 +113,7 @@ public class BadWordFilter {
 		int sourceOffset = 0;
 		int targetOffset = 0;
 
-		if (0 >= sourceCount) {
+		if (sourceCount == 0) {
 			return (targetCount == 0 ? sourceCount : -1);
 		}
 		if (targetCount == 0) {
@@ -132,9 +133,7 @@ public class BadWordFilter {
 			if (i <= max) {
 				int j = i + 1;
 				int end = j + targetCount - 1;
-				for (int k = targetOffset + 1; j < end && source.charAt(j)
-					== target.charAt(k); j++, k++)
-					;
+				for (int k = targetOffset + 1; j < end && source.charAt(j) == target.charAt(k); j++, k++) ;
 
 				if (j == end) {
 					/* Found whole string. */

@@ -69,8 +69,7 @@ public final class GameUpdateBroadcaster implements Runnable, Subscriber<GameUpd
 				}
 
 				try {
-					var jsonMapper = new ObjectMapper()
-						.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
+					var jsonMapper = new ObjectMapper().configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
 						.setVisibility(PropertyAccessor.FIELD, Visibility.DEFAULT);
 					var jsonString = jsonMapper.writeValueAsString(update);
 					logger.fine(jsonString);

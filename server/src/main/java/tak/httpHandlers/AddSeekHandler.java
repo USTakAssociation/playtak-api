@@ -12,11 +12,10 @@ import tak.exceptions.PlaytakException;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.logging.Level;
-import java.util.zip.DataFormatException;
 
 public class AddSeekHandler extends JsonHttpHandler {
 	@Override
-	public SeekDto PUT(HttpExchange t) throws IOException, DataFormatException, FailedToCreateSeekException {
+	public SeekDto PUT(HttpExchange t) throws IOException, FailedToCreateSeekException {
 		try {
 			SeekDto seekDto = jsonMapper.readValue(t.getRequestBody(), SeekDto.class);
 			logger.log(Level.INFO, String.format("Successfully parsed DTO %s", seekDto.toString()));

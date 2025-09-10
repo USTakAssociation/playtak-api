@@ -78,7 +78,9 @@ public class Settings {
 		Node node = nList.item(0);
 		Element element = (Element) node;
 
-		Game.reconnectionTime = Integer.parseInt(element.getElementsByTagName("reconnection-time").item(0).getTextContent());
+		Game.reconnectionTime = Integer.parseInt(element.getElementsByTagName("reconnection-time")
+			.item(0)
+			.getTextContent());
 	}
 
 	private static void parseServer() {
@@ -91,7 +93,9 @@ public class Settings {
 		Database.dbPath = element.getElementsByTagName("db-path").item(0).getTextContent();
 		try {
 			String fieldName = "event-subscriber-url";
-			GameUpdateBroadcaster.eventSubscriberUrl = new URL(element.getElementsByTagName(fieldName).item(0).getTextContent());
+			GameUpdateBroadcaster.eventSubscriberUrl = new URL(element.getElementsByTagName(fieldName)
+				.item(0)
+				.getTextContent());
 		} catch (MalformedURLException ex) {
 			logger.log(Level.SEVERE, "Could not parse event-subscriber-url", ex);
 		}

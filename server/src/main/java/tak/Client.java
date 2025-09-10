@@ -149,8 +149,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 	String sudoString = "sudo ([^\n\r]{1,256})";
 	Pattern sudoPattern;
 
-	/* Mod commands start with sudoString */
-	String gagString = "sudo gag ([a-zA-Z][a-zA-Z0-9_]{3,15})";
+	/* Mod commands start with sudoString */ String gagString = "sudo gag ([a-zA-Z][a-zA-Z0-9_]{3,15})";
 	Pattern gagPattern;
 
 	String unGagString = "sudo ungag ([a-zA-Z][a-zA-Z0-9_]{3,15})";
@@ -368,8 +367,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 		long now = System.currentTimeMillis();
 
 		clientConnections.forEach(client -> {
-			if (client.websocket.streamended ||
-				(now - client.lastActivity > STALE_CONNECTION_TIMEOUT)) {
+			if (client.websocket.streamended || (now - client.lastActivity > STALE_CONNECTION_TIMEOUT)) {
 				try {
 					TakServer.Log("Cleaning up stale connection for client: " + client.clientNo);
 					client.clientQuit();
@@ -515,8 +513,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 										sendAllOnline("Online " + clientConnections.size());
 										onlinePlayerMessageHandler();
 									}
-								} else
-									send("Authentication failure");
+								} else send("Authentication failure");
 							}
 						} finally {
 							Player.loginLock.unlock();
@@ -578,8 +575,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 						} else {
 							send("No such player");
 						}
-					} else
-						sendNOK();
+					} else sendNOK();
 				} else {
 					Log("Read:" + temp);
 
@@ -602,26 +598,9 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 							} else {
 								Seek.COLOR clr = Seek.COLOR.ANY;
 
-								if ("W".equals(m.group(4)))
-									clr = Seek.COLOR.WHITE;
-								else if ("B".equals(m.group(4)))
-									clr = Seek.COLOR.BLACK;
-								seek = Seek.newSeek(
-									this,
-									Integer.parseInt(m.group(1)),
-									Integer.parseInt(m.group(2)),
-									Integer.parseInt(m.group(3)),
-									clr,
-									Integer.parseInt(m.group(5)),
-									Integer.parseInt(m.group(6)),
-									Integer.parseInt(m.group(7)),
-									Integer.parseInt(m.group(8)),
-									Integer.parseInt(m.group(9)),
-									Integer.parseInt(m.group(10)),
-									Integer.parseInt(m.group(11)),
-									m.group(12),
-									null
-								);
+								if ("W".equals(m.group(4))) clr = Seek.COLOR.WHITE;
+								else if ("B".equals(m.group(4))) clr = Seek.COLOR.BLACK;
+								seek = Seek.newSeek(this, Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)), clr, Integer.parseInt(m.group(5)), Integer.parseInt(m.group(6)), Integer.parseInt(m.group(7)), Integer.parseInt(m.group(8)), Integer.parseInt(m.group(9)), Integer.parseInt(m.group(10)), Integer.parseInt(m.group(11)), m.group(12), null);
 								Log("Seek " + seek.boardSize);
 							}
 						} finally {
@@ -642,26 +621,9 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 							} else {
 								Seek.COLOR clr = Seek.COLOR.ANY;
 
-								if ("W".equals(m.group(4)))
-									clr = Seek.COLOR.WHITE;
-								else if ("B".equals(m.group(4)))
-									clr = Seek.COLOR.BLACK;
-								seek = Seek.newSeek(
-									this,
-									Integer.parseInt(m.group(1)),
-									Integer.parseInt(m.group(2)),
-									Integer.parseInt(m.group(3)),
-									clr,
-									Integer.parseInt(m.group(5)),
-									Integer.parseInt(m.group(6)),
-									Integer.parseInt(m.group(7)),
-									Integer.parseInt(m.group(8)),
-									Integer.parseInt(m.group(9)),
-									0,
-									0,
-									m.group(10),
-									null
-								);
+								if ("W".equals(m.group(4))) clr = Seek.COLOR.WHITE;
+								else if ("B".equals(m.group(4))) clr = Seek.COLOR.BLACK;
+								seek = Seek.newSeek(this, Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)), clr, Integer.parseInt(m.group(5)), Integer.parseInt(m.group(6)), Integer.parseInt(m.group(7)), Integer.parseInt(m.group(8)), Integer.parseInt(m.group(9)), 0, 0, m.group(10), null);
 								Log("Seek " + seek.boardSize);
 							}
 						} finally {
@@ -682,10 +644,8 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 							} else {
 								Seek.COLOR clr = Seek.COLOR.ANY;
 
-								if (" W".equals(m.group(4)))
-									clr = Seek.COLOR.WHITE;
-								else if (" B".equals(m.group(4)))
-									clr = Seek.COLOR.BLACK;
+								if (" W".equals(m.group(4))) clr = Seek.COLOR.WHITE;
+								else if (" B".equals(m.group(4))) clr = Seek.COLOR.BLACK;
 
 								int capstonesCount = 0;
 								int tilesCount = 0;
@@ -716,22 +676,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 										break;
 								}
 
-								seek = Seek.newSeek(
-									this,
-									Integer.parseInt(m.group(1)),
-									Integer.parseInt(m.group(2)),
-									Integer.parseInt(m.group(3)),
-									clr,
-									0,
-									tilesCount,
-									capstonesCount,
-									0,
-									0,
-									0,
-									0,
-									"",
-									null
-								);
+								seek = Seek.newSeek(this, Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)), clr, 0, tilesCount, capstonesCount, 0, 0, 0, 0, "", null);
 								Log("Seek " + seek.boardSize);
 							}
 						} finally {
@@ -743,7 +688,8 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 						Seek.seekStuffLock.lock();
 						try {
 							Seek sk = Seek.seeks.get(Integer.parseInt(m.group(1)));
-							if (sk != null && sk.client.player.getGame() == null && sk != seek && (sk.opponent.toLowerCase().equals(player.getName().toLowerCase()) || sk.opponent.equals(""))) {
+							if (sk != null && sk.client.player.getGame() == null && sk != seek && (sk.opponent.toLowerCase()
+								.equals(player.getName().toLowerCase()) || sk.opponent.equals(""))) {
 								Client otherClient = sk.client;
 								int sz = sk.boardSize;
 								int time = sk.time;
@@ -798,9 +744,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 							if (sk != null && sk.opponent.toLowerCase().equals(player.getName().toLowerCase())) {
 								send("Accept Rematch " + sk.no);
 							} else {
-								seek = Seek.newRematchSeek(
-									this,
-									Integer.parseInt(m.group(1)), // ID
+								seek = Seek.newRematchSeek(this, Integer.parseInt(m.group(1)), // ID
 									Integer.parseInt(m.group(2)), // size
 									Integer.parseInt(m.group(3)), // time
 									Integer.parseInt(m.group(4)), // increment
@@ -823,7 +767,8 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 					else if (game != null && (m = placePattern.matcher(temp)).find() && game.no == Integer.parseInt(m.group(1))) {
 						game.gameLock.lock();
 						try {
-							Status st = game.placeMove(player, m.group(2).charAt(0), Integer.parseInt(m.group(3)), m.group(4) != null, m.group(5) != null);
+							Status st = game.placeMove(player, m.group(2)
+								.charAt(0), Integer.parseInt(m.group(3)), m.group(4) != null, m.group(5) != null);
 							if (st.isOk()) {
 
 								if (game.gameState != Game.gameS.NONE) {
@@ -849,9 +794,10 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 							argsint[i - 1] = Integer.parseInt(args[i]);
 						game.gameLock.lock();
 						try {
-							Status st = game.moveMove(player, m.group(2).charAt(0), Integer.parseInt(m.group(3)), m.group(4).charAt(0), Integer.parseInt(m.group(5)), argsint);
+							Status st = game.moveMove(player, m.group(2)
+								.charAt(0), Integer.parseInt(m.group(3)), m.group(4)
+								.charAt(0), Integer.parseInt(m.group(5)), argsint);
 							if (st.isOk()) {
-
 								if (game.gameState != Game.gameS.NONE) {
 									Player otherPlayer = (game.white == player) ? game.black : game.white;
 									Game.removeGame(game);
@@ -919,7 +865,8 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 					}
 					//Show sq state for a game
 					else if (game != null && (m = getSqStatePattern.matcher(temp)).find() && game.no == Integer.parseInt(m.group(1))) {
-						send("Game#" + game.no + " Show Sq " + game.sqState(m.group(2).charAt(0), Integer.parseInt(m.group(3))));
+						send("Game#" + game.no + " Show Sq " + game.sqState(m.group(2)
+							.charAt(0), Integer.parseInt(m.group(3))));
 					}
 					//GameList
 					else if ((m = gameListPattern.matcher(temp)).find()) {
@@ -936,8 +883,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 							} finally {
 								game.gameLock.unlock();
 							}
-						} else
-							sendNOK();
+						} else sendNOK();
 					}
 					//UnobserveGame
 					else if ((m = unobservePattern.matcher(temp)).find()) {
@@ -951,8 +897,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 							} finally {
 								game.gameLock.unlock();
 							}
-						} else
-							sendNOK();
+						} else sendNOK();
 					}
 					//Shout
 					else if ((m = shoutPattern.matcher(temp)).find()) {
@@ -1044,8 +989,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 	public void onlinePlayerMessageHandler() {
 		ArrayList<String> playerNames = new ArrayList<>();
 		for (Client c : clientConnections) {
-			if (c.player != null && !c.player.isbot)
-				playerNames.add('"' + c.player.getName() + '"');
+			if (c.player != null && !c.player.isbot) playerNames.add('"' + c.player.getName() + '"');
 		}
 		sendAllOnline("OnlinePlayers " + playerNames);
 	}
@@ -1071,8 +1015,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 	//this has more rights than p
 	boolean moreRights(Player p) {
 		//if i am mod and other is not mod
-		if (player.isMod() && !p.isMod() || player.isAdmin())
-			return true;
+		if (player.isMod() && !p.isMod() || player.isAdmin()) return true;
 
 		return false;
 	}
@@ -1247,8 +1190,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 			} else if ("online".equals(m.group(1))) {
 				String res = "[";
 				for (Client c : clientConnections) {
-					if (c.player != null)
-						res += c.player.getName() + ", ";
+					if (c.player != null) res += c.player.getName() + ", ";
 				}
 				sendSudoReply(res + "]");
 			} else {

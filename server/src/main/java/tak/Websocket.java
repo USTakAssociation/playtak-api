@@ -212,7 +212,9 @@ public class Websocket {
 							String header = new String(readbuffer, readbufferoffset, a, StandardCharsets.ISO_8859_1);
 							Matcher match = websocketkeyPattern.matcher(header);
 							if (match.find()) {
-								wskey = Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-1").digest((match.group(1) + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").getBytes("UTF-8")));
+								wskey = Base64.getEncoder()
+									.encodeToString(MessageDigest.getInstance("SHA-1")
+										.digest((match.group(1) + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").getBytes("UTF-8")));
 								recievedtoken = true;
 							}
 						}

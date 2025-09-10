@@ -38,8 +38,7 @@ public class IRCBridge {
 		thread = new Thread() {
 			@Override
 			public void run() {
-				if (!enabled)
-					return;
+				if (!enabled) return;
 				try {
 					// Connect directly to the IRC server.
 					Socket socket = new Socket(server, 6667);

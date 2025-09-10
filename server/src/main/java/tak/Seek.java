@@ -56,10 +56,7 @@ public class Seek {
 	 * Creates a new seek with the same settings as the given seek, but with a new `no`
 	 */
 	public static Seek newSeek(Client client, SeekDto seek) {
-		return newSeek(client,
-			seek.boardSize, seek.timeContingent, seek.timeIncrement, seek.color, seek.komiInt(), seek.pieces,
-			seek.capstones, seek.unratedInt(), seek.tournamentInt(), seek.extraTimeTriggerMove, seek.extraTimeAmount,
-			seek.opponent, seek.pntId);
+		return newSeek(client, seek.boardSize, seek.timeContingent, seek.timeIncrement, seek.color, seek.komiInt(), seek.pieces, seek.capstones, seek.unratedInt(), seek.tournamentInt(), seek.extraTimeTriggerMove, seek.extraTimeAmount, seek.opponent, seek.pntId);
 	}
 
 	public static Seek newSeek(Client client, int boardSize, int timeContingent, int timeIncrement, COLOR clr, int komi, int pieces, int capstones, int unrated, int tournament, int triggerMove, int timeAmount, String opponent, Integer pntId) {
@@ -98,8 +95,7 @@ public class Seek {
 			} else {
 				this.botSeek = 0;
 			}
-			if (boardSize < 3 || boardSize > 8)
-				boardSize = DEFAULT_SIZE;
+			if (boardSize < 3 || boardSize > 8) boardSize = DEFAULT_SIZE;
 			this.boardSize = boardSize;
 		} finally {
 			seekStuffLock.unlock();
@@ -242,44 +238,11 @@ public class Seek {
 		seekStuffLock.lock();
 		try {
 			String clr = "A";
-			if (color == COLOR.WHITE)
-				clr = "W";
-			else if (color == COLOR.BLACK)
-				clr = "B";
+			if (color == COLOR.WHITE) clr = "W";
+			else if (color == COLOR.BLACK) clr = "B";
 			String playerName = client.player.getName();
-			String v1Seek = String.join(" ", new String[]{
-				Integer.toString(no),
-				playerName,
-				Integer.toString(boardSize),
-				Integer.toString(time),
-				Integer.toString(incr),
-				clr,
-				Integer.toString(komi),
-				Integer.toString(pieces),
-				Integer.toString(capstones),
-				Integer.toString(unrated),
-				Integer.toString(tournament),
-				Integer.toString(triggerMove),
-				Integer.toString(timeAmount),
-				opponent
-			});
-			String v2Seek = String.join(" ", new String[]{
-				Integer.toString(no),
-				playerName,
-				Integer.toString(boardSize),
-				Integer.toString(time),
-				Integer.toString(incr),
-				clr,
-				Integer.toString(komi),
-				Integer.toString(pieces),
-				Integer.toString(capstones),
-				Integer.toString(unrated),
-				Integer.toString(tournament),
-				Integer.toString(triggerMove),
-				Integer.toString(timeAmount),
-				opponent.length() != 0 ? opponent : "0",
-				client.player.isBot() ? "1" : "0"
-			});
+			String v1Seek = String.join(" ", new String[]{Integer.toString(no), playerName, Integer.toString(boardSize), Integer.toString(time), Integer.toString(incr), clr, Integer.toString(komi), Integer.toString(pieces), Integer.toString(capstones), Integer.toString(unrated), Integer.toString(tournament), Integer.toString(triggerMove), Integer.toString(timeAmount), opponent});
+			String v2Seek = String.join(" ", new String[]{Integer.toString(no), playerName, Integer.toString(boardSize), Integer.toString(time), Integer.toString(incr), clr, Integer.toString(komi), Integer.toString(pieces), Integer.toString(capstones), Integer.toString(unrated), Integer.toString(tournament), Integer.toString(triggerMove), Integer.toString(timeAmount), opponent.length() != 0 ? opponent : "0", client.player.isBot() ? "1" : "0"});
 			// return both v1 and v2 seek
 			return new String[]{v1Seek, v2Seek};
 		} finally {
