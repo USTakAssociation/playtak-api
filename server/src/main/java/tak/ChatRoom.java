@@ -5,10 +5,12 @@
  */
 package tak;
 
-import java.util.concurrent.ConcurrentHashMap;
 import tak.utils.BadWordFilter;
 import tak.utils.ConcurrentHashSet;
-import java.util.concurrent.locks.*;
+
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  *
@@ -16,56 +18,54 @@ import java.util.concurrent.locks.*;
  */
 public class ChatRoom {
 	static final ConcurrentHashMap<String, ChatRoom> chatRooms = new ConcurrentHashMap<>();
-	static Lock roommaplock=new ReentrantLock();
-	
+	static Lock roommaplock = new ReentrantLock();
+
 	ConcurrentHashSet<Client> members;
-	
+
 	ChatRoom() {
-		members = new ConcurrentHashSet<Client>();
+		members = new ConcurrentHashSet<>();
 	}
-	
-	public static ChatRoom joinRoom(String name, Client client){
+
+	public static ChatRoom joinRoom(String name, Client client) {
 		roommaplock.lock();
-		try{
-			ChatRoom room=chatRooms.get(name);
-			if(room==null){
+		try {
+			ChatRoom room = chatRooms.get(name);
+			if (room == null) {
 				room = new ChatRoom();
 				chatRooms.put(name, room);
 			}
 			room.members.add(client);
 			return room;
-		}
-		finally{
+		} finally {
 			roommaplock.unlock();
 		}
 	}
-	
-	public static void shout(String name, Client client, String msg) {		
-		ChatRoom room=chatRooms.get(name);
-		if(room!=null){
-			String compiledmessage="ShoutRoom "+name+" <"+client.player.getName()+"> "+ BadWordFilter.filterText(msg);
-			if(!client.player.isGagged()) {
+
+	public static void shout(String name, Client client, String msg) {
+		ChatRoom room = chatRooms.get(name);
+		if (room != null) {
+			String compiledmessage = "ShoutRoom " + name + " <" + client.player.getName() + "> " + BadWordFilter.filterText(msg);
+			if (!client.player.isGagged()) {
 				for (Client cc : room.members) {
 					cc.sendWithoutLogging(compiledmessage);
 				}
 			} else {
-				client.sendWithoutLogging("ShoutRoom "+name+" <"+client.player.getName()+"> <Server: You have been muted for inappropriate chat behavior.>");
+				client.sendWithoutLogging("ShoutRoom " + name + " <" + client.player.getName() + "> <Server: You have been muted for inappropriate chat behavior.>");
 			}
 		}
 	}
-	
-	public static void leaveRoom(String name, Client client){
+
+	public static void leaveRoom(String name, Client client) {
 		roommaplock.lock();
-		try{
-			ChatRoom room=chatRooms.get(name);
-			if(room!=null){
+		try {
+			ChatRoom room = chatRooms.get(name);
+			if (room != null) {
 				room.members.remove(client);
-				if(room.members.isEmpty()){
+				if (room.members.isEmpty()) {
 					chatRooms.remove(name);
 				}
 			}
-		}
-		finally{
+		} finally {
 			roommaplock.unlock();
 		}
 	}

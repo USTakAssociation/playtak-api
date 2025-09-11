@@ -1,23 +1,21 @@
 package tak.httpHandlers;
 
-import java.io.IOException;
-import java.util.Collection;
-import java.util.logging.Level;
-import java.util.zip.DataFormatException;
-
 import com.sun.net.httpserver.HttpExchange;
-
+import tak.DTOs.SeekDto;
 import tak.Player;
 import tak.Seek;
-import tak.DTOs.SeekDto;
 import tak.exceptions.FailedToCreateSeekException;
 import tak.exceptions.PlayerBusyWithGameException;
 import tak.exceptions.PlayerNotFoundException;
 import tak.exceptions.PlaytakException;
 
+import java.io.IOException;
+import java.util.Collection;
+import java.util.logging.Level;
+
 public class AddSeekHandler extends JsonHttpHandler {
 	@Override
-	public SeekDto PUT(HttpExchange t) throws IOException, DataFormatException, FailedToCreateSeekException {
+	public SeekDto PUT(HttpExchange t) throws IOException, FailedToCreateSeekException {
 		try {
 			SeekDto seekDto = jsonMapper.readValue(t.getRequestBody(), SeekDto.class);
 			logger.log(Level.INFO, String.format("Successfully parsed DTO %s", seekDto.toString()));

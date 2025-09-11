@@ -5,6 +5,13 @@
  */
 package tak;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
+import com.fasterxml.jackson.annotation.PropertyAccessor;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import tak.FlowMessages.GameUpdate;
+
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.http.HttpClient;
@@ -14,21 +21,13 @@ import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.concurrent.BlockingDeque;
-import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
-import com.fasterxml.jackson.annotation.PropertyAccessor;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-
-import tak.FlowMessages.GameUpdate;
 
 /**
  * This class should be subscribed to all games and send out updates to HTTP endpoints
@@ -57,7 +56,7 @@ public final class GameUpdateBroadcaster implements Runnable, Subscriber<GameUpd
 
 		logger.info("started " + GameUpdateBroadcaster.class.getSimpleName() + " with event-subscriber-url=" + eventSubscriberUrl);
 		try {
-			while(!stopped.get()) {
+			while (!stopped.get()) {
 				var update = updatesToBroadcast.poll(1, TimeUnit.SECONDS);
 				if (update == null) {
 					continue;
@@ -70,8 +69,7 @@ public final class GameUpdateBroadcaster implements Runnable, Subscriber<GameUpd
 				}
 
 				try {
-					var jsonMapper = new ObjectMapper()
-						.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
+					var jsonMapper = new ObjectMapper().configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
 						.setVisibility(PropertyAccessor.FIELD, Visibility.DEFAULT);
 					var jsonString = jsonMapper.writeValueAsString(update);
 					logger.fine(jsonString);
@@ -87,16 +85,13 @@ public final class GameUpdateBroadcaster implements Runnable, Subscriber<GameUpd
 						.build();
 					var promise = client.sendAsync(request, HttpResponse.BodyHandlers.ofString());
 					promise.join();
-				}
-				catch(URISyntaxException ex) {
+				} catch (URISyntaxException ex) {
 					logger.log(Level.WARNING, "while notifying " + eventSubscriberUrl, ex);
-				}
-				catch(JsonProcessingException ex) {
+				} catch (JsonProcessingException ex) {
 					logger.log(Level.WARNING, "while serializing " + update, ex);
 				}
 			}
-		}
-		catch (InterruptedException ex) {
+		} catch (InterruptedException ex) {
 			logger.log(Level.WARNING, "loop was interrupted", ex);
 		}
 
@@ -109,7 +104,7 @@ public final class GameUpdateBroadcaster implements Runnable, Subscriber<GameUpd
 
 	@Override
 	public void onNext(GameUpdate update) {
-		if(stopped.get()) { // prevent queue from filling up when stopped, crashed, or never started properly (due to missing URL);
+		if (stopped.get()) { // prevent queue from filling up when stopped, crashed, or never started properly (due to missing URL);
 			logger.severe("Cannot accept updates while stopped (" + update.type + ")");
 			return;
 		}

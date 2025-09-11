@@ -10,16 +10,24 @@ import tak.Seek;
 @Jacksonized
 public class SeekDto {
 	public int id;
-	/** PNT Game ID, relating to a tournament game */
+	/**
+	 * PNT Game ID, relating to a tournament game
+	 */
 	public Integer pntId;
 	public String creator;
 	public String opponent;
-	/** Seconds */
+	/**
+	 * Seconds
+	 */
 	public int timeContingent;
-	/** Seconds */
+	/**
+	 * Seconds
+	 */
 	public int timeIncrement;
 	public int extraTimeTriggerMove;
-	/** Seconds */
+	/**
+	 * Seconds
+	 */
 	public int extraTimeAmount;
 	public float komi;
 

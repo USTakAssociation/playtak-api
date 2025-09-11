@@ -18,9 +18,9 @@ public class GameUpdate {
 		return new GameUpdate(GameUpdate.ended, game);
 	}
 
-	public final String type;
+	public String type;
 	@NonNull
-	public final GameDto game;
+	public GameDto game;
 
 	protected GameUpdate(String type, GameDto game) {
 		this.type = type;
