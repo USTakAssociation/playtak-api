@@ -101,10 +101,7 @@ export class PTNService {
 		if (wr) ptn += this.getHeader('Rating1', wr);
 		ptn += this.getHeader('Player2', bn);
 		if (wb) ptn += this.getHeader('Rating2', wb);
-		ptn += this.getHeader(
-			'Clock',
-			this.getTimerInfo(game.timertime, game.timerinc),
-		);
+		ptn += this.getHeader('Clock', this.getTimerInfo(game.timertime, game.timerinc));
 		ptn += this.getHeader('Result', game.result);
 		ptn += this.getHeader('Size', game.size);
 		ptn += this.getHeader('Komi', (game.komi / 2).toString());

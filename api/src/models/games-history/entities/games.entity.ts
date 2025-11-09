@@ -1,61 +1,57 @@
-import {
-	Entity,
-	Column,
-	PrimaryGeneratedColumn
-} from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
 @Entity()
 export class Games {
 	@PrimaryGeneratedColumn()
-		id: number;
+	id: number;
 
 	@Column()
-		date: number;
+	date: number;
 
 	@Column()
-		size: number;
+	size: number;
 
 	@Column()
-		player_white: string;
+	player_white: string;
 
 	@Column()
-		player_black: string;
+	player_black: string;
 
 	@Column()
-		notation: string;
+	notation: string;
 
 	@Column()
-		result: string;
+	result: string;
 
 	@Column({ default: 0 })
-		timertime: number;
+	timertime: number;
 
 	@Column({ default: 0 })
-		timerinc: number;
+	timerinc: number;
 
 	@Column({ default: 1000 })
-		rating_white: number;
+	rating_white: number;
 
 	@Column({ default: 1000 })
-		rating_black: number;
+	rating_black: number;
 
 	@Column({ default: 0 })
-		unrated: number;
+	unrated: number;
 
 	@Column({ default: 0 })
-		tournament: number;
+	tournament: number;
 
 	@Column({ default: 0 })
-		komi: number;
+	komi: number;
 
 	@Column({ default: -1 })
-		pieces: number;
+	pieces: number;
 
 	@Column({ default: -1 })
-		capstones: number;
+	capstones: number;
 
 	@Column({ default: 0 })
-		rating_change_white: number;
+	rating_change_white: number;
 
 	@Column({ default: 0 })
-		rating_change_black: number;
+	rating_change_black: number;
 }

@@ -21,18 +21,18 @@ describe('GamesService', () => {
 			orWhere: () => jest.fn(),
 			from: () => jest.fn(),
 			whereInIds: () => jest.fn(),
-			orderBy:() => jest.fn(),
+			orderBy: () => jest.fn(),
 			groupBy: () => jest.fn(),
 			delete: () => jest.fn(),
-			execute: () => jest.fn(),
+			execute: () => jest.fn()
 		})),
 		manager: {
 			connection: {
-				transaction: jest.fn(),
-			},
-		},
+				transaction: jest.fn()
+			}
+		}
 	};
-		
+
 	beforeEach(async () => {
 		const module: TestingModule = await Test.createTestingModule({
 			providers: [
@@ -40,9 +40,9 @@ describe('GamesService', () => {
 				PTNService,
 				{
 					provide: getRepositoryToken(Games, 'games'),
-					useValue: mockRepo,
-				},
-			],
+					useValue: mockRepo
+				}
+			]
 		}).compile();
 
 		service = module.get<GamesService>(GamesService);
@@ -51,22 +51,22 @@ describe('GamesService', () => {
 	it('should be defined', () => {
 		expect(service).toBeDefined();
 	});
-	
+
 	describe('Generate Search Query', () => {
 		it('Should return the correct values for player white and empty for mirror', () => {
-			const mockQuery = { player_white: 'bcreature', mirror: 'false'};
-			const {search, mirrorSearch} = service.generateSearchQuery(mockQuery);
+			const mockQuery = { player_white: 'bcreature', mirror: 'false' };
+			const { search, mirrorSearch } = service.generateSearchQuery(mockQuery);
 			expect(search['player_white']._value).toEqual('bcreature');
 			expect(search['player_white']._type).toEqual('like');
 			expect(search['date']._value).toEqual('1461430800000');
 			expect(search['date']._type).toEqual('moreThan');
 			expect(mirrorSearch).toStrictEqual({});
 		});
-		
+
 		it('Should return the correct values for player black and empty for mirror', () => {
 			const mockQuery = {
 				player_black: 'bcreature',
-				mirror: 'true',
+				mirror: 'true'
 			};
 			const { search, mirrorSearch } = service.generateSearchQuery(mockQuery);
 			expect(search['player_black']._value).toEqual('bcreature');
@@ -76,11 +76,11 @@ describe('GamesService', () => {
 			expect(mirrorSearch['player_white']._value).toEqual('bcreature');
 			expect(mirrorSearch['player_white']._type).toEqual('like');
 		});
-		
+
 		it('Should return the correct values for player white and empty for mirror', () => {
 			const mockQuery = {
 				player_white: 'bcreature',
-				mirror: 'true',
+				mirror: 'true'
 			};
 			const { search, mirrorSearch } = service.generateSearchQuery(mockQuery);
 			expect(search['player_white']._value).toEqual('bcreature');
@@ -90,10 +90,10 @@ describe('GamesService', () => {
 			expect(mirrorSearch['player_black']._value).toEqual('bcreature');
 			expect(mirrorSearch['player_black']._type).toEqual('like');
 		});
-		
+
 		it('Should return the correct values for normal', () => {
 			const mockQuery = {
-				type: "normal",
+				type: 'normal',
 				mirror: 'false'
 			} as const;
 			const { search, mirrorSearch } = service.generateSearchQuery(mockQuery);
@@ -105,10 +105,9 @@ describe('GamesService', () => {
 		it('Should return the correct game result X-0', () => {
 			const mockQuery = {
 				game_result: 'X-0',
-				mirror: 'true',
+				mirror: 'true'
 			} as const;
-			const { search, mirrorSearch } =
-				service.generateSearchQuery(mockQuery);
+			const { search, mirrorSearch } = service.generateSearchQuery(mockQuery);
 			expect(search['result']._value).toEqual('%-0');
 			expect(search['result']._type).toEqual('like');
 			expect(mirrorSearch['result']._value).toEqual('0-%');
@@ -118,48 +117,44 @@ describe('GamesService', () => {
 		it('Should return the correct game result 0-X', () => {
 			const mockQuery = {
 				game_result: '0-X',
-				mirror: 'true',
+				mirror: 'true'
 			} as const;
-			const { search, mirrorSearch } =
-				service.generateSearchQuery(mockQuery);
+			const { search, mirrorSearch } = service.generateSearchQuery(mockQuery);
 			expect(search['result']._value).toEqual('0-%');
 			expect(search['result']._type).toEqual('like');
 			expect(mirrorSearch['result']._value).toEqual('%-0');
 			expect(mirrorSearch['result']._type).toEqual('like');
 		});
-		
+
 		it('Should return the correct game result 0-F', () => {
 			const mock = { game_result: '0-F', mirror: 'true' } as const;
-			const { search, mirrorSearch } =
-				service.generateSearchQuery(mock);
+			const { search, mirrorSearch } = service.generateSearchQuery(mock);
 			expect(search['result']).toEqual('0-F');
 			expect(mirrorSearch['result']).toEqual('F-0');
 		});
-		
+
 		it('Should return the correct game result F-0', () => {
 			const mock = {
 				game_result: 'F-0',
-				mirror: 'true',
+				mirror: 'true'
 			} as const;
-			const { search, mirrorSearch } =
-				service.generateSearchQuery(mock);
+			const { search, mirrorSearch } = service.generateSearchQuery(mock);
 			expect(search['result']).toEqual('F-0');
 			expect(mirrorSearch['result']).toEqual('0-F');
 		});
 		it('Should return the correct game result 1/2-1/2', () => {
 			const mock = {
 				game_result: '1/2-1/2',
-				mirror: 'true',
+				mirror: 'true'
 			} as const;
-			const { search, mirrorSearch } =
-				service.generateSearchQuery(mock);
+			const { search, mirrorSearch } = service.generateSearchQuery(mock);
 			expect(search['result']).toEqual('1/2-1/2');
 			expect(mirrorSearch['result']).toEqual('1/2-1/2');
 		});
 		it('Should return the correct game result R-0', () => {
 			const mock = {
 				game_result: 'R-0',
-				mirror: 'true',
+				mirror: 'true'
 			} as const;
 			const { search, mirrorSearch } = service.generateSearchQuery(mock);
 			expect(search['result']).toEqual('R-0');
@@ -168,7 +163,7 @@ describe('GamesService', () => {
 		it('Should return the correct game result 0-R', () => {
 			const mock = {
 				game_result: '0-R',
-				mirror: 'true',
+				mirror: 'true'
 			} as const;
 			const { search, mirrorSearch } = service.generateSearchQuery(mock);
 			expect(search['result']).toEqual('0-R');
@@ -177,7 +172,7 @@ describe('GamesService', () => {
 		it('Should return the correct game result 0-F', () => {
 			const mock = {
 				game_result: '0-F',
-				mirror: 'true',
+				mirror: 'true'
 			} as const;
 			const { search, mirrorSearch } = service.generateSearchQuery(mock);
 			expect(search['result']).toEqual('0-F');
@@ -186,7 +181,7 @@ describe('GamesService', () => {
 		it('Should return the correct game result 0-1', () => {
 			const mock = {
 				game_result: '0-1',
-				mirror: 'true',
+				mirror: 'true'
 			} as const;
 			const { search, mirrorSearch } = service.generateSearchQuery(mock);
 			expect(search['result']).toEqual('0-1');
@@ -195,7 +190,7 @@ describe('GamesService', () => {
 		it('Should return the correct game result 1-0', () => {
 			const mock = {
 				game_result: '1-0',
-				mirror: 'true',
+				mirror: 'true'
 			} as const;
 			const { search, mirrorSearch } = service.generateSearchQuery(mock);
 			expect(search['result']).toEqual('1-0');
@@ -204,7 +199,7 @@ describe('GamesService', () => {
 		it('Should return the correct game result 3-0', () => {
 			const mock = {
 				game_result: '3-0',
-				mirror: 'true',
+				mirror: 'true'
 			} as const;
 			const { search, mirrorSearch } = service.generateSearchQuery(mock);
 			expect(search['result']).toEqual('3-0');
@@ -213,7 +208,7 @@ describe('GamesService', () => {
 		it('Should return the correct search for ID', () => {
 			const mock = {
 				id: '1234',
-				mirror: 'true',
+				mirror: 'true'
 			} as const;
 			const { search } = service.generateSearchQuery(mock);
 			expect(search['id']).toEqual(1234);
@@ -221,14 +216,13 @@ describe('GamesService', () => {
 		it('Should return the correct search for size', () => {
 			const mock = {
 				size: 7,
-				mirror: 'true',
+				mirror: 'true'
 			} as const;
-			const { search } =
-				service.generateSearchQuery(mock);
+			const { search } = service.generateSearchQuery(mock);
 			expect(search['size']).toEqual(7);
 		});
-	})
-	
+	});
+
 	describe('validate ID search', () => {
 		it('Should return true for valid ID search 1234', () => {
 			const idString = '1234';

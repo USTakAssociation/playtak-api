@@ -21,7 +21,7 @@ export class RatingService {
 		@InjectRepository(Players, 'default')
 		private playersRepository: Repository<Players>,
 		@InjectRepository(Games, 'games')
-		private gamesRepository: Repository<Games>,
+		private gamesRepository: Repository<Games>
 	) {}
 
 	async getAll(query?: RatingQuery): Promise<RatingList | DefaultExceptionDto> {
@@ -33,30 +33,36 @@ export class RatingService {
 		const whereSearch = {
 			ratingbase: 0,
 			unrated: 0,
-			ratedgames: MoreThan(0),
+			ratedgames: MoreThan(0)
+		};
+		if (query.name) {
+			whereSearch['name'] = Like(`${query.name}`);
 		}
-		if(query.name){ whereSearch['name'] = Like(`${query.name}`); }
-		if(query.id){ whereSearch['id'] = query.id; }
+		if (query.id) {
+			whereSearch['id'] = query.id;
+		}
 		try {
 			const results = await this.ratingRepository.findAndCount({
 				select: ['name', 'rating', 'ratedgames', 'maxrating', 'participation_rating', 'isbot'],
 				where: whereSearch,
 				order: {
-					[sort]: order,
+					[sort]: order
 				},
 				take: limit,
-				skip: limit * page || skip,
+				skip: limit * page || skip
 			});
 			return {
 				items: results[0] || [],
 				total: results[1] || 0,
 				page: page + 1,
 				perPage: limit,
-				totalPages: Math.ceil(results[1] / limit),
+				totalPages: Math.ceil(results[1] / limit)
 			};
 		} catch (error) {
 			this.logger.error(error);
-			throw new HttpException("Error getting all ratings. ", 500, {cause: error});
+			throw new HttpException('Error getting all ratings. ', 500, {
+				cause: error
+			});
 		}
 	}
 
@@ -67,28 +73,32 @@ export class RatingService {
 				where: { name: name }
 			});
 			if (!result) {
-				throw new HttpException("Error: User not found", 404, {cause: new Error("User not found")});
+				throw new HttpException('Error: User not found', 404, {
+					cause: new Error('User not found')
+				});
 			}
 			return result;
 		} catch (error) {
 			this.logger.error(error);
-			throw new HttpException("Error getting players rating. ", 500, {cause: error});
+			throw new HttpException('Error getting players rating. ', 500, {
+				cause: error
+			});
 		}
 	}
-	
+
 	public parseFatigue(player: Player): Player {
 		if (player.fatigue === null) {
 			return player;
-		  }
-		
+		}
+
 		if (typeof player.fatigue === 'string') {
 			let fatigueStr: string = player.fatigue;
-			
+
 			// Clean up the string
 			fatigueStr = fatigueStr.replace(/\\/g, '');
 			fatigueStr = fatigueStr.startsWith('"') ? fatigueStr.slice(1) : fatigueStr;
 			fatigueStr = fatigueStr.endsWith('"') ? fatigueStr.slice(0, -1) : fatigueStr;
-			
+
 			try {
 				player.fatigue = JSON.parse(fatigueStr) as Fatigue;
 			} catch (error) {
@@ -96,7 +106,7 @@ export class RatingService {
 				player.fatigue = null;
 			}
 		}
-	
+
 		return player;
 	}
 
@@ -150,10 +160,12 @@ export class RatingService {
 				'select id,name,ratingbase,unrated,isbot,rating,boost,ratedgames,maxrating,ratingage,fatigue FROM players;';
 			const playersData: Array<Player> = await this.playersRepository.query(getPlayersQuery);
 			// loop through the players to parse the players fatigue, add a changed boolean, and push them to the playersArray
-			playersArray = playersData.map(player => ({
-				...player,
-				changed: false,
-			  })).map(this.parseFatigue);
+			playersArray = playersData
+				.map((player) => ({
+					...player,
+					changed: false
+				}))
+				.map(this.parseFatigue);
 			// get all the games
 			const gamesQuery = `
 				SELECT id, date, player_white, player_black, result, unrated, size, timertime, timerinc, pieces, capstones, length(notation) as notationlength FROM games 
@@ -165,11 +177,23 @@ export class RatingService {
 			let updating = true;
 
 			// update game query function
-			async function updateGame(whiteRating: number, blackRating: number, whiteRatingAdjusted: number, blackRatingAdjusted: number, id: number): Promise<void> {
+			async function updateGame(
+				whiteRating: number,
+				blackRating: number,
+				whiteRatingAdjusted: number,
+				blackRatingAdjusted: number,
+				id: number
+			): Promise<void> {
 				const updateGameQuery = `UPDATE games SET 
 				rating_white=?, rating_black=?, rating_change_white=?, rating_change_black=? where id=?;`;
 				try {
-					await gameRunner.manager.query(updateGameQuery, [whiteRating, blackRating, whiteRatingAdjusted, blackRatingAdjusted, id ]);
+					await gameRunner.manager.query(updateGameQuery, [
+						whiteRating,
+						blackRating,
+						whiteRatingAdjusted,
+						blackRatingAdjusted,
+						id
+					]);
 				} catch (error) {
 					has_error = true;
 					this.logger.error('Error updating game. ', error);
@@ -182,14 +206,8 @@ export class RatingService {
 			for (let i = 0; i < gamesData.length; i++) {
 				const game = gamesData[i];
 				// get the player white and player black from the playersArray
-				let player_white: Player =
-					playersArray[
-						playersArray.findIndex((p) => p.name == game.player_white)
-					];
-				let player_black: Player =
-					playersArray[
-						playersArray.findIndex((p) => p.name == game.player_black)
-					];
+				let player_white: Player = playersArray[playersArray.findIndex((p) => p.name == game.player_white)];
+				let player_black: Player = playersArray[playersArray.findIndex((p) => p.name == game.player_black)];
 				let whiteRating = 0;
 				let blackRating = 0;
 				let whiteAdjustedRating = 0;
@@ -203,7 +221,7 @@ export class RatingService {
 						PARTICIPATION_CUTOFF,
 						RATING_RETENTION,
 						MAX_DROP,
-						PARTICIPATION_LIMIT,
+						PARTICIPATION_LIMIT
 					);
 				}
 				// check if player_black exists and set blackRating and blackAdjustedRating
@@ -215,25 +233,45 @@ export class RatingService {
 						PARTICIPATION_CUTOFF,
 						RATING_RETENTION,
 						MAX_DROP,
-						PARTICIPATION_LIMIT,
+						PARTICIPATION_LIMIT
 					);
 				}
-				const quickResult = {'R-0': 1, 'F-0': 1, '1-0': 1, '0-R': 0, '0-F': 0, '0-1': 0, '1/2-1/2': 0.5}[game.result];
-				if (player_white && player_black && this.isGameEligible(game) && game.unrated == 0 && player_white != player_black) {
+				const quickResult = {
+					'R-0': 1,
+					'F-0': 1,
+					'1-0': 1,
+					'0-R': 0,
+					'0-F': 0,
+					'0-1': 0,
+					'1/2-1/2': 0.5
+				}[game.result];
+				if (
+					player_white &&
+					player_black &&
+					this.isGameEligible(game) &&
+					game.unrated == 0 &&
+					player_white != player_black
+				) {
 					if (updating) {
 						// checks if there are more than 6 moves in the game
 						if (game.notationlength > 6) {
 							lastUsedGame = game.id;
 							if (quickResult === undefined) {
-								await updateGame(Math.floor(whiteAdjustedRating), Math.floor(blackAdjustedRating), -2000, -2000, game.id);
+								await updateGame(
+									Math.floor(whiteAdjustedRating),
+									Math.floor(blackAdjustedRating),
+									-2000,
+									-2000,
+									game.id
+								);
 							} else {
 								const sw = Math.pow(10, whiteRating / 400);
 								const sb = Math.pow(10, blackRating / 400);
 								const expected = sw / (sw + sb);
 								const fairness = expected * (1 - expected);
 								const fatigueFactor =
-									(1 -(player_white.fatigue[player_black.id] || 0) * 0.4) *
-									(1 -(player_black.fatigue[player_white.id] || 0) * 0.4);
+									(1 - (player_white.fatigue[player_black.id] || 0) * 0.4) *
+									(1 - (player_black.fatigue[player_white.id] || 0) * 0.4);
 								player_white = this.adjustPlayer(
 									player_white,
 									quickResult - expected,
@@ -243,7 +281,7 @@ export class RatingService {
 									BONUS_FACTOR,
 									BONUS_RATING,
 									RATING_RETENTION,
-									INITIAL_RATING,
+									INITIAL_RATING
 								);
 								player_black = this.adjustPlayer(
 									player_black,
@@ -254,17 +292,17 @@ export class RatingService {
 									BONUS_FACTOR,
 									BONUS_RATING,
 									RATING_RETENTION,
-									INITIAL_RATING,
+									INITIAL_RATING
 								);
 								player_white = this.updateFatigue(
 									player_white,
 									`${player_black.id}`,
-									fairness * fatigueFactor,
+									fairness * fatigueFactor
 								);
 								player_black = this.updateFatigue(
 									player_black,
 									`${player_white.id}`,
-									fairness * fatigueFactor,
+									fairness * fatigueFactor
 								);
 								const whiteAdjustedRating2 = this.adjustedRating(
 									player_white,
@@ -272,7 +310,7 @@ export class RatingService {
 									PARTICIPATION_CUTOFF,
 									RATING_RETENTION,
 									MAX_DROP,
-									PARTICIPATION_LIMIT,
+									PARTICIPATION_LIMIT
 								);
 								const blackAdjustedRating2 = this.adjustedRating(
 									player_black,
@@ -280,22 +318,28 @@ export class RatingService {
 									PARTICIPATION_CUTOFF,
 									RATING_RETENTION,
 									MAX_DROP,
-									PARTICIPATION_LIMIT,
+									PARTICIPATION_LIMIT
 								);
 								await updateGame(
 									Math.floor(whiteAdjustedRating),
 									Math.floor(blackAdjustedRating),
 									Math.round((whiteAdjustedRating2 - whiteAdjustedRating) * 10),
 									Math.round((blackAdjustedRating2 - blackAdjustedRating) * 10),
-									game.id,
+									game.id
 								);
 							}
 						} else {
-							if ( quickResult === undefined && game.date > RECENT_LIMIT) {
+							if (quickResult === undefined && game.date > RECENT_LIMIT) {
 								updating = false;
 							} else {
 								lastUsedGame = game.id;
-								await updateGame(Math.floor(whiteAdjustedRating), Math.floor(blackAdjustedRating), -2000, -2000, game.id);
+								await updateGame(
+									Math.floor(whiteAdjustedRating),
+									Math.floor(blackAdjustedRating),
+									-2000,
+									-2000,
+									game.id
+								);
 							}
 						}
 					}
@@ -303,14 +347,29 @@ export class RatingService {
 					if (updating) {
 						lastUsedGame = game.id;
 					}
-					await updateGame(Math.floor(whiteAdjustedRating), Math.floor(blackAdjustedRating), -2000, -2000, game.id);
+					await updateGame(
+						Math.floor(whiteAdjustedRating),
+						Math.floor(blackAdjustedRating),
+						-2000,
+						-2000,
+						game.id
+					);
 				}
 			}
 
 			await gameRunner.commitTransaction();
 			this.logger.debug('Finished updating games');
 			// update player query function
-			async function updatePlayer(rating: number, boost: number, ratedGames, maxRating, ratingAge, fatigueObject, id, participation_rating) {
+			async function updatePlayer(
+				rating: number,
+				boost: number,
+				ratedGames,
+				maxRating,
+				ratingAge,
+				fatigueObject,
+				id,
+				participation_rating
+			) {
 				const updatePlayerQuery = `UPDATE players SET
 				rating=?, boost=?, ratedgames=?, maxrating=?, ratingage=?, fatigue=?, participation_rating=? where id=?;`;
 				try {
@@ -322,7 +381,7 @@ export class RatingService {
 						ratingAge,
 						JSON.stringify(fatigueObject),
 						participation_rating,
-						id,
+						id
 					]);
 				} catch (error) {
 					has_error = true;
@@ -340,7 +399,7 @@ export class RatingService {
 					PARTICIPATION_CUTOFF,
 					RATING_RETENTION,
 					MAX_DROP,
-					PARTICIPATION_LIMIT,
+					PARTICIPATION_LIMIT
 				);
 				if (playersArray[i].changed) {
 					await updatePlayer(
@@ -351,27 +410,30 @@ export class RatingService {
 						playersArray[i].ratingage,
 						JSON.stringify(playersArray[i].fatigue),
 						playersArray[i].id,
-						playersArray[i].participation_rating,
+						playersArray[i].participation_rating
 					);
 				} else {
 					// always update a players participation_rating even if they haven't changed
 					const updateParticipationRatingQuery = `UPDATE players SET participation_rating=? where id=?;`;
-					await playerRunner.manager.query(updateParticipationRatingQuery, [playersArray[i].participation_rating, playersArray[i].id]);
+					await playerRunner.manager.query(updateParticipationRatingQuery, [
+						playersArray[i].participation_rating,
+						playersArray[i].id
+					]);
 				}
-				if(playersArray[i].ratedgames > 0 || (playersArray[i].unrated && playersArray[i].isbot)){
+				if (playersArray[i].ratedgames > 0 || (playersArray[i].unrated && playersArray[i].isbot)) {
 					playersRatingList.push([
 						playersArray[i].name,
 						playersArray[i].participation_rating,
 						Math.floor(playersArray[i].rating),
 						playersArray[i].ratedgames,
 						playersArray[i].isbot ? 1 : 0
-					])
+					]);
 				}
 			}
 
 			await playerRunner.commitTransaction();
 		} catch (error) {
-			this.logger.error("Error processing player and game ratings, rolling back transaction. ", error);
+			this.logger.error('Error processing player and game ratings, rolling back transaction. ', error);
 			playerRunner.rollbackTransaction();
 			gameRunner.rollbackTransaction();
 		} finally {
@@ -382,14 +444,16 @@ export class RatingService {
 				await writeFile('previous.txt', lastUsedGame + ' ' + 'hash');
 
 				// sort the playersRatingList by participation_rating
-				playersRatingList.sort(function(b,a){return a[1]-b[1]})
-				for(let a = 0; a < playersRatingList.length;a++){
-					playersRatingList[a][1]=Math.floor(playersRatingList[a][1])
+				playersRatingList.sort(function (b, a) {
+					return a[1] - b[1];
+				});
+				for (let a = 0; a < playersRatingList.length; a++) {
+					playersRatingList[a][1] = Math.floor(playersRatingList[a][1]);
 				}
 				// write the playersRatingList to a json file
-				const jsonList = JSON.stringify(playersRatingList)
-				const gzipList = gzipSync(jsonList,{level:9})
-				writeFileSync(process.env.RATING_OUTPUT_PATH+'ratinglist.json.gz', gzipList)
+				const jsonList = JSON.stringify(playersRatingList);
+				const gzipList = gzipSync(jsonList, { level: 9 });
+				writeFileSync(process.env.RATING_OUTPUT_PATH + 'ratinglist.json.gz', gzipList);
 			}
 		}
 	}
@@ -405,11 +469,11 @@ export class RatingService {
 		BONUS_FACTOR: number,
 		BONUS_RATING: number,
 		RATING_RETENTION: number,
-		INITIAL_RATING: number,
-	): Player{
+		INITIAL_RATING: number
+	): Player {
 		const bonus = Math.min(
 			Math.max(0, (fatigueFactor * amount * Math.max(player.boost, 1) * BONUS_FACTOR) / BONUS_RATING),
-			player.boost,
+			player.boost
 		);
 		player.boost -= bonus;
 		const k =
@@ -456,25 +520,16 @@ export class RatingService {
 		PARTICIPATION_CUTOFF: number,
 		RATING_RETENTION: number,
 		MAX_DROP: number,
-		PARTICIPATION_LIMIT: number ,
+		PARTICIPATION_LIMIT: number
 	): number {
 		if (player.rating < PARTICIPATION_CUTOFF) {
 			return player.rating;
 		}
-		const participation =
-			20 * Math.pow(0.5, (date - player.ratingage) / RATING_RETENTION);
+		const participation = 20 * Math.pow(0.5, (date - player.ratingage) / RATING_RETENTION);
 		if (player.rating < PARTICIPATION_CUTOFF + MAX_DROP) {
-			return Math.min(
-				player.rating,
-				PARTICIPATION_CUTOFF +
-					(MAX_DROP * participation) / PARTICIPATION_LIMIT,
-			);
+			return Math.min(player.rating, PARTICIPATION_CUTOFF + (MAX_DROP * participation) / PARTICIPATION_LIMIT);
 		} else {
-			return Math.min(
-				player.rating,
-				player.rating -
-					MAX_DROP * (1 - participation / PARTICIPATION_LIMIT),
-			);
+			return Math.min(player.rating, player.rating - MAX_DROP * (1 - participation / PARTICIPATION_LIMIT));
 		}
 	}
 
@@ -491,7 +546,7 @@ export class RatingService {
 			[180, 20, 32, 1, 1],
 			[240, 25, 40, 1, 2],
 			[300, 30, 48, 1, 2],
-			[360, 40, 64, 1, 3],
+			[360, 40, 64, 1, 3]
 		][game.size] || [180, 20, 32, 1, 1];
 		if (game.pieces != -1) {
 			eligible = eligible && game.pieces >= limits[1];
@@ -500,9 +555,7 @@ export class RatingService {
 			eligible = eligible && game.capstones <= limits[4];
 		}
 		if (game.timertime > 0) {
-			eligible =
-				eligible &&
-				limits[0] * 3 <= game.timertime * 3 + game.timerinc * limits[0];
+			eligible = eligible && limits[0] * 3 <= game.timertime * 3 + game.timerinc * limits[0];
 			eligible = eligible && game.timertime >= 60;
 		}
 		return eligible;
