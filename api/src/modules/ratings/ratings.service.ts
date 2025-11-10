@@ -87,6 +87,10 @@ export class RatingService {
 	}
 
 	public parseFatigue(player: Player): Player {
+		if (player.unrated) {
+			player.rating = 0;
+			player.maxrating = 0;
+		}
 		if (player.fatigue === null) {
 			return player;
 		}
@@ -212,6 +216,12 @@ export class RatingService {
 				let blackRating = 0;
 				let whiteAdjustedRating = 0;
 				let blackAdjustedRating = 0;
+				if (player_white.unrated) {
+					player_white = null;
+				}
+				if (player_black.unrated) {
+					player_black = null;
+				}
 				// check if player_white exists and set whiteRating and whiteAdjustedRating
 				if (player_white) {
 					whiteRating = player_white.rating;

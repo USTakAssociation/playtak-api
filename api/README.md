@@ -19,6 +19,11 @@ $ npm install
 
 ## Running the app
 
+Firstly need to set up the .env file which you can copy from the .env.example file
+```
+cp .env.example .env
+```
+
 There are two options to run the project: manually, or with docker (recommended).
 
 Either way, you will need to create two databases, which can be done with the following bash script:

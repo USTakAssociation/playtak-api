@@ -221,6 +221,46 @@ describe('GamesService', () => {
 			const { search } = service.generateSearchQuery(mock);
 			expect(search['size']).toEqual(7);
 		});
+
+		// should return the correct search for timertime
+		it('Should return the correct search for timertime', () => {
+			const mock = {
+				timertime: '300',
+				mirror: 'true'
+			} as const;
+			const { search } = service.generateSearchQuery(mock);
+			expect(search['timertime']).toEqual(300);
+		});
+
+		// should return the correct search for timerinc
+		it('Should return the correct search for timerinc', () => {
+			const mock = {
+				timerinc: '10',
+				mirror: 'true'
+			} as const;
+			const { search } = service.generateSearchQuery(mock);
+			expect(search['timerinc']).toEqual(10);
+		});
+
+		// should return the correct search for extra_time_amount
+		it('Should return the correct search for extra_time_amount', () => {
+			const mock = {
+				extra_time_amount: '60',
+				mirror: 'true'
+			} as const;
+			const { search } = service.generateSearchQuery(mock);
+			expect(search['extra_time_amount']).toEqual(60);
+		});
+
+		// should return the correct search for extra_time_trigger
+		it('Should return the correct search for extra_time_trigger', () => {
+			const mock = {
+				extra_time_trigger: '20',
+				mirror: 'true'
+			} as const;
+			const { search } = service.generateSearchQuery(mock);
+			expect(search['extra_time_trigger']).toEqual(20);
+		});
 	});
 
 	describe('validate ID search', () => {

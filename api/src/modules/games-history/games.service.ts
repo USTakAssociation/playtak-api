@@ -76,6 +76,18 @@ export class GamesService {
 		if (query['size']) {
 			search['size'] = query['size'];
 		}
+		if (query['timertime']) {
+			search['timertime'] = parseInt(query['timertime']);
+		}
+		if (query['timerinc']) {
+			search['timerinc'] = parseInt(query['timerinc']);
+		}
+		if (query['extra_time_amount']) {
+			search['extra_time_amount'] = parseInt(query['extra_time_amount']);
+		}
+		if (query['extra_time_trigger']) {
+			search['extra_time_trigger'] = parseInt(query['extra_time_trigger']);
+		}
 		if (query['type']) {
 			search[query['type'].toLowerCase()] = 1;
 		}

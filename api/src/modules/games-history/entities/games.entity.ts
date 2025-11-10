@@ -54,4 +54,10 @@ export class Games {
 
 	@Column({ default: 0 })
 	rating_change_black: number;
+
+	@Column()
+	extra_time_amount: number;
+
+	@Column()
+	extra_time_trigger: number;
 }
