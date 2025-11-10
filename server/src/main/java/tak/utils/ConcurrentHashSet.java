@@ -16,20 +16,21 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class ConcurrentHashSet<T> extends ConcurrentHashMap<T, Boolean> implements Iterable<T> {
 	private Set<T> set;
-	
-	public ConcurrentHashSet () {
+
+	public ConcurrentHashSet() {
 		super();
 		set = Collections.newSetFromMap(this);
 	}
-	
+
 	@Override
 	public boolean contains(Object o) {
 		return this.containsKey(o);
 	}
-	
-	public boolean add(T o){
-		return this.put(o,true)==null;
+
+	public boolean add(T o) {
+		return this.put(o, true) == null;
 	}
+
 	public Iterator<T> iterator() {
 		//Set<T> set = Collections.newSetFromMap(this);
 		return set.iterator();

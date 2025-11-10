@@ -29,7 +29,7 @@ public class IRCBridge {
 	public static String login;
 	public static String channel;
 	public static String password;
-	
+
 	public static Thread thread;
 
 	private static boolean connected = false;
@@ -38,8 +38,7 @@ public class IRCBridge {
 		thread = new Thread() {
 			@Override
 			public void run() {
-				if(!enabled)
-					return;
+				if (!enabled) return;
 				try {
 					// Connect directly to the IRC server.
 					Socket socket = new Socket(server, 6667);
@@ -51,7 +50,7 @@ public class IRCBridge {
 					writer.write("USER " + login + " 8 * : Java IRC Hacks Bot\r\n");
 					writer.flush();
 
-					System.out.println("Connecting to irc "+channel);
+					System.out.println("Connecting to irc " + channel);
 					// Read lines from the server until it tells us we have connected.
 					String line;
 					while ((line = reader.readLine()) != null) {
@@ -68,7 +67,7 @@ public class IRCBridge {
 					// Join the channel.
 					writer.write("JOIN " + channel + "\r\n");
 					writer.flush();
-					System.out.println("Connected to irc "+channel);
+					System.out.println("Connected to irc " + channel);
 					connected = true;
 
 					// Keep reading lines from the server.
@@ -78,11 +77,11 @@ public class IRCBridge {
 							writer.write("PONG " + line.substring(5) + "\r\n");
 							writer.flush();
 						} else {
-							if(line.contains("PRIVMSG "+channel)) {
+							if (line.contains("PRIVMSG " + channel)) {
 								String user = line.split("!")[0].split(":")[1];
-								String msg = line.split("PRIVMSG "+channel+" :")[1];
-								Client.sendAllOnline("Shout <IRC> <"+user+"> "+msg);
-								TakServer.Log("IRC:"+user+":"+msg);
+								String msg = line.split("PRIVMSG " + channel + " :")[1];
+								Client.sendAllOnline("Shout <IRC> <" + user + "> " + msg);
+								TakServer.Log("IRC:" + user + ":" + msg);
 							}
 						}
 					}

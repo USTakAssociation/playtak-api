@@ -1,11 +1,5 @@
 package tak.httpHandlers;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
 import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -13,13 +7,18 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 public abstract class JsonHttpHandler implements HttpHandler {
 	final int METHOD_NOT_ALLOWED = 405;
 
 	protected Logger logger = Logger.getLogger(this.getClass().getName());
-	protected ObjectMapper jsonMapper = new ObjectMapper()
-			.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-			.setVisibility(PropertyAccessor.FIELD, Visibility.DEFAULT);
+	protected ObjectMapper jsonMapper = new ObjectMapper().configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
+		.setVisibility(PropertyAccessor.FIELD, Visibility.DEFAULT);
 
 	protected Object GET(HttpExchange httpExchange) throws Exception {
 		throw new UnsupportedOperationException("GET is not supported on this endpoint");
@@ -37,9 +36,7 @@ public abstract class JsonHttpHandler implements HttpHandler {
 		throw new UnsupportedOperationException("DELETE is not supported on this endpoint");
 	}
 
-	private Object deriveResult(String httpMethod, HttpExchange httpExchange)
-			throws UnsupportedOperationException, Exception {
-
+	private Object deriveResult(String httpMethod, HttpExchange httpExchange) throws Exception {
 		switch (httpMethod.toUpperCase()) {
 			case "PUT":
 				return PUT(httpExchange);
@@ -59,7 +56,8 @@ public abstract class JsonHttpHandler implements HttpHandler {
 		Object result;
 		try {
 			String httpMethod = httpExchange.getRequestMethod();
-			logger.info(this.getClass().getSimpleName() + " handling " + httpMethod + " " + httpExchange.getRequestURI());
+			logger.info(this.getClass()
+				.getSimpleName() + " handling " + httpMethod + " " + httpExchange.getRequestURI());
 			result = deriveResult(httpMethod, httpExchange);
 		} catch (UnsupportedOperationException ex) {
 			logger.log(Level.WARNING, "Failed to handle request", ex);
@@ -74,9 +72,8 @@ public abstract class JsonHttpHandler implements HttpHandler {
 		try {
 			String response;
 			if (result instanceof String) {
-				response = (String)result;
-			}
-			else {
+				response = (String) result;
+			} else {
 				response = jsonMapper.writeValueAsString(result);
 			}
 			send(httpExchange, HttpURLConnection.HTTP_OK, response);

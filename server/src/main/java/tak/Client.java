@@ -1,30 +1,28 @@
 package tak;
 
+import tak.FlowMessages.GameUpdate;
+import tak.utils.BadWordFilter;
+import tak.utils.ConcurrentHashSet;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.*;
 import java.util.concurrent.Flow.Publisher;
 import java.util.concurrent.Flow.Subscriber;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.Timer;
-import java.util.TimerTask;
-import tak.FlowMessages.GameUpdate;
-import tak.utils.BadWordFilter;
-import tak.utils.ConcurrentHashSet;
-import java.util.ArrayList;
 
 /*
  * To change this license header, choose License Headers in Project Properties.
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
+
 /**
  *
  * @author chaitu
@@ -34,7 +32,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 	Websocket websocket;
 	Player player = null;
 	int clientNo;
-	public int protocolVersion=0;
+	public int protocolVersion = 0;
 	private static final long STALE_CONNECTION_TIMEOUT = 60000; // 60 seconds
 	private static final long CLEANUP_INTERVAL = 30000; // 30 seconds
 	private static Timer cleanupTimer;
@@ -151,8 +149,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 	String sudoString = "sudo ([^\n\r]{1,256})";
 	Pattern sudoPattern;
 
-	/* Mod commands start with sudoString */
-	String gagString = "sudo gag ([a-zA-Z][a-zA-Z0-9_]{3,15})";
+	/* Mod commands start with sudoString */ String gagString = "sudo gag ([a-zA-Z][a-zA-Z0-9_]{3,15})";
 	Pattern gagPattern;
 
 	String unGagString = "sudo ungag ([a-zA-Z][a-zA-Z0-9_]{3,15})";
@@ -182,13 +179,13 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 	Pattern modPattern;
 	String unModString = "sudo unmod ([a-zA-Z][a-zA-Z0-9_]{3,15})";
 	Pattern unModPattern;
-	
+
 	// admin strings
 	String adminString = "sudo admin ([a-zA-Z][a-zA-Z0-9_]{3,15})";
 	Pattern adminPattern;
 	String unAdminString = "sudo unadmin ([a-zA-Z][a-zA-Z0-9_]{3,15})";
 	Pattern unAdminPattern;
-	
+
 	// bot strings
 	String botString = "sudo bot ([a-zA-Z][a-zA-Z0-9_]{3,15})";
 	Pattern botPattern;
@@ -201,7 +198,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 	Client(Websocket socket) {
 		websocket = socket;
 		this.clientNo = totalClients.incrementAndGet();
-		this.lastActivity = System.currentTimeMillis(); 
+		this.lastActivity = System.currentTimeMillis();
 
 		loginPattern = Pattern.compile(loginString);
 		registerPattern = Pattern.compile(registerString);
@@ -264,16 +261,16 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 	}
 
 	void send(String st) {
-		Log("Send:"+st);
+		Log("Send:" + st);
 		sendWithoutLogging(st);
 	}
 
 	void sendCmdReply(String st) {
-		sendWithoutLogging("CmdReply "+st);
+		sendWithoutLogging("CmdReply " + st);
 	}
 
 	void sendSudoReply(String st) {
-		sendWithoutLogging("sudoReply "+st);
+		sendWithoutLogging("sudoReply " + st);
 	}
 
 	void sendWithoutLogging(String st) {
@@ -282,33 +279,32 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 
 	void removeSeeks() {
 		Seek.seekStuffLock.lock();
-		try{
+		try {
 			if (seek != null) {
 				Log("Removing seek " + seek.no + " from player " + this.player.getName());
 				Seek.removeSeek(seek.no);
 				seek = null;
 			}
-		}
-		finally{
+		} finally {
 			Seek.seekStuffLock.unlock();
 		}
 	}
 
 	void unspectateAll() {
-		for(Game g: spectating)
+		for (Game g : spectating)
 			g.unSpectate(player);
 		spectating.clear();
 	}
 
 	static void sendAll(final String msg) {
-		for(Client c: clientConnections){
+		for (Client c : clientConnections) {
 			c.sendWithoutLogging(msg);
 		}
 	}
 
 	static void sendAllOnline(final String msg) {
-		for(Client c: clientConnections){
-			if(c.player!=null){
+		for (Client c : clientConnections) {
+			if (c.player != null) {
 				c.sendWithoutLogging(msg);
 			}
 		}
@@ -316,7 +312,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 
 	// method to update lastActivity timestamp
 	public void updateLastActivity() {
-			this.lastActivity = System.currentTimeMillis();
+		this.lastActivity = System.currentTimeMillis();
 	}
 
 	void clientQuit() throws IOException {
@@ -324,7 +320,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 
 		if (player != null) {
 			Game game = player.getGame();
-			if(game!=null){
+			if (game != null) {
 				game.playerDisconnected(player);
 			}
 
@@ -335,7 +331,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 			unspectateAll();
 
 			player.loggedOut();
-			sendAllOnline("Online "+clientConnections.size());
+			sendAllOnline("Online " + clientConnections.size());
 			onlinePlayerMessageHandler();
 		}
 
@@ -344,81 +340,80 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 	}
 
 	void Log(Object obj) {
-		TakServer.Log(clientNo+":"+((player!=null)?player.getName():"")+":"+obj);
+		TakServer.Log(clientNo + ":" + ((player != null) ? player.getName() : "") + ":" + obj);
 	}
 
 	void disconnect() {
 		websocket.kill(202);
 	}
-	
+
 	// Add static initializer block to start the timer when class loads
 	static {
-			cleanupTimer = new Timer("ConnectionCleanupTimer", true); // true makes it a daemon thread
-			cleanupTimer.scheduleAtFixedRate(new TimerTask() {
-					@Override
-					public void run() {
-							try {
-									cleanupStaleConnections();
-							} catch (Exception e) {
-									TakServer.Log("Error in cleanup timer: " + e.getMessage());
-							}
-					}
-			}, CLEANUP_INTERVAL, CLEANUP_INTERVAL);
+		cleanupTimer = new Timer("ConnectionCleanupTimer", true); // true makes it a daemon thread
+		cleanupTimer.scheduleAtFixedRate(new TimerTask() {
+			@Override
+			public void run() {
+				try {
+					cleanupStaleConnections();
+				} catch (Exception e) {
+					TakServer.Log("Error in cleanup timer: " + e.getMessage());
+				}
+			}
+		}, CLEANUP_INTERVAL, CLEANUP_INTERVAL);
 	}
-	
+
 	public static void cleanupStaleConnections() {
 		int before = clientConnections.size();
 		long now = System.currentTimeMillis();
 
 		clientConnections.forEach(client -> {
-				if (client.websocket.streamended || 
-						(now - client.lastActivity > STALE_CONNECTION_TIMEOUT)) {
-						try {
-								TakServer.Log("Cleaning up stale connection for client: " + client.clientNo);
-								client.clientQuit();
-						} catch (IOException e) {
-								TakServer.Log("Error cleaning up stale connection: " + e.getMessage());
-						}
+			if (client.websocket.streamended || (now - client.lastActivity > STALE_CONNECTION_TIMEOUT)) {
+				try {
+					TakServer.Log("Cleaning up stale connection for client: " + client.clientNo);
+					client.clientQuit();
+				} catch (IOException e) {
+					TakServer.Log("Error cleaning up stale connection: " + e.getMessage());
 				}
+			}
 		});
 
 		int after = clientConnections.size();
 		if (before != after) {
-				TakServer.Log("Cleanup removed " + (before - after) + " stale connections");
+			TakServer.Log("Cleanup removed " + (before - after) + " stale connections");
 		}
 	}
 
 	@Override
 	public void run() {
-		String temp=null;
+		String temp = null;
 		try {
-			while(!websocket.headerended && !websocket.streamended){
-				temp=websocket.recieve(true);
+			while (!websocket.headerended && !websocket.streamended) {
+				temp = websocket.recieve(true);
 			}
 			websocket.send("Welcome!");
 			websocket.send("Login or Register");
 			Log("Welcome sent");
 			mainloop:
 			while (!websocket.streamended) {
-				while(temp==null){
-					temp=websocket.recieve(true);
-					if(websocket.streamended){
+				while (temp == null) {
+					temp = websocket.recieve(true);
+					if (websocket.streamended) {
 						break mainloop;
 					}
 				}
-				temp = temp.replaceAll("[\\n\\r]+$","");
+				temp = temp.replaceAll("[\\n\\r]+$", "");
 
-				if(temp.equals("quit")){
+				if (temp.equals("quit")) {
 					break;
 				}
 
-				if((pingPattern.matcher(temp)).find()) {
-					if(player!=null){
-						player.lastActivity=System.nanoTime();
+				if ((pingPattern.matcher(temp)).find()) {
+					if (player != null) {
+						player.lastActivity = System.nanoTime();
 					}
 					updateLastActivity();
 					sendWithoutLogging("OK");
-					temp=null;
+					temp = null;
 					continue;
 				}
 
@@ -426,34 +421,32 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 
 				if (player == null) {
 					//Client name set
-					if((m = clientPattern.matcher(temp)).find()){
-						String clientversion=m.group(1);
-						Log("Client !"+clientversion+"!");
-						if(clientversion.equals("TreffnonX-08.09.16") || clientversion.equals("TakWeb-16.05.26")){
+					if ((m = clientPattern.matcher(temp)).find()) {
+						String clientversion = m.group(1);
+						Log("Client !" + clientversion + "!");
+						if (clientversion.equals("TreffnonX-08.09.16") || clientversion.equals("TakWeb-16.05.26")) {
 							sendWithoutLogging("Shout <Server> Your Playtak client is unfortunately no longer compatible. Please go to https://www.playtak.com in order to play.");
-						}
-						else{
+						} else {
 							sendWithoutLogging("OK");
 						}
 					}
 					// What protocol version is this client using
-					else if((m = protocolPattern.matcher(temp)).find()){
-						this.protocolVersion=Integer.parseInt(m.group(1));
+					else if ((m = protocolPattern.matcher(temp)).find()) {
+						this.protocolVersion = Integer.parseInt(m.group(1));
 						sendWithoutLogging("OK");
 					}
 					//Login Guest
-					else if ((m=loginGuestPattern.matcher(temp)).find()) {
+					else if ((m = loginGuestPattern.matcher(temp)).find()) {
 						Player.loginLock.lock();
 						//Log("Guest login");
-						try{
+						try {
 							Player.cleanUpGuests();
-							String token=m.group(1);
-							if(token!=""){
-								player=Player.guestsByToken.get(token);
-								if(player==null){
+							String token = m.group(1);
+							if (!token.equals("")) {
+								player = Player.guestsByToken.get(token);
+								if (player == null) {
 									player = new Player(token);
-								}
-								else if(player.isLoggedIn()){
+								} else if (player.isLoggedIn()) {
 									Client oldClient = player.getClient();
 									player.send("Message You've logged in from another window. Disconnecting");
 									player.logout();
@@ -463,40 +456,38 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 										Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
 									}
 								}
-							}
-							else{
+							} else {
 								player = new Player();
 							}
 							player.login(this);
-							player.lastActivity=System.nanoTime();
+							player.lastActivity = System.nanoTime();
 
-							send("Welcome "+player.getName()+"!");
+							send("Welcome " + player.getName() + "!");
 							Log("Player logged in");
 
 							Seek.registerListener(this);
 							Game.registerGameListListener(player);
 
-							sendAllOnline("Online "+clientConnections.size());
+							sendAllOnline("Online " + clientConnections.size());
 							onlinePlayerMessageHandler();
-						}
-						finally{
+						} finally {
 							Player.loginLock.unlock();
 						}
 					}
 					//Login
 					else if ((m = loginPattern.matcher(temp)).find()) {
 						Player.loginLock.lock();
-						try{
+						try {
 							String tname = m.group(1).trim();
-							synchronized(Player.players) {
+							synchronized (Player.players) {
 								if (Player.players.containsKey(tname)) {
 									Player tplayer = Player.players.get(tname);
 									String pass = m.group(2).trim();
 
-									if(!tplayer.authenticate(pass)) {
+									if (!tplayer.authenticate(pass)) {
 										send("Authentication failure");
 									} else {
-										if(tplayer.isLoggedIn()) {
+										if (tplayer.isLoggedIn()) {
 											Client oldClient = tplayer.getClient();
 											tplayer.send("Message You've logged in from another window. Disconnecting");
 											tplayer.logout();
@@ -510,8 +501,8 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 
 										player = tplayer;
 
-										send("Welcome "+player.getName()+"!");
-										if(player.isAdmin() || player.isMod()){
+										send("Welcome " + player.getName() + "!");
+										if (player.isAdmin() || player.isMod()) {
 											send("Is Mod");
 										}
 										player.login(this);
@@ -519,14 +510,12 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 										Seek.registerListener(this);
 										Game.registerGameListListener(player);
 
-										sendAllOnline("Online "+clientConnections.size());
+										sendAllOnline("Online " + clientConnections.size());
 										onlinePlayerMessageHandler();
 									}
-								} else
-									send("Authentication failure");
+								} else send("Authentication failure");
 							}
-						}
-						finally{
+						} finally {
 							Player.loginLock.unlock();
 						}
 					}
@@ -535,21 +524,18 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 						String tname = m.group(1).trim();
 						// prevent swear words in username
 
-						if(tname.toLowerCase().contains("guest")) {
+						if (tname.toLowerCase().contains("guest")) {
 							send("Registration Error: Can't register with guest in the name");
-						}
-						else if(BadWordFilter.containsBadWord(tname)){
+						} else if (BadWordFilter.containsBadWord(tname)) {
 							send("Registration Error: Username cannot contain profanity");
-						}
-						else {
-							synchronized(Player.players) {
+						} else {
+							synchronized (Player.players) {
 								if (Player.isNameTaken(tname)) {
 									send("Registration Error: Username is already taken");
-								}
-								else {
+								} else {
 									String email = m.group(2).trim();
 									Player tplayer = Player.createPlayer(tname, email);
-									send("Registered "+tplayer.getName()+". Check your email for password");
+									send("Registered " + tplayer.getName() + ". Check your email for password");
 								}
 							}
 						}
@@ -562,9 +548,9 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 					else if ((m = sendResetTokenPattern.matcher(temp)).find()) {
 						String tname = m.group(1).trim();
 						String email = m.group(2).trim();
-						if(Player.players.containsKey(tname)) {
+						if (Player.players.containsKey(tname)) {
 							Player tplayer = Player.players.get(tname);
-							if(email.equals(tplayer.getEmail())) {
+							if (email.equals(tplayer.getEmail())) {
 								tplayer.sendResetToken();
 								send("Reset token sent");
 							} else {
@@ -579,9 +565,9 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 						String tname = m.group(1);
 						String token = m.group(2);
 						String pass = m.group(3);
-						if(Player.players.containsKey(tname)) {
+						if (Player.players.containsKey(tname)) {
 							Player tplayer = Player.players.get(tname);
-							if(tplayer.resetPassword(token, pass)) {
+							if (tplayer.resetPassword(token, pass)) {
 								send("Password is changed");
 							} else {
 								send("Wrong token");
@@ -589,11 +575,9 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 						} else {
 							send("No such player");
 						}
-					}
-					else
-						sendNOK();
+					} else sendNOK();
 				} else {
-					Log("Read:"+temp);
+					Log("Read:" + temp);
 
 					Game game = player.getGame();
 					//List all seeks
@@ -601,146 +585,111 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 						Seek.sendListTo(this);
 					}
 					//Seek a game V3
-					else if (game==null && (m = seekV3Pattern.matcher(temp)).find()) {
+					else if (game == null && (m = seekV3Pattern.matcher(temp)).find()) {
 						Seek.seekStuffLock.lock();
-						try{
+						try {
 							if (seek != null) {
 								Seek.removeSeek(seek.no);
 							}
 							int no = Integer.parseInt(m.group(1));
-							if(no == 0) {
+							if (no == 0) {
 								Log("Seek remove");
 								seek = null;
 							} else {
 								Seek.COLOR clr = Seek.COLOR.ANY;
 
-								if("W".equals(m.group(4)))
-									clr = Seek.COLOR.WHITE;
-								else if("B".equals(m.group(4)))
-									clr = Seek.COLOR.BLACK;
-								seek = Seek.newSeek(
-										this,
-										Integer.parseInt(m.group(1)),
-										Integer.parseInt(m.group(2)),
-										Integer.parseInt(m.group(3)),
-										clr,
-										Integer.parseInt(m.group(5)),
-										Integer.parseInt(m.group(6)),
-										Integer.parseInt(m.group(7)),
-										Integer.parseInt(m.group(8)),
-										Integer.parseInt(m.group(9)),
-										Integer.parseInt(m.group(10)),
-										Integer.parseInt(m.group(11)),
-										m.group(12),
-										null
-								);
-								Log("Seek "+seek.boardSize);
+								if ("W".equals(m.group(4))) clr = Seek.COLOR.WHITE;
+								else if ("B".equals(m.group(4))) clr = Seek.COLOR.BLACK;
+								seek = Seek.newSeek(this, Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)), clr, Integer.parseInt(m.group(5)), Integer.parseInt(m.group(6)), Integer.parseInt(m.group(7)), Integer.parseInt(m.group(8)), Integer.parseInt(m.group(9)), Integer.parseInt(m.group(10)), Integer.parseInt(m.group(11)), m.group(12), null);
+								Log("Seek " + seek.boardSize);
 							}
-						}
-						finally{
+						} finally {
 							Seek.seekStuffLock.unlock();
 						}
 					}
 					//Seek a game V2
-					else if (game==null && (m = seekV2Pattern.matcher(temp)).find()) {
+					else if (game == null && (m = seekV2Pattern.matcher(temp)).find()) {
 						Seek.seekStuffLock.lock();
-						try{
+						try {
 							if (seek != null) {
 								Seek.removeSeek(seek.no);
 							}
 							int no = Integer.parseInt(m.group(1));
-							if(no == 0) {
+							if (no == 0) {
 								Log("Seek remove");
 								seek = null;
 							} else {
 								Seek.COLOR clr = Seek.COLOR.ANY;
 
-								if("W".equals(m.group(4)))
-									clr = Seek.COLOR.WHITE;
-								else if("B".equals(m.group(4)))
-									clr = Seek.COLOR.BLACK;
-								seek = Seek.newSeek(
-									this,
-									Integer.parseInt(m.group(1)),
-									Integer.parseInt(m.group(2)),
-									Integer.parseInt(m.group(3)),
-									clr,
-									Integer.parseInt(m.group(5)),
-									Integer.parseInt(m.group(6)),
-									Integer.parseInt(m.group(7)),
-									Integer.parseInt(m.group(8)),
-									Integer.parseInt(m.group(9)),
-									0,
-									0,
-									m.group(10),
-									null
-								);
-								Log("Seek "+seek.boardSize);
+								if ("W".equals(m.group(4))) clr = Seek.COLOR.WHITE;
+								else if ("B".equals(m.group(4))) clr = Seek.COLOR.BLACK;
+								seek = Seek.newSeek(this, Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)), clr, Integer.parseInt(m.group(5)), Integer.parseInt(m.group(6)), Integer.parseInt(m.group(7)), Integer.parseInt(m.group(8)), Integer.parseInt(m.group(9)), 0, 0, m.group(10), null);
+								Log("Seek " + seek.boardSize);
 							}
-						}
-						finally{
+						} finally {
 							Seek.seekStuffLock.unlock();
 						}
 					}
 					//Seek a game V1
-					else if (game==null && (m = seekV1Pattern.matcher(temp)).find()) {
+					else if (game == null && (m = seekV1Pattern.matcher(temp)).find()) {
 						Seek.seekStuffLock.lock();
-						try{
+						try {
 							if (seek != null) {
 								Seek.removeSeek(seek.no);
 							}
 							int no = Integer.parseInt(m.group(1));
-							if(no == 0) {
+							if (no == 0) {
 								Log("Seek remove");
 								seek = null;
 							} else {
 								Seek.COLOR clr = Seek.COLOR.ANY;
 
-								if(" W".equals(m.group(4)))
-									clr = Seek.COLOR.WHITE;
-								else if(" B".equals(m.group(4)))
-									clr = Seek.COLOR.BLACK;
+								if (" W".equals(m.group(4))) clr = Seek.COLOR.WHITE;
+								else if (" B".equals(m.group(4))) clr = Seek.COLOR.BLACK;
 
-								int capstonesCount=0;
-								int tilesCount=0;
-								switch(Integer.parseInt(m.group(1))) {
-									case 3: capstonesCount = 0; tilesCount = 10; break;
-									case 4: capstonesCount = 0; tilesCount = 15; break;
-									case 5: capstonesCount = 1; tilesCount = 21; break;
-									case 6: capstonesCount = 1; tilesCount = 30; break;
-									case 7: capstonesCount = 2; tilesCount = 40; break;
-									case 8: capstonesCount = 2; tilesCount = 50; break;
+								int capstonesCount = 0;
+								int tilesCount = 0;
+								switch (Integer.parseInt(m.group(1))) {
+									case 3:
+										capstonesCount = 0;
+										tilesCount = 10;
+										break;
+									case 4:
+										capstonesCount = 0;
+										tilesCount = 15;
+										break;
+									case 5:
+										capstonesCount = 1;
+										tilesCount = 21;
+										break;
+									case 6:
+										capstonesCount = 1;
+										tilesCount = 30;
+										break;
+									case 7:
+										capstonesCount = 2;
+										tilesCount = 40;
+										break;
+									case 8:
+										capstonesCount = 2;
+										tilesCount = 50;
+										break;
 								}
 
-								seek = Seek.newSeek(
-									this,
-									Integer.parseInt(m.group(1)),
-									Integer.parseInt(m.group(2)),
-									Integer.parseInt(m.group(3)),
-									clr,
-									0,
-									tilesCount,
-									capstonesCount,
-									0,
-									0,
-									0,
-									0,
-									"",
-									null
-								);
-								Log("Seek "+seek.boardSize);
+								seek = Seek.newSeek(this, Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)), clr, 0, tilesCount, capstonesCount, 0, 0, 0, 0, "", null);
+								Log("Seek " + seek.boardSize);
 							}
-						}
-						finally{
+						} finally {
 							Seek.seekStuffLock.unlock();
 						}
 					}
 					//Accept a seek
-					else if (game==null && (m = acceptSeekPattern.matcher(temp)).find()) {
+					else if (game == null && (m = acceptSeekPattern.matcher(temp)).find()) {
 						Seek.seekStuffLock.lock();
-						try{
+						try {
 							Seek sk = Seek.seeks.get(Integer.parseInt(m.group(1)));
-							if (sk != null && game == null && sk.client.player.getGame() == null && sk!=seek && (sk.opponent.toLowerCase().equals(player.getName().toLowerCase()) || sk.opponent.equals(""))) {
+							if (sk != null && sk.client.player.getGame() == null && sk != seek && (sk.opponent.toLowerCase()
+								.equals(player.getName().toLowerCase()) || sk.opponent.equals(""))) {
 								Client otherClient = sk.client;
 								int sz = sk.boardSize;
 								int time = sk.time;
@@ -752,12 +701,12 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 
 								game = new Game(player, otherClient.player, sz, time, sk.incr, sk.color, sk.komi, sk.pieces, sk.capstones, sk.unrated, sk.tournament, sk.triggerMove, sk.timeAmount, sk.pntId);
 								notifySubscribers(GameUpdate.gameCreated(game.toDto()));
-								for(var subscriber: subscribers) {
+								for (var subscriber : subscribers) {
 									game.subscribe(subscriber);
 								}
 
 								game.gameLock.lock();
-								try{
+								try {
 									Game.addGame(game);
 
 									player.setGame(game);
@@ -765,15 +714,13 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 									send(createGameStartString(this.protocolVersion, game, sk, player));
 
 									otherClient.send(createGameStartString(otherClient.protocolVersion, game, sk, otherClient.player));
-								}
-								finally{
+								} finally {
 									game.gameLock.unlock();
 								}
 							} else {
 								sendNOK();
 							}
-						}
-						finally{
+						} finally {
 							Seek.seekStuffLock.unlock();
 						}
 					}
@@ -781,7 +728,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 					else if (game == null && (m = rematchPattern.matcher(temp)).find()) {
 						// create a new private seek for rematch if both players send a rematch request then have the second player accept it
 						Seek.seekStuffLock.lock();
-						try{
+						try {
 							if (seek != null) {
 								Seek.removeSeek(seek.no);
 							}
@@ -796,38 +743,36 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 							// if the client player is the opponent of the rematch seek, accept it
 							if (sk != null && sk.opponent.toLowerCase().equals(player.getName().toLowerCase())) {
 								send("Accept Rematch " + sk.no);
-							} else  {
-								seek = Seek.newRematchSeek(
-										this,
-										Integer.parseInt(m.group(1)), // ID
-										Integer.parseInt(m.group(2)), // size
-										Integer.parseInt(m.group(3)), // time
-										Integer.parseInt(m.group(4)), // increment
-										m.group(5), // color
-										Integer.parseInt(m.group(6)), // komi
-										Integer.parseInt(m.group(7)), // pieces
-										Integer.parseInt(m.group(8)), // capstones
-										Integer.parseInt(m.group(9)), // unrated
-										Integer.parseInt(m.group(10)), // tournament
-										Integer.parseInt(m.group(11)), // triggerMove
-										Integer.parseInt(m.group(12)), // timeAmount
-										m.group(13)); // opponent
+							} else {
+								seek = Seek.newRematchSeek(this, Integer.parseInt(m.group(1)), // ID
+									Integer.parseInt(m.group(2)), // size
+									Integer.parseInt(m.group(3)), // time
+									Integer.parseInt(m.group(4)), // increment
+									m.group(5), // color
+									Integer.parseInt(m.group(6)), // komi
+									Integer.parseInt(m.group(7)), // pieces
+									Integer.parseInt(m.group(8)), // capstones
+									Integer.parseInt(m.group(9)), // unrated
+									Integer.parseInt(m.group(10)), // tournament
+									Integer.parseInt(m.group(11)), // triggerMove
+									Integer.parseInt(m.group(12)), // timeAmount
+									m.group(13)); // opponent
 								send("Rematch seek created with ID: " + seek.no);
 							}
-						}
-						finally{
+						} finally {
 							Seek.seekStuffLock.unlock();
 						}
 					}
 					//Handle place move
 					else if (game != null && (m = placePattern.matcher(temp)).find() && game.no == Integer.parseInt(m.group(1))) {
 						game.gameLock.lock();
-						try{
-							Status st = game.placeMove(player, m.group(2).charAt(0), Integer.parseInt(m.group(3)), m.group(4) != null, m.group(5)!=null);
-							if(st.isOk()){
+						try {
+							Status st = game.placeMove(player, m.group(2)
+								.charAt(0), Integer.parseInt(m.group(3)), m.group(4) != null, m.group(5) != null);
+							if (st.isOk()) {
 
-								if(game.gameState!=Game.gameS.NONE){
-									Player otherPlayer = (game.white==player)?game.black:game.white;
+								if (game.gameState != Game.gameS.NONE) {
+									Player otherPlayer = (game.white == player) ? game.black : game.white;
 									Game.removeGame(game);
 									player.removeGame();
 									otherPlayer.removeGame();
@@ -835,26 +780,26 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 								sendWithoutLogging("OK");
 							} else {
 								sendNOK();
-								send("Error:"+st.msg());
+								send("Error:" + st.msg());
 							}
-						}
-						finally{
+						} finally {
 							game.gameLock.unlock();
 						}
 					}
 					//Handle move move
-					else if (game!=null && (m = movePattern.matcher(temp)).find() && game.no == Integer.parseInt(m.group(1))) {
-						String args[] = m.group(6).split(" ");
-						int argsint[] = new int[args.length-1];
-						for(int i=1;i<args.length;i++)
-							argsint[i-1] = Integer.parseInt(args[i]);
+					else if (game != null && (m = movePattern.matcher(temp)).find() && game.no == Integer.parseInt(m.group(1))) {
+						String[] args = m.group(6).split(" ");
+						int[] argsint = new int[args.length - 1];
+						for (int i = 1; i < args.length; i++)
+							argsint[i - 1] = Integer.parseInt(args[i]);
 						game.gameLock.lock();
-						try{
-							Status st = game.moveMove(player, m.group(2).charAt(0), Integer.parseInt(m.group(3)), m.group(4).charAt(0), Integer.parseInt(m.group(5)), argsint);
-							if(st.isOk()){
-
-								if(game.gameState!=Game.gameS.NONE){
-									Player otherPlayer = (game.white==player)?game.black:game.white;
+						try {
+							Status st = game.moveMove(player, m.group(2)
+								.charAt(0), Integer.parseInt(m.group(3)), m.group(4)
+								.charAt(0), Integer.parseInt(m.group(5)), argsint);
+							if (st.isOk()) {
+								if (game.gameState != Game.gameS.NONE) {
+									Player otherPlayer = (game.white == player) ? game.black : game.white;
 									Game.removeGame(game);
 									player.removeGame();
 									otherPlayer.removeGame();
@@ -862,147 +807,141 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 								sendWithoutLogging("OK");
 							} else {
 								sendNOK();
-								send("Error:"+st.msg());
+								send("Error:" + st.msg());
 							}
-						}
-						finally{
+						} finally {
 							game.gameLock.unlock();
 						}
 					}
 					//Handle undo offer
-					else if (game!=null && (m = undoPattern.matcher(temp)).find() && game.no == Integer.parseInt(m.group(1))) {
+					else if (game != null && (m = undoPattern.matcher(temp)).find() && game.no == Integer.parseInt(m.group(1))) {
 						game.undo(player);
 						sendWithoutLogging("OK");
 					}
 					//Handle removing undo offer
-					else if (game!=null && (m = removeUndoPattern.matcher(temp)).find() && game.no == Integer.parseInt(m.group(1))) {
+					else if (game != null && (m = removeUndoPattern.matcher(temp)).find() && game.no == Integer.parseInt(m.group(1))) {
 						game.removeUndo(player);
 						sendWithoutLogging("OK");
 					}
 					//Handle draw offer
-					else if (game!=null && (m = drawPattern.matcher(temp)).find() && game.no == Integer.parseInt(m.group(1))) {
+					else if (game != null && (m = drawPattern.matcher(temp)).find() && game.no == Integer.parseInt(m.group(1))) {
 						game.gameLock.lock();
-						try{
+						try {
 							game.draw(player);
-							Player otherPlayer = (game.white==player)?game.black:game.white;
+							Player otherPlayer = (game.white == player) ? game.black : game.white;
 
-							if(game.gameState!=Game.gameS.NONE){
+							if (game.gameState != Game.gameS.NONE) {
 								Game.removeGame(game);
 								player.removeGame();
 								otherPlayer.removeGame();
 							}
 							sendWithoutLogging("OK");
-						}
-						finally{
+						} finally {
 							game.gameLock.unlock();
 						}
 					}
 					//Handle removing draw offer
-					else if (game!=null && (m = removeDrawPattern.matcher(temp)).find() && game.no == Integer.parseInt(m.group(1))) {
+					else if (game != null && (m = removeDrawPattern.matcher(temp)).find() && game.no == Integer.parseInt(m.group(1))) {
 						game.removeDraw(player);
 						sendWithoutLogging("OK");
 					}
 					//Handle resignation
-					else if (game!=null && (m = resignPattern.matcher(temp)).find() && game.no == Integer.parseInt(m.group(1))) {
+					else if (game != null && (m = resignPattern.matcher(temp)).find() && game.no == Integer.parseInt(m.group(1))) {
 						game.gameLock.lock();
-						try{
+						try {
 							game.resign(player);
-							Player otherPlayer = (game.white==player)?game.black:game.white;
+							Player otherPlayer = (game.white == player) ? game.black : game.white;
 
 							Game.removeGame(game);
 							player.removeGame();
 							otherPlayer.removeGame();
-						}
-						finally{
+						} finally {
 							game.gameLock.unlock();
 						}
 					}
 					//Show game state
-					else if (game != null && (m=gamePattern.matcher(temp)).find() && game.no == Integer.parseInt(m.group(1))) {
+					else if (game != null && (m = gamePattern.matcher(temp)).find() && game.no == Integer.parseInt(m.group(1))) {
 						send(game.toString());
 					}
 					//Show sq state for a game
-					else if (game != null && (m=getSqStatePattern.matcher(temp)).find() && game.no == Integer.parseInt(m.group(1))) {
-						send("Game#"+game.no+" Show Sq "+game.sqState(m.group(2).charAt(0), Integer.parseInt(m.group(3))));
+					else if (game != null && (m = getSqStatePattern.matcher(temp)).find() && game.no == Integer.parseInt(m.group(1))) {
+						send("Game#" + game.no + " Show Sq " + game.sqState(m.group(2)
+							.charAt(0), Integer.parseInt(m.group(3))));
 					}
 					//GameList
-					else if ((m=gameListPattern.matcher(temp)).find()){
+					else if ((m = gameListPattern.matcher(temp)).find()) {
 						Game.sendGameListTo(player);
 					}
 					//ObserveGame
-					else if ((m=observePattern.matcher(temp)).find()){
+					else if ((m = observePattern.matcher(temp)).find()) {
 						game = Game.games.get(Integer.parseInt(m.group(1)));
-						if(game!=null){
+						if (game != null) {
 							game.gameLock.lock();
-							try{
+							try {
 								spectating.add(game);
 								game.newSpectator(player);
-							}
-							finally{
+							} finally {
 								game.gameLock.unlock();
 							}
-						} else
-							sendNOK();
+						} else sendNOK();
 					}
 					//UnobserveGame
-					else if ((m=unobservePattern.matcher(temp)).find()){
+					else if ((m = unobservePattern.matcher(temp)).find()) {
 						game = Game.games.get(Integer.parseInt(m.group(1)));
-						if(game!=null){
+						if (game != null) {
 							game.gameLock.lock();
-							try{
+							try {
 								spectating.remove(game);
 								game.unSpectate(player);
 								sendWithoutLogging("OK");
-							}
-							finally{
+							} finally {
 								game.gameLock.unlock();
 							}
-						} else
-							sendNOK();
+						} else sendNOK();
 					}
 					//Shout
-					else if ((m=shoutPattern.matcher(temp)).find()){
-						String msg = "<"+player.getName()+"> "+BadWordFilter.filterText(m.group(1));
+					else if ((m = shoutPattern.matcher(temp)).find()) {
+						String msg = "<" + player.getName() + "> " + BadWordFilter.filterText(m.group(1));
 
-						if(!player.isGagged()) {
-							sendAllOnline("Shout "+msg);
+						if (!player.isGagged()) {
+							sendAllOnline("Shout " + msg);
 							IRCBridge.send(msg);
 						} else//send to only gagged player
-							sendWithoutLogging("Shout <"+player.getName()+"> <Server: You have been muted for inappropriate chat behavior.>");
+							sendWithoutLogging("Shout <" + player.getName() + "> <Server: You have been muted for inappropriate chat behavior.>");
 					}
 					//JoinRoom
-					else if((m=joinRoomPattern.matcher(temp)).find()) {
+					else if ((m = joinRoomPattern.matcher(temp)).find()) {
 						addToRoom(m.group(1));
 					}
 					//LeaveRoom
-					else if((m=leaveRoomPattern.matcher(temp)).find()) {
+					else if ((m = leaveRoomPattern.matcher(temp)).find()) {
 						removeFromRoom(m.group(1));
 						sendWithoutLogging("OK");
 					}
 					//ShoutRoom
-					else if ((m=shoutRoomPattern.matcher(temp)).find()) {
+					else if ((m = shoutRoomPattern.matcher(temp)).find()) {
 						ChatRoom.shout(m.group(1), this, m.group(2));
 					}
 					//Tell
-					else if ((m=tellPattern.matcher(temp)).find()) {
-						if(Player.players.containsKey(m.group(1))) {
+					else if ((m = tellPattern.matcher(temp)).find()) {
+						if (Player.players.containsKey(m.group(1))) {
 							Player tplayer = Player.players.get(m.group(1));
-							if(!player.isGagged()){
-								tplayer.send("Tell "+"<"+player.getName()+"> "+ BadWordFilter.filterText(m.group(2)));
-								send("Told "+"<"+tplayer.getName()+"> " + BadWordFilter.filterText(m.group(2)));
+							if (!player.isGagged()) {
+								tplayer.send("Tell " + "<" + player.getName() + "> " + BadWordFilter.filterText(m.group(2)));
+								send("Told " + "<" + tplayer.getName() + "> " + BadWordFilter.filterText(m.group(2)));
 							} else {
-								send("Told "+"<"+tplayer.getName()+"> <Server: You have been muted for inappropriate chat behavior.>");
+								send("Told " + "<" + tplayer.getName() + "> <Server: You have been muted for inappropriate chat behavior.>");
 							}
 						} else {
 							send("No such player");
 						}
 					}
 					//ChangePassword old new
-					else if ((m=changePasswordPattern.matcher(temp)).find()) {
+					else if ((m = changePasswordPattern.matcher(temp)).find()) {
 						String curPass = m.group(1);
 						String newPass = m.group(2);
 
-						if(player.authenticate(curPass)) {
+						if (player.authenticate(curPass)) {
 							player.setPassword(newPass);
 							send("Password changed");
 						} else {
@@ -1010,7 +949,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 						}
 					}
 					//sudo
-					else if ((m=sudoPattern.matcher(temp)).find()){
+					else if ((m = sudoPattern.matcher(temp)).find()) {
 						sudoHandler(temp);
 					}
 					//Undefined
@@ -1018,7 +957,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 						sendNOK();
 					}
 				}
-				temp=websocket.recieve(true);
+				temp = websocket.recieve(true);
 			}
 		} finally {
 			try {
@@ -1035,8 +974,8 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 		if (protocolVersion < 2) {
 			msg += "Game Start " + game.no + " " + sk.boardSize + " " + game.white.getName() + " vs " + game.black.getName();
 			msg2 += sk.time + " " + sk.komi + " " + sk.pieces + " " + sk.capstones + " " + sk.triggerMove + " " + sk.timeAmount;
-		} else  {
-			msg += "Game Start " + game.no +" "+game.white.getName()+" vs "+game.black.getName();
+		} else {
+			msg += "Game Start " + game.no + " " + game.white.getName() + " vs " + game.black.getName();
 			msg2 += sk.boardSize + " " + sk.time + " " + sk.incr + " " + sk.komi + " " + sk.pieces + " " + sk.capstones + " " + sk.unrated + " " + sk.tournament + " " + sk.triggerMove + " " + sk.timeAmount + " ";
 			if (sk.botSeek == 1) {
 				msg2 += "1";
@@ -1047,29 +986,28 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 		return msg + " " + ((game.white == player) ? "white" : "black") + " " + msg2;
 	}
 
-	public void onlinePlayerMessageHandler () {
+	public void onlinePlayerMessageHandler() {
 		ArrayList<String> playerNames = new ArrayList<>();
-		for(Client c: clientConnections) {
-			if(c.player != null && !c.player.isbot)
-				playerNames.add('"' + c.player.getName() + '"');
+		for (Client c : clientConnections) {
+			if (c.player != null && !c.player.isbot) playerNames.add('"' + c.player.getName() + '"');
 		}
-		sendAllOnline("OnlinePlayers "+ playerNames);
+		sendAllOnline("OnlinePlayers " + playerNames);
 	}
 
 	public void addToRoom(String room) {
 		chatRooms.add(room);
-		ChatRoom.joinRoom(room,this);
-		send("Joined room "+room);
+		ChatRoom.joinRoom(room, this);
+		send("Joined room " + room);
 	}
 
 	public void removeFromRoom(String room) {
 		chatRooms.remove(room);
-		ChatRoom.leaveRoom(room,this);
+		ChatRoom.leaveRoom(room, this);
 	}
 
 	public void removeFromAllRooms() {
-		for(String room : chatRooms){
-			ChatRoom.leaveRoom(room,this);
+		for (String room : chatRooms) {
+			ChatRoom.leaveRoom(room, this);
 		}
 		chatRooms.clear();
 	}
@@ -1077,106 +1015,105 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 	//this has more rights than p
 	boolean moreRights(Player p) {
 		//if i am mod and other is not mod
-		if(player.isMod() && !p.isMod() || player.isAdmin())
-			return true;
+		if (player.isMod() && !p.isMod() || player.isAdmin()) return true;
 
 		return false;
 	}
 
 	void sudoHandler(String msg) {
-		if(!player.isMod() && !player.isAdmin()) {
+		if (!player.isMod() && !player.isAdmin()) {
 			sendNOK();
 			return;
 		}
 
-		sendSudoReply("> "+msg);
+		sendSudoReply("> " + msg);
 
 		Matcher m;
 		// Un Gag player
-		if((m=unGagPattern.matcher(msg)).find()) {
+		if ((m = unGagPattern.matcher(msg)).find()) {
 			String name = m.group(1);
 			Player p = Player.players.get(name);
-			if(p == null) {
+			if (p == null) {
 				sendSudoReply("No such player");
 				return;
 			}
 
-			if(!moreRights(p)) {
+			if (!moreRights(p)) {
 				sendSudoReply("You don't have rights");
 				return;
 			}
 
-			if(!p.isGagged()) {
+			if (!p.isGagged()) {
 				sendSudoReply("Player is not gagged");
 				return;
 			}
 
 			p.unGag();
 			p.setGagInDB(p.getName(), 0);
-			sendSudoReply(p.getName()+" ungagged");
+			sendSudoReply(p.getName() + " ungagged");
 		}
 		// Gag player
-		else if((m=gagPattern.matcher(msg)).find()) {
+		else if ((m = gagPattern.matcher(msg)).find()) {
 			String name = m.group(1);
 			Player p = Player.players.get(name);
-			if(p == null) {
+			if (p == null) {
 				sendSudoReply("No such player");
 				return;
 			}
 
-			if(!moreRights(p)) {
+			if (!moreRights(p)) {
 				sendSudoReply("You don't have rights");
 				return;
 			}
 
-			if(p.isGagged()) {
+			if (p.isGagged()) {
 				sendSudoReply("Player is already gagged");
 				return;
 			}
 
 			p.gag();
 			p.setGagInDB(p.getName(), 1);
-			sendSudoReply(p.getName()+" gagged");
+			sendSudoReply(p.getName() + " gagged");
 		}
 		// kick player
-		else if((m=kickPattern.matcher(msg)).find()) {
+		else if ((m = kickPattern.matcher(msg)).find()) {
 			String name = m.group(1);
 			Player p = Player.players.get(name);
-			if(p == null) {
+			if (p == null) {
 				sendSudoReply("No such player");
 				return;
 			}
 
-			if(!moreRights(p)) {
+			if (!moreRights(p)) {
 				sendSudoReply("You dont have rights");
 				return;
 			}
 
 			Client c = p.getClient();
-			if(c == null) {
+			if (c == null) {
 				sendSudoReply("Player not logged in");
 				return;
 			}
 
 			c.disconnect();
-			sendSudoReply(p.getName()+" kicked");
+			sendSudoReply(p.getName() + " kicked");
 		}
 		// ban player
-		else if((m=banPattern.matcher(msg)).find()) {
+		else if ((m = banPattern.matcher(msg)).find()) {
 			String name = m.group(1);
 			String reason = m.group(2);
 			Player p = Player.players.get(name);
-			if(p == null) {
+			if (p == null) {
 				sendSudoReply("No such player");
 				return;
 			}
 
-			if(!moreRights(p)) {
+			if (!moreRights(p)) {
 				sendSudoReply("You don't have rights");
 				return;
 			}
 			// check if player is already banned
-			if(p.isBanned()) {
+			if (p.isBanned()) {
 				sendSudoReply("Player is already banned");
 				return;
 			}
@@ -1187,85 +1124,83 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 			EMail.send(p.getEmail(), "PlayTak.com Ban Notice", p.getName() + ",\rYou have been banned from playtak.com!\rReason: " + reason);
 			// kick player as well
 			Client c = p.getClient();
-			if(c == null) {
+			if (c == null) {
 				sendSudoReply("Player not logged in");
 				return;
 			}
 			c.disconnect();
-			sendSudoReply(p.getName()+" kicked");
-			sendSudoReply(p.getName()+" banned");
+			sendSudoReply(p.getName() + " kicked");
+			sendSudoReply(p.getName() + " banned");
 		}
 		// un-ban player
-		else if((m=unBanPattern.matcher(msg)).find()) {
+		else if ((m = unBanPattern.matcher(msg)).find()) {
 			String name = m.group(1);
 			Player p = Player.players.get(name);
-			if(p == null) {
+			if (p == null) {
 				sendSudoReply("No such player");
 				return;
 			}
 
-			if(!moreRights(p)) {
+			if (!moreRights(p)) {
 				sendSudoReply("You don't have rights");
 				return;
 			}
-			if(!p.isBanned()){
+			if (!p.isBanned()) {
 				sendSudoReply("Player is not banned");
 				return;
 			}
 
 			p.unBan();
 			p.setBanInDB(p.getName(), 0);
-			sendSudoReply(p.getName()+" unbanned");
+			sendSudoReply(p.getName() + " unbanned");
 		}
 		// list commands
-		else if((m=listCmdPattern.matcher(msg)).find()) {
+		else if ((m = listCmdPattern.matcher(msg)).find()) {
 			// privileged commands - only for admins and mods
 			// return gag list
-			if("gag".equals(m.group(1))) {
-				String res="[";
-				for(Player p: Player.gagList)
-					res += p.getName()+", ";
+			if ("gag".equals(m.group(1))) {
+				String res = "[";
+				for (Player p : Player.gagList)
+					res += p.getName() + ", ";
 
-				sendSudoReply(res+"]");
+				sendSudoReply(res + "]");
 			}
 			// return mod list
 			else if ("mod".equals(m.group(1))) {
 				String res = "[";
-				for(Player p: Player.modList)
-					res += p.getName()+", ";
+				for (Player p : Player.modList)
+					res += p.getName() + ", ";
 
-				sendSudoReply(res+"]");
+				sendSudoReply(res + "]");
 			}
 			// return mod list
 			else if ("ban".equals(m.group(1))) {
 				String res = "[";
-				for(Player p: Player.banList)
-					res += p.getName()+", ";
+				for (Player p : Player.banList)
+					res += p.getName() + ", ";
 
-				sendSudoReply(res+"]");
+				sendSudoReply(res + "]");
 			}
 			// admin list
 			else if ("admin".equals(m.group(1))) {
 				String res = "[";
-				for(Player p: Player.adminList)
-					res += p.getName()+", ";
-				sendSudoReply(res+"]");
-			}
-			else if("online".equals(m.group(1))) {
-					String res = "[";
-					for(Client c: clientConnections) {
-						if(c.player != null)
-							res += c.player.getName()+", ";
-					}
-					sendSudoReply(res+"]");
+				for (Player p : Player.adminList)
+					res += p.getName() + ", ";
+				sendSudoReply(res + "]");
+			} else if ("online".equals(m.group(1))) {
+				String res = "[";
+				for (Client c : clientConnections) {
+					if (c.player != null) res += c.player.getName() + ", ";
+				}
+				sendSudoReply(res + "]");
 			} else {
 				sendSudoReply("command not found");
 			}
 		}
 		// admin commands
 		// broadcast message
-		else if((m=broadcastPattern.matcher(msg)).find()) {
-			if(!player.isAdmin()) {
+		else if ((m = broadcastPattern.matcher(msg)).find()) {
+			if (!player.isAdmin()) {
 				sendSudoReply("Permission denied");
 				return;
 			}
@@ -1274,8 +1209,8 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 			return;
 		}
 		// reload bad word filter
-		else if((m=reloadWordCmdPattern.matcher(msg)).find()) {
-			if(!player.isAdmin()) {
+		else if ((m = reloadWordCmdPattern.matcher(msg)).find()) {
+			if (!player.isAdmin()) {
 				sendSudoReply("Permission denied");
 				return;
 			}
@@ -1283,104 +1218,104 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 			sendSudoReply("Bad word filter reloaded");
 		}
 		// add mods
-		else if((m=modPattern.matcher(msg)).find()) {
-			if(!player.isAdmin()) {
+		else if ((m = modPattern.matcher(msg)).find()) {
+			if (!player.isAdmin()) {
 				sendSudoReply("Permission denied");
 				return;
 			}
 			String name = m.group(1);
 			Player p = Player.players.get(name);
-			if(p == null) {
+			if (p == null) {
 				sendSudoReply("No such player");
 				return;
 			}
 			p.setMod();
 			p.setModInDB(name, 1);
-			sendSudoReply("Added "+p.getName()+" as moderator");
+			sendSudoReply("Added " + p.getName() + " as moderator");
 		}
 		// Remove mod from list
-		else if((m=unModPattern.matcher(msg)).find()) {
-			if(!player.isAdmin()) {
+		else if ((m = unModPattern.matcher(msg)).find()) {
+			if (!player.isAdmin()) {
 				sendSudoReply("Permission denied");
 				return;
 			}
 			String name = m.group(1);
 			Player p = Player.players.get(name);
-			if(p == null) {
+			if (p == null) {
 				sendSudoReply("No such player");
 				return;
 			}
 			p.unMod();
 			p.setModInDB(name, 0);
-			sendSudoReply("Removed "+p.getName()+" as moderator");
+			sendSudoReply("Removed " + p.getName() + " as moderator");
 		}
 		// add admin
-		else if((m=adminPattern.matcher(msg)).find()) {
-			if(!player.isAdmin()) {
+		else if ((m = adminPattern.matcher(msg)).find()) {
+			if (!player.isAdmin()) {
 				sendSudoReply("Permission denied");
 				return;
 			}
 			String name = m.group(1);
 			Player p = Player.players.get(name);
-			if(p == null) {
+			if (p == null) {
 				sendSudoReply("No such player");
 				return;
 			}
 			p.setAdmin();
 			p.setAdminInDB(name, 1);
-			sendSudoReply("Added "+p.getName()+" as admin");
+			sendSudoReply("Added " + p.getName() + " as admin");
 		}
 		// Remove admin from list
-		else if((m=unAdminPattern.matcher(msg)).find()) {
-			if(!player.isAdmin()) {
+		else if ((m = unAdminPattern.matcher(msg)).find()) {
+			if (!player.isAdmin()) {
 				sendSudoReply("Permission denied");
 				return;
 			}
 			String name = m.group(1);
 			Player p = Player.players.get(name);
-			if(p == null) {
+			if (p == null) {
 				sendSudoReply("No such player");
 				return;
 			}
 			p.unAdmin();
 			p.setAdminInDB(name, 0);
-			sendSudoReply("Removed "+p.getName()+" as admin");
+			sendSudoReply("Removed " + p.getName() + " as admin");
 		}
 		// set bot
-		else if((m=botPattern.matcher(msg)).find()) {
-			if(!player.isAdmin()) {
+		else if ((m = botPattern.matcher(msg)).find()) {
+			if (!player.isAdmin()) {
 				sendSudoReply("Permission denied");
 				return;
 			}
 			String name = m.group(1);
 			Player p = Player.players.get(name);
-			if(p == null) {
+			if (p == null) {
 				sendSudoReply("No such player");
 				return;
 			}
 			p.setBot();
 			p.setBotInDB(name, 1);
-			sendSudoReply("Added "+p.getName()+" as bot");
+			sendSudoReply("Added " + p.getName() + " as bot");
 		}
 		// un set bot
-		else if((m=unBotPattern.matcher(msg)).find()) {
-			if(!player.isAdmin()) {
+		else if ((m = unBotPattern.matcher(msg)).find()) {
+			if (!player.isAdmin()) {
 				sendSudoReply("Permission denied");
 				return;
 			}
 			String name = m.group(1);
 			Player p = Player.players.get(name);
-			if(p == null) {
+			if (p == null) {
 				sendSudoReply("No such player");
 				return;
 			}
 			p.unBot();
 			p.setBotInDB(name, 0);
-			sendSudoReply("Removed "+p.getName()+" as bot");
+			sendSudoReply("Removed " + p.getName() + " as bot");
 		}
 		// Admin set password for user
-		else if((m=setPattern.matcher(msg)).find()) {
-			if(!player.isAdmin()) {
+		else if ((m = setPattern.matcher(msg)).find()) {
+			if (!player.isAdmin()) {
 				sendSudoReply("Permission denied");
 				return;
 			}
@@ -1389,16 +1324,15 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 			String value = m.group(3);
 
 			Player p = Player.players.get(name);
-			if(p == null) {
+			if (p == null) {
 				sendSudoReply("No such player");
 				return;
 			}
-			if(param.equals("password")) {
+			if (param.equals("password")) {
 				p.setPassword(value);
 				sendSudoReply("Password set");
 			}
-		}
-		else {
+		} else {
 			sendSudoReply("Command not found");
 		}
 	}
@@ -1408,12 +1342,12 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 		try {
 			BufferedReader br = new BufferedReader(new FileReader(new File("message")));
 			String msg = br.readLine();
-			sendAll("Message "+msg);
+			sendAll("Message " + msg);
 
-			int sleep=Integer.parseInt(br.readLine());
-			TakServer.Log("sleeping "+sleep+" milliseconds");
+			int sleep = Integer.parseInt(br.readLine());
+			TakServer.Log("sleeping " + sleep + " milliseconds");
 			Thread.sleep(sleep);
-			sendAll("Message "+br.readLine());
+			sendAll("Message " + br.readLine());
 
 			TakServer.Log("Exiting");
 		} catch (IOException | NumberFormatException | InterruptedException ex) {
@@ -1426,8 +1360,9 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 	public void subscribe(Subscriber<? super GameUpdate> subscriber) {
 		subscribers.add(subscriber);
 	}
+
 	protected void notifySubscribers(GameUpdate update) {
-		for (var subscriber: subscribers) {
+		for (var subscriber : subscribers) {
 			subscriber.onNext(update);
 		}
 	}

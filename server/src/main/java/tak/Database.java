@@ -25,7 +25,7 @@ public class Database {
 			Class.forName("org.sqlite.JDBC");
 			final String pathPlayersDb = "jdbc:sqlite:" + dbPath + "players.db";
 			final String pathGamesDb = "jdbc:sqlite:" + dbPath + "games.db";
-			
+
 			System.out.println("Looking for database " + pathPlayersDb);
 			playersConnection = DriverManager.getConnection(pathPlayersDb);
 			System.out.println("Looking for database " + pathGamesDb);

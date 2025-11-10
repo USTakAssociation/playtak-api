@@ -5,6 +5,9 @@
  */
 package tak;
 
+import com.sun.net.httpserver.HttpServer;
+import tak.httpHandlers.AddSeekHandler;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -13,10 +16,6 @@ import java.net.SocketTimeoutException;
 import java.util.Date;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import com.sun.net.httpserver.HttpServer;
-
-import tak.httpHandlers.AddSeekHandler;
 
 /**
  *

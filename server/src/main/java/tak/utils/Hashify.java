@@ -13,14 +13,14 @@ import tak.Player;
  * @author chaitu
  */
 public class Hashify {
-    public static void main(String[] args) {
-        Database.initConnection();
-        Player.loadFromDB();
-        int count=0;
-        for(Player p: Player.players.values()) {
-            p.setPassword(p.getPassword());
-            count++;
-        }
-        System.out.println("Hashified "+count+" records");
-    }
+	public static void main(String[] args) {
+		Database.initConnection();
+		Player.loadFromDB();
+		int count = 0;
+		for (Player p : Player.players.values()) {
+			p.setPassword(p.getPassword());
+			count++;
+		}
+		System.out.println("Hashified " + count + " records");
+	}
 }
