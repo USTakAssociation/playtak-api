@@ -1,7 +1,6 @@
 // app controller
 import { Controller, Get } from '@nestjs/common';
 
-
 @Controller()
 export class AppController {
 	constructor() {}
@@ -10,7 +9,7 @@ export class AppController {
 	health(): any {
 		return {
 			status: 'ok',
-			timestamp: new Date().toISOString(),
-		}
+			timestamp: new Date().toISOString()
+		};
 	}
 }

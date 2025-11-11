@@ -1,8 +1,8 @@
-// Fatigue contains past games played by the player with the 
+// Fatigue contains past games played by the player with the
 // opponent id as the key and the calculated game factor as the value
 export type Fatigue = {
 	[key: string]: number;
-}
+};
 
 export class Player {
 	id: number;
@@ -16,6 +16,6 @@ export class Player {
 	ratingbase: number;
 	participation_rating: number;
 	fatigue?: Fatigue;
-	unrated: boolean
+	unrated: boolean;
 	changed?: boolean;
 }

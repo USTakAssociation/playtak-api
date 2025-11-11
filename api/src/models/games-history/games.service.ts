@@ -10,7 +10,7 @@ export class GamesService {
 	constructor(
 		@InjectRepository(Games, 'games')
 		private repository: Repository<Games>,
-		private ptnService: PTNService,
+		private ptnService: PTNService
 	) {}
 
 	validateIdQuery(id: string) {
@@ -18,14 +18,14 @@ export class GamesService {
 		if (!regex.test(id)) {
 			return false;
 		}
-		
+
 		// cannot contain both a hyphen and a comma
-		if (id.includes("-") && id.includes(",")) {
+		if (id.includes('-') && id.includes(',')) {
 			return false;
 		}
 		// if value has a hyphen check that the second number is greater than the first
-		if (id.includes("-")) {
-			const idArray = id.split("-");
+		if (id.includes('-')) {
+			const idArray = id.split('-');
 			if (parseInt(idArray[0]) >= parseInt(idArray[1])) {
 				return false;
 			}
@@ -35,50 +35,56 @@ export class GamesService {
 
 	generateSearchQuery(query: GameQuery) {
 		const search = {};
-		query['id'] ? (search['id'] = parseInt(query['id'])) : null;
-		if( query['id'] && this.validateIdQuery(query['id']) ) {
-			if(query['id'].includes(',')) {
+		if (query['id']) {
+			search['id'] = parseInt(query['id']);
+		}
+		if (query['id'] && this.validateIdQuery(query['id'])) {
+			if (query['id'].includes(',')) {
 				const ids = query['id'].split(',');
 				const arr = [];
-				for(let i = 0; i < ids.length; i++) {
+				for (let i = 0; i < ids.length; i++) {
 					arr.push(parseInt(ids[i]));
 				}
 				search['id'] = In(arr);
 			}
-			if(query['id'].includes('-')) {
+			if (query['id'].includes('-')) {
 				const ids = query['id'].split('-');
-				search['id'] = Between(parseInt(ids[0]), parseInt(ids[1]))
+				search['id'] = Between(parseInt(ids[0]), parseInt(ids[1]));
 			}
 		}
-		if(query['id'] && query['id'].includes('-')) {
+		if (query['id'] && query['id'].includes('-')) {
 			// remove duplicate hyphens
 			query['id'] = query['id'].replace(/-{2,}/g, '-');
 			const ids = query['id'].split('-');
 			// make sure the first id is smaller than the second
-			if(parseInt(ids[0]) > parseInt(ids[1])) {
+			if (parseInt(ids[0]) > parseInt(ids[1])) {
 				const temp = ids[0];
 				ids[0] = ids[1];
 				ids[1] = temp;
 			}
-			search['id'] = Between(parseInt(ids[0]), parseInt(ids[1]))
+			search['id'] = Between(parseInt(ids[0]), parseInt(ids[1]));
 		}
-		query['player_white']
-			? (search['player_white'] = query['player_white'])
-			: null;
-		query['player_black']
-			? (search['player_black'] = query['player_black'])
-			: null;
-		query['game_result']
-			? (search['game_result'] = query['game_result'])
-			: null;
-		query['size'] ? (search['size'] = query['size']) : null;
-		query['type'] ? (search[query['type'].toLowerCase()] = 1) : null;
+		if (query['player_white']) {
+			search['player_white'] = query['player_white'];
+		}
+		if (query['player_black']) {
+			search['player_black'] = query['player_black'];
+		}
+		if (query['game_result']) {
+			search['game_result'] = query['game_result'];
+		}
+		if (query['size']) {
+			search['size'] = query['size'];
+		}
+		if (query['type']) {
+			search[query['type'].toLowerCase()] = 1;
+		}
 		const mirror = query.mirror === 'true' ? true : false;
 
 		if (search['normal']) {
 			search['tournament'] = 0;
 			search['unrated'] = 0;
-			delete search['normal']
+			delete search['normal'];
 		}
 
 		let player_search: boolean;
@@ -159,8 +165,8 @@ export class GamesService {
 				mirrorSearch['date'] = MoreThan('1461430800000');
 			}
 		}
-		
-		return {search, mirrorSearch};
+
+		return { search, mirrorSearch };
 	}
 
 	async getAll(query?: GameQuery): Promise<any> {
@@ -170,7 +176,7 @@ export class GamesService {
 		const order: 'ASC' | 'DESC' = query.order || 'DESC';
 		const sort = query.sort ? query.sort : 'id';
 		const mirror = query.mirror === 'true' ? true : false;
-		const {search, mirrorSearch} = this.generateSearchQuery(query);
+		const { search, mirrorSearch } = this.generateSearchQuery(query);
 		try {
 			let dbQuery;
 			if (mirror) {
@@ -181,11 +187,7 @@ export class GamesService {
 					.orWhere(mirrorSearch)
 					.orderBy(sort, order);
 			} else {
-				dbQuery = this.repository
-					.createQueryBuilder()
-					.select('*')
-					.where(search)
-					.orderBy(sort, order);
+				dbQuery = this.repository.createQueryBuilder().select('*').where(search).orderBy(sort, order);
 			}
 			const total = await dbQuery.getCount();
 			const result = await dbQuery
@@ -206,7 +208,7 @@ export class GamesService {
 				total: total || 0,
 				page: page + 1,
 				perPage: limit,
-				totalPages: Math.ceil(total / limit),
+				totalPages: Math.ceil(total / limit)
 			};
 		} catch (error) {
 			console.error(error);
@@ -217,7 +219,7 @@ export class GamesService {
 	async getOneByID(id: number): Promise<any> {
 		try {
 			const result = await this.repository.findOne({
-				where: { id },
+				where: { id }
 			});
 			if (result && result['date'] <= 1461430800000) {
 				result['player_black'] = 'Anon';
@@ -245,19 +247,19 @@ export class GamesService {
 				ino: stats.ino,
 				size: stats.size,
 				blocks: stats.blocks,
-		
+
 				// Timestamp information (ensuring full timestamp data)
 				atimeMs: stats.atimeMs,
 				mtimeMs: stats.mtimeMs,
 				ctimeMs: stats.ctimeMs,
 				birthtimeMs: stats.birthtimeMs,
-		
+
 				// Adding formatted date objects for readability
 				atime: stats.atime,
 				mtime: stats.mtime,
 				ctime: stats.ctime,
 				birthtime: stats.birthtime
-			  };
+			};
 		} catch (error) {
 			console.error(error);
 			throw new Error('Could not get DB info. ' + error);
@@ -267,7 +269,7 @@ export class GamesService {
 	async getRawPTN(id: number): Promise<any> {
 		try {
 			const result = await this.repository.findOne({
-				where: { id },
+				where: { id }
 			});
 			if (!result) {
 				return new NotFoundException();

@@ -1,5 +1,5 @@
 import { Controller, Get, Header, UseInterceptors } from '@nestjs/common';
-import { CacheInterceptor } from '@nestjs/cache-manager'
+import { CacheInterceptor } from '@nestjs/cache-manager';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { DefaultExceptionDto } from '../dto/error.dto';
 import { EventList } from '../dto/events/events.dto';
@@ -14,22 +14,22 @@ export class EventsController {
 	@ApiResponse({
 		status: 200,
 		type: EventList,
-		description: 'Returns list of events',
+		description: 'Returns list of events'
 	})
 	@ApiResponse({
 		status: 404,
 		type: DefaultExceptionDto,
-		description: 'Returns 404 server error',
+		description: 'Returns 404 server error'
 	})
 	@ApiResponse({
 		status: 429,
 		type: DefaultExceptionDto,
-		description: 'Returns 429 too many reuests error',
+		description: 'Returns 429 too many reuests error'
 	})
 	@ApiResponse({
 		status: 500,
 		type: DefaultExceptionDto,
-		description: 'Returns 500 server error',
+		description: 'Returns 500 server error'
 	})
 	@Get()
 	@UseInterceptors(CacheInterceptor)

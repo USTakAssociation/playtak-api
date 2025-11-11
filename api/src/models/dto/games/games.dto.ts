@@ -1,10 +1,9 @@
-/* eslint-disable indent */
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty } from '@nestjs/swagger';
 export class Game {
 	id: number;
 	capstones: number;
-	date:number;
-	komi:number;
+	date: number;
+	komi: number;
 	notation: string;
 	pieces: number;
 	player_black: string;
@@ -14,7 +13,7 @@ export class Game {
 	rating_change_white: number;
 	rating_white: number;
 	result: string;
-	size:number;
+	size: number;
 	timerinc: number;
 	timertime: number;
 	tournament: number;
@@ -46,7 +45,7 @@ export class GameQuery {
 
 	@ApiProperty({
 		description: 'Optional skip if you dont use page',
-		required: false,
+		required: false
 	})
 	skip?: string;
 
@@ -74,13 +73,13 @@ export class GameQuery {
 		required: false
 	})
 	player_white?: string;
-	
+
 	@ApiProperty({
 		description: 'Player black username',
 		required: false
 	})
 	player_black?: string;
-	
+
 	@ApiProperty({
 		description: 'Game result',
 		enum: ['X-0', 'R-0', 'F-0', '1-0', '0-X', '0-R', '0-F', '0-1', '1/2-1/2'],
@@ -90,10 +89,10 @@ export class GameQuery {
 
 	@ApiProperty({
 		description: 'Board size',
-		enum: [3,4,5,6,7,8],
+		enum: [3, 4, 5, 6, 7, 8],
 		required: false
 	})
-	size?: 3 | 4 | 5| 6| 7 | 8;
+	size?: 3 | 4 | 5 | 6 | 7 | 8;
 
 	@ApiProperty({
 		description: 'Game Type',
@@ -108,12 +107,9 @@ export class GameQuery {
 		required: false
 	})
 	mirror: string;
-
 }
 
-export class GamePTN {
-	
-}
+export class GamePTN {}
 
 export class AnonDetails {
 	@ApiProperty()
@@ -169,5 +165,4 @@ export class AnonDetails {
 
 	@ApiProperty()
 	uid: number;
-
 }

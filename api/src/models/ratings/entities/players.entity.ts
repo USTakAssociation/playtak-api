@@ -1,4 +1,3 @@
-/* eslint-disable indent */
 import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
 @Entity()
 export class Players {
@@ -13,7 +12,7 @@ export class Players {
 
 	@Column()
 	email: string;
-		
+
 	@Column()
 	rating: number;
 
@@ -40,7 +39,7 @@ export class Players {
 
 	@Column()
 	fatigue: string;
-	
+
 	@Column()
 	participation_rating: number;
 
@@ -49,10 +48,10 @@ export class Players {
 
 	@Column()
 	is_mod: boolean;
-	
+
 	@Column()
 	is_gagged: boolean;
-	
+
 	@Column()
 	is_banned: boolean;
 

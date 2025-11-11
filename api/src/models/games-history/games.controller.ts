@@ -7,7 +7,7 @@ import { AnonDetails, Game, GameQuery, GamesList } from '../dto/games/games.dto'
 @ApiTags('Games History')
 @Controller({
 	path: 'games-history',
-	version: ['1'],
+	version: ['1']
 })
 export class GamesController {
 	constructor(private readonly service: GamesService) {}
@@ -16,22 +16,22 @@ export class GamesController {
 	@ApiResponse({
 		status: 200,
 		type: GamesList,
-		description: 'Returns list of games',
+		description: 'Returns list of games'
 	})
 	@ApiResponse({
 		status: 404,
 		type: DefaultExceptionDto,
-		description: 'Returns 404 server error',
+		description: 'Returns 404 server error'
 	})
 	@ApiResponse({
 		status: 429,
 		type: DefaultExceptionDto,
-		description: 'Returns 429 too many requests error',
+		description: 'Returns 429 too many requests error'
 	})
 	@ApiResponse({
 		status: 500,
 		type: DefaultExceptionDto,
-		description: 'Returns 500 server error',
+		description: 'Returns 500 server error'
 	})
 	@Get()
 	findAll(@Query() query: GameQuery): Promise<GamesList> {
@@ -42,22 +42,22 @@ export class GamesController {
 	@ApiResponse({
 		status: 200,
 		type: Game,
-		description: 'Returns game by id',
+		description: 'Returns game by id'
 	})
 	@ApiResponse({
 		status: 404,
 		type: DefaultExceptionDto,
-		description: 'Returns 404 server error',
+		description: 'Returns 404 server error'
 	})
 	@ApiResponse({
 		status: 429,
 		type: DefaultExceptionDto,
-		description: 'Returns 429 too many requests error',
+		description: 'Returns 429 too many requests error'
 	})
 	@ApiResponse({
 		status: 500,
 		type: DefaultExceptionDto,
-		description: 'Returns 500 server error',
+		description: 'Returns 500 server error'
 	})
 	@ApiParam({ name: 'id', description: 'Game ID' })
 	@Get(':id')
@@ -69,22 +69,22 @@ export class GamesController {
 	@ApiResponse({
 		status: 200,
 		type: Game,
-		description: 'Returns game ptn',
+		description: 'Returns game ptn'
 	})
 	@ApiResponse({
 		status: 404,
 		type: DefaultExceptionDto,
-		description: 'Returns 404 server error',
+		description: 'Returns 404 server error'
 	})
 	@ApiResponse({
 		status: 429,
 		type: DefaultExceptionDto,
-		description: 'Returns 429 too many requests error',
+		description: 'Returns 429 too many requests error'
 	})
 	@ApiResponse({
 		status: 500,
 		type: DefaultExceptionDto,
-		description: 'Returns 500 server error',
+		description: 'Returns 500 server error'
 	})
 	@Get('ptn/:id')
 	getPTN(@Param('id') id: number) {
@@ -95,22 +95,22 @@ export class GamesController {
 	@ApiResponse({
 		status: 200,
 		type: AnonDetails,
-		description: 'Returns anon db info',
+		description: 'Returns anon db info'
 	})
 	@ApiResponse({
 		status: 404,
 		type: DefaultExceptionDto,
-		description: 'Returns 404 server error',
+		description: 'Returns 404 server error'
 	})
 	@ApiResponse({
 		status: 429,
 		type: DefaultExceptionDto,
-		description: 'Returns 429 too many requests error',
+		description: 'Returns 429 too many requests error'
 	})
 	@ApiResponse({
 		status: 500,
 		type: DefaultExceptionDto,
-		description: 'Returns 500 server error',
+		description: 'Returns 500 server error'
 	})
 	@Get('/db')
 	getDBInfo() {

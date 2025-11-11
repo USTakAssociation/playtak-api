@@ -1,11 +1,11 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty } from '@nestjs/swagger';
 
 export class Rating {
 	id: number;
 	name: string;
 	rating: number;
 	maxrating: number;
-	ratedgames: number;	
+	ratedgames: number;
 	participation_rating: number;
 	isbot: boolean;
 }
@@ -33,7 +33,7 @@ export class RatingQuery {
 
 	@ApiProperty({
 		description: 'Number of items to skip for pagination. Can use this instead of a page number. Optional.',
-		required: false,
+		required: false
 	})
 	skip?: string;
 
@@ -62,4 +62,3 @@ export class RatingQuery {
 	})
 	name?: string;
 }
-

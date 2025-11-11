@@ -3,7 +3,6 @@ import { SchedulerRegistry } from '@nestjs/schedule';
 import { RatingService } from '../ratings.service';
 import { CronJob } from 'cron';
 
-
 @Injectable()
 export class RatingTask implements OnModuleInit {
 	private readonly logger = new Logger(RatingTask.name);
@@ -20,7 +19,7 @@ export class RatingTask implements OnModuleInit {
 				// What you want to do here
 				this.handleTask();
 			});
-			
+
 			this.schedulerRegistry.addCronJob('RatingTask', job);
 			job.start();
 		}
