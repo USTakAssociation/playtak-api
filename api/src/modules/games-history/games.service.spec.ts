@@ -53,13 +53,34 @@ describe('GamesService', () => {
 	});
 
 	describe('Generate Search Query', () => {
+		// handle single game id search
+		it('Should return the correct values for single game id search', () => {
+			const mockQuery = { id: '1234', mirror: 'false' };
+			const { search, mirrorSearch } = service.generateSearchQuery(mockQuery);
+			expect(search['id']).toBe(1234);
+			expect(mirrorSearch).toStrictEqual({});
+		});
+		// handle game id range search
+		it('Should return the correct values for game id range search', () => {
+			const mockQuery = { id: '10-50', mirror: 'false' };
+			const { search, mirrorSearch } = service.generateSearchQuery(mockQuery);
+			expect(search['id']._value).toEqual([10, 50]);
+			expect(search['id']._type).toEqual('between');
+			expect(mirrorSearch).toStrictEqual({});
+		});
+		// handle game id comma separated search
+		it('Should return the correct values for game id comma separated search', () => {
+			const mockQuery = { id: '10,20,30', mirror: 'false' };
+			const { search, mirrorSearch } = service.generateSearchQuery(mockQuery);
+			expect(search['id']._value).toEqual([10, 20, 30]);
+			expect(search['id']._type).toEqual('in');
+			expect(mirrorSearch).toStrictEqual({});
+		});
 		it('Should return the correct values for player white and empty for mirror', () => {
 			const mockQuery = { player_white: 'bcreature', mirror: 'false' };
 			const { search, mirrorSearch } = service.generateSearchQuery(mockQuery);
 			expect(search['player_white']._value).toEqual('bcreature');
 			expect(search['player_white']._type).toEqual('like');
-			expect(search['date']._value).toEqual('1461430800000');
-			expect(search['date']._type).toEqual('moreThan');
 			expect(mirrorSearch).toStrictEqual({});
 		});
 
@@ -71,8 +92,6 @@ describe('GamesService', () => {
 			const { search, mirrorSearch } = service.generateSearchQuery(mockQuery);
 			expect(search['player_black']._value).toEqual('bcreature');
 			expect(search['player_black']._type).toEqual('like');
-			expect(search['date']._value).toEqual('1461430800000');
-			expect(search['date']._type).toEqual('moreThan');
 			expect(mirrorSearch['player_white']._value).toEqual('bcreature');
 			expect(mirrorSearch['player_white']._type).toEqual('like');
 		});
@@ -220,6 +239,46 @@ describe('GamesService', () => {
 			} as const;
 			const { search } = service.generateSearchQuery(mock);
 			expect(search['size']).toEqual(7);
+		});
+
+		// handle single date search
+		it('Should return the correct search for single date', () => {
+			const mock = {
+				date: '1622505600000',
+				mirror: 'true'
+			} as const;
+			const { search } = service.generateSearchQuery(mock);
+			expect(search['date']).toBe(1622505600000);
+		});
+		// handle date range search
+		it('Should return the correct search for date range', () => {
+			const mock = {
+				date: '1622505600000-1625097600000',
+				mirror: 'true'
+			} as const;
+			const { search } = service.generateSearchQuery(mock);
+			expect(search['date']._value).toEqual([1622505600000, 1625097600000]);
+			expect(search['date']._type).toEqual('between');
+		});
+		// handle greater than date search
+		it('Should return the correct search for greater than date', () => {
+			const mock = {
+				date: '>1622505600000',
+				mirror: 'true'
+			} as const;
+			const { search } = service.generateSearchQuery(mock);
+			expect(search['date']._value).toEqual(1622505600000);
+			expect(search['date']._type).toEqual('moreThan');
+		});
+		// handle less than date search
+		it('Should return the correct search for less than date', () => {
+			const mock = {
+				date: '<1625097600000',
+				mirror: 'true'
+			} as const;
+			const { search } = service.generateSearchQuery(mock);
+			expect(search['date']._value).toEqual(1625097600000);
+			expect(search['date']._type).toEqual('lessThan');
 		});
 
 		// should return the correct search for timertime

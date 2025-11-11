@@ -63,19 +63,21 @@ export class GameQuery {
 	sort?: string;
 
 	@ApiProperty({
-		description: 'Game id',
+		description: 'Game id, range by using a dash e.g. 10-50, or comma separated values e.g. 10,20,30',
 		required: false
 	})
 	id?: string;
 
 	@ApiProperty({
-		description: 'Player white username',
+		description:
+			'Player white username, you can do a partial search with % at the start, end, or both. e.g. %ame or nam% or %am%',
 		required: false
 	})
 	player_white?: string;
 
 	@ApiProperty({
-		description: 'Player black username',
+		description:
+			'Player black username, you can do a partial search with % at the start, end, or both. e.g. %ame or nam% or %am%',
 		required: false
 	})
 	player_black?: string;
@@ -107,6 +109,13 @@ export class GameQuery {
 		required: false
 	})
 	mirror: string;
+
+	@ApiProperty({
+		description:
+			'Date in epoch format, you can do a range by using a dash e.g. 1622505600000-1625097600000, or greater than and less than searches e.g. >1622505600000 or <1625097600000',
+		required: false
+	})
+	date?: string;
 
 	@ApiProperty({
 		description: 'Komi value (komi is represented as half values 1 = 0.5 komi, 2 = 1.0 komi etc)',
