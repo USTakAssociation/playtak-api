@@ -17,6 +17,11 @@ npm install
 
 ## Running the app
 
+First, need to set up the .env file which you can copy from the .env.example file.
+```
+cp .env.example .env
+```
+
 There are two options to run the project: manually, or with docker (recommended).
 
 Either way, you will need to create two databases, which can be done with the following bash script:
@@ -73,21 +78,24 @@ $ npm run test:cov
 SwaggerOpenAPI Documentation
 
 https://api.playtak.com/api
-
 https://api.beta.playtak.com/api
 
 Events
 
-- /events
+- GET /events
 
 Games History
 
-- /v1/games-history/
-- /v1/games-history/{id}
-- /v1/games-history/ptn/{id}
-- /v1/hames-history/db
+- GET /v1/games-history/
+- GET /v1/games-history/{id}
+- GET /v1/games-history/ptn/{id}
+- GET /v1/hames-history/db
 
 Ratings
 
-- /v1/ratings
-- /v1/ratings/{player_name}
+- GET /v1/ratings
+- GET /v1/ratings/{player_name}
+
+Misc
+
+- GET /health
