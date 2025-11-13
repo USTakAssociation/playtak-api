@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, In, Like, MoreThan, Repository } from 'typeorm';
+import { Between, In, LessThan, Like, MoreThan, Repository } from 'typeorm';
 import { Games } from './entities/games.entity';
 import { stat } from 'fs/promises';
 import { PTNService } from './services/ptn.service';
@@ -64,6 +64,29 @@ export class GamesService {
 			}
 			search['id'] = Between(parseInt(ids[0]), parseInt(ids[1]));
 		}
+		// date query handling for single value, between, greater than, less than
+		if (query['date']) {
+			if (query['date'].includes('-')) {
+				// remove duplicate hyphens
+				query['date'] = query['date'].replace(/-{2,}/g, '-');
+				const dates = query['date'].split('-');
+				// make sure the first date is smaller than the second
+				if (parseInt(dates[0]) > parseInt(dates[1])) {
+					const temp = dates[0];
+					dates[0] = dates[1];
+					dates[1] = temp;
+				}
+				search['date'] = Between(parseInt(dates[0]), parseInt(dates[1]));
+			} else if (query['date'].startsWith('>')) {
+				const dateValue = query['date'].substring(1);
+				search['date'] = MoreThan(parseInt(dateValue));
+			} else if (query['date'].startsWith('<')) {
+				const dateValue = query['date'].substring(1);
+				search['date'] = LessThan(parseInt(dateValue));
+			} else {
+				search['date'] = parseInt(query['date']);
+			}
+		}
 		if (query['player_white']) {
 			search['player_white'] = query['player_white'];
 		}
@@ -75,6 +98,18 @@ export class GamesService {
 		}
 		if (query['size']) {
 			search['size'] = query['size'];
+		}
+		if (query['timertime']) {
+			search['timertime'] = parseInt(query['timertime']);
+		}
+		if (query['timerinc']) {
+			search['timerinc'] = parseInt(query['timerinc']);
+		}
+		if (query['extra_time_amount']) {
+			search['extra_time_amount'] = parseInt(query['extra_time_amount']);
+		}
+		if (query['extra_time_trigger']) {
+			search['extra_time_trigger'] = parseInt(query['extra_time_trigger']);
 		}
 		if (query['type']) {
 			search[query['type'].toLowerCase()] = 1;

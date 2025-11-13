@@ -44,7 +44,7 @@ export class GameQuery {
 	page?: string;
 
 	@ApiProperty({
-		description: 'Optional skip if you dont use page',
+		description: `Optional, skip if you don't use page`,
 		required: false
 	})
 	skip?: string;
@@ -63,19 +63,21 @@ export class GameQuery {
 	sort?: string;
 
 	@ApiProperty({
-		description: 'Game id',
+		description: 'Game id, range by using a dash e.g. 10-50, or comma separated values e.g. 10,20,30',
 		required: false
 	})
 	id?: string;
 
 	@ApiProperty({
-		description: 'Player white username',
+		description:
+			'Player white username, you can do a partial search with % at the start, end, or both. e.g. %ame or nam% or %am%',
 		required: false
 	})
 	player_white?: string;
 
 	@ApiProperty({
-		description: 'Player black username',
+		description:
+			'Player black username, you can do a partial search with % at the start, end, or both. e.g. %ame or nam% or %am%',
 		required: false
 	})
 	player_black?: string;
@@ -107,6 +109,48 @@ export class GameQuery {
 		required: false
 	})
 	mirror: string;
+
+	@ApiProperty({
+		description:
+			'Date in epoch format, you can do a range by using a dash e.g. 1622505600000-1625097600000, or greater than and less than searches e.g. >1622505600000 or <1625097600000',
+		required: false
+	})
+	date?: string;
+
+	@ApiProperty({
+		description: 'Komi value (komi is represented as half values 1 = 0.5 komi, 2 = 1.0 komi etc)',
+		required: false,
+		enum: ['1', '2', '3', '4', '5', '6', '7', '8']
+	})
+	komi?: string;
+
+	@ApiProperty({
+		description: 'Game Time per player in seconds',
+		required: false,
+		enum: ['60', '120', '180', '300', '420', '600', '900', '1200', '1800', '2700', '3600', '5400', '7200', '10800']
+	})
+	timertime?: string;
+
+	@ApiProperty({
+		description: 'Increment per turn in seconds',
+		required: false,
+		enum: ['0', '1', '2', '3', '5', '7', '10', '15', '20', '30', '45', '60', '90', '120', '180']
+	})
+	timerinc?: string;
+
+	@ApiProperty({
+		description: 'Extra time amount in seconds',
+		required: false,
+		enum: ['5', '25', '30', '35', '40', '45', '50', '55', '60', '20']
+	})
+	extra_time_amount?: string;
+
+	@ApiProperty({
+		description: 'What move number to add extra time',
+		required: false,
+		enum: ['180', '300', '420', '600', '900', '1200', '1800', '2700', '3600']
+	})
+	extra_time_trigger?: string;
 }
 
 export class GamePTN {}
