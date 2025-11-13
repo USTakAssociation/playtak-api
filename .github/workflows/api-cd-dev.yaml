@@ -61,7 +61,6 @@ jobs:
             RATING_OUTPUT_PATH: ${{ secrets.RATING_OUTPUT_PATH }}
             RATING_CRON_VALUE: ${{ secrets.RATING_CRON_VALUE }}
         run : |
-            rm .env
             touch .env
             echo "PORT = ${PORT}" >> .env
             echo "NODE_ENV = ${NODE_ENV}" >> .env

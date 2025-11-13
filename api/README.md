@@ -78,7 +78,6 @@ $ npm run test:cov
 SwaggerOpenAPI Documentation
 
 https://api.playtak.com/api
-
 https://api.beta.playtak.com/api
 
 Events
