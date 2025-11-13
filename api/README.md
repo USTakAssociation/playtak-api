@@ -96,3 +96,7 @@ Ratings
 
 - /v1/ratings
 - /v1/ratings/{player_name}
+
+Misc
+
+- /health
