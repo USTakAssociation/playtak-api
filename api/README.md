@@ -19,7 +19,7 @@ $ npm install
 
 ## Running the app
 
-Firstly need to set up the .env file which you can copy from the .env.example file
+First, need to set up the .env file which you can copy from the .env.example file.
 ```
 cp .env.example .env
 ```

@@ -44,7 +44,7 @@ export class GameQuery {
 	page?: string;
 
 	@ApiProperty({
-		description: `Optional skip if you don't use page`,
+		description: `Optional, skip if you don't use page`,
 		required: false
 	})
 	skip?: string;
