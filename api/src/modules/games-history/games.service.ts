@@ -8,23 +8,11 @@ import { GameQuery } from '../dto/games/games.dto';
 
 @Injectable()
 export class GamesService {
-	private countCache: { value: number; expires: number } | null = null;
-
 	constructor(
 		@InjectRepository(Games, 'games')
 		private repository: Repository<Games>,
 		private ptnService: PTNService
 	) {}
-
-	async getCachedCount(dbQuery): Promise<number> {
-		const now = Date.now();
-		if (this.countCache && this.countCache.expires > now) {
-			return this.countCache.value;
-		}
-		const count = await dbQuery.getCount();
-		this.countCache = { value: count, expires: now + 5 * 60 * 1000 };
-		return count;
-	}
 
 	validateIdQuery(id: string) {
 		const regex = /^(?!.*,,)(?!.*--)\d+([-,\d]*\d+)?$/;
@@ -238,7 +226,7 @@ export class GamesService {
 				dbQuery = this.repository.createQueryBuilder().select('*').where(search).orderBy(sort, order);
 			}
 
-			const total = await this.getCachedCount(dbQuery);
+			const total = await dbQuery.getCount();
 			const result = await dbQuery
 				.clone()
 				.limit(limit)
