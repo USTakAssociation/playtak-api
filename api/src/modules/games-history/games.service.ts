@@ -5,13 +5,26 @@ import { Games } from './entities/games.entity';
 import { stat } from 'fs/promises';
 import { PTNService } from './services/ptn.service';
 import { GameQuery } from '../dto/games/games.dto';
+
 @Injectable()
 export class GamesService {
+	private countCache: { value: number; expires: number } | null = null;
+
 	constructor(
 		@InjectRepository(Games, 'games')
 		private repository: Repository<Games>,
 		private ptnService: PTNService
 	) {}
+
+	async getCachedCount(dbQuery): Promise<number> {
+		const now = Date.now();
+		if (this.countCache && this.countCache.expires > now) {
+			return this.countCache.value;
+		}
+		const count = await dbQuery.getCount();
+		this.countCache = { value: count, expires: now + 5 * 60 * 1000 };
+		return count;
+	}
 
 	validateIdQuery(id: string) {
 		const regex = /^(?!.*,,)(?!.*--)\d+([-,\d]*\d+)?$/;
@@ -224,20 +237,14 @@ export class GamesService {
 			} else {
 				dbQuery = this.repository.createQueryBuilder().select('*').where(search).orderBy(sort, order);
 			}
-			const total = await dbQuery.getCount();
+
+			const total = await this.getCachedCount(dbQuery);
 			const result = await dbQuery
 				.clone()
 				.limit(limit)
 				.offset(limit * page || skip)
 				.execute();
 
-			for (let i = 0; i < result.length; i++) {
-				const element = result[i];
-				if (element.date <= 1461430800000) {
-					element.player_black = 'Anon';
-					element.player_white = 'Anon';
-				}
-			}
 			return {
 				items: result || [],
 				total: total || 0,
@@ -256,10 +263,6 @@ export class GamesService {
 			const result = await this.repository.findOne({
 				where: { id }
 			});
-			if (result && result['date'] <= 1461430800000) {
-				result['player_black'] = 'Anon';
-				result['player_white'] = 'Anon';
-			}
 			return result;
 		} catch (error) {
 			console.error(error);
