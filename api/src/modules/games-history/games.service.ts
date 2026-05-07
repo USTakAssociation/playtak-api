@@ -112,6 +112,9 @@ export class GamesService {
 		if (query['extra_time_trigger']) {
 			search['extra_time_trigger'] = parseInt(query['extra_time_trigger']);
 		}
+		if (query['increment_scales']) {
+			search['increment_scales'] = parseInt(query['increment_scales']);
+		}
 		if (query['type']) {
 			search[query['type'].toLowerCase()] = 1;
 		}

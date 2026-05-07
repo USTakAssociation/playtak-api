@@ -60,4 +60,7 @@ export class Games {
 
 	@Column()
 	extra_time_trigger: number;
+
+	@Column({ default: 0 })
+	increment_scales: number;
 }

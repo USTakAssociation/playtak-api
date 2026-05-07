@@ -29,6 +29,11 @@ public class SeekDto {
 	 * Seconds
 	 */
 	public int extraTimeAmount;
+	/**
+	 * When true, the increment awarded after each move is multiplied by the
+	 * (1-indexed) move number of the player who just moved.
+	 */
+	public boolean incrementScales;
 	public float komi;
 
 	public int boardSize;
