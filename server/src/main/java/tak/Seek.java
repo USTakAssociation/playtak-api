@@ -40,6 +40,11 @@ public class Seek {
 	int tournament;
 	int triggerMove;
 	int timeAmount;
+	/**
+	 * When true, the increment awarded after each move is multiplied by the
+	 * (1-indexed) move number of the player who just moved.
+	 */
+	boolean incrementScales;
 	String opponent;
 	COLOR color;
 	int botSeek;
@@ -56,15 +61,20 @@ public class Seek {
 	 * Creates a new seek with the same settings as the given seek, but with a new `no`
 	 */
 	public static Seek newSeek(Client client, SeekDto seek) {
-		return newSeek(client, seek.boardSize, seek.timeContingent, seek.timeIncrement, seek.color, seek.komiInt(), seek.pieces, seek.capstones, seek.unratedInt(), seek.tournamentInt(), seek.extraTimeTriggerMove, seek.extraTimeAmount, seek.opponent, seek.pntId);
+		return newSeek(client, seek.boardSize, seek.timeContingent, seek.timeIncrement, seek.color, seek.komiInt(), seek.pieces, seek.capstones, seek.unratedInt(), seek.tournamentInt(), seek.extraTimeTriggerMove, seek.extraTimeAmount, seek.incrementScales, seek.opponent, seek.pntId);
 	}
 
+	/** Backwards-compatible overload (incrementScales defaults to false). */
 	public static Seek newSeek(Client client, int boardSize, int timeContingent, int timeIncrement, COLOR clr, int komi, int pieces, int capstones, int unrated, int tournament, int triggerMove, int timeAmount, String opponent, Integer pntId) {
+		return newSeek(client, boardSize, timeContingent, timeIncrement, clr, komi, pieces, capstones, unrated, tournament, triggerMove, timeAmount, false, opponent, pntId);
+	}
+
+	public static Seek newSeek(Client client, int boardSize, int timeContingent, int timeIncrement, COLOR clr, int komi, int pieces, int capstones, int unrated, int tournament, int triggerMove, int timeAmount, boolean incrementScales, String opponent, Integer pntId) {
 		opponent = opponent == null ? "" : opponent;
 
 		seekStuffLock.lock();
 		try {
-			Seek sk = new Seek(client, boardSize, timeContingent, timeIncrement, clr, komi, pieces, capstones, unrated, tournament, triggerMove, timeAmount, opponent, pntId, -1);
+			Seek sk = new Seek(client, boardSize, timeContingent, timeIncrement, clr, komi, pieces, capstones, unrated, tournament, triggerMove, timeAmount, incrementScales, opponent, pntId, -1);
 			addSeek(sk);
 			return sk;
 		} finally {
@@ -72,7 +82,7 @@ public class Seek {
 		}
 	}
 
-	Seek(Client client, int boardSize, int timeContingent, int timeIncrement, COLOR clr, int komi, int pieces, int capstones, int unrated, int tournament, int triggerMove, int timeAmount, String opponent, Integer pntId, int rematchId) {
+	Seek(Client client, int boardSize, int timeContingent, int timeIncrement, COLOR clr, int komi, int pieces, int capstones, int unrated, int tournament, int triggerMove, int timeAmount, boolean incrementScales, String opponent, Integer pntId, int rematchId) {
 		seekStuffLock.lock();
 		try {
 			this.client = client;
@@ -89,6 +99,7 @@ public class Seek {
 			this.tournament = tournament;
 			this.triggerMove = triggerMove;
 			this.timeAmount = timeAmount;
+			this.incrementScales = incrementScales;
 			this.opponent = opponent;
 			if (client.player.isBot()) {
 				this.botSeek = 1;
@@ -127,7 +138,12 @@ public class Seek {
 		}
 	}
 
+	/** Backwards-compatible overload (incrementScales defaults to false). */
 	public static Seek newRematchSeek(Client c, int id, int boardSize, int time, int increment, String color, int komi, int pieces, int capstones, int unrated, int tournament, int triggerMove, int timeAmount, String opponent) {
+		return newRematchSeek(c, id, boardSize, time, increment, color, komi, pieces, capstones, unrated, tournament, triggerMove, timeAmount, false, opponent);
+	}
+
+	public static Seek newRematchSeek(Client c, int id, int boardSize, int time, int increment, String color, int komi, int pieces, int capstones, int unrated, int tournament, int triggerMove, int timeAmount, boolean incrementScales, String opponent) {
 		seekStuffLock.lock();
 		try {
 			COLOR colorEnum;
@@ -139,7 +155,7 @@ public class Seek {
 				colorEnum = COLOR.ANY;
 			}
 			c.removeSeeks();
-			Seek sk = new Seek(c, boardSize, time, increment, colorEnum, komi, pieces, capstones, unrated, tournament, triggerMove, timeAmount, opponent, -1, id);
+			Seek sk = new Seek(c, boardSize, time, increment, colorEnum, komi, pieces, capstones, unrated, tournament, triggerMove, timeAmount, incrementScales, opponent, -1, id);
 			c.seek = sk;
 			Seek.seeks.put(sk.no, sk);
 			updateListeners("new ", sk.buildSeekStringArray());
@@ -156,8 +172,10 @@ public class Seek {
 				String[] st = Seek.seeks.get(no).buildSeekStringArray();
 				if (c.protocolVersion <= 1) {
 					c.send("Seek new " + st[0]);
-				} else {
+				} else if (c.protocolVersion == 2) {
 					c.send("Seek new " + st[1]);
+				} else {
+					c.send("Seek new " + st[2]);
 				}
 			}
 		} finally {
@@ -193,6 +211,7 @@ public class Seek {
 				.timeIncrement(incr)
 				.extraTimeAmount(timeAmount)
 				.extraTimeTriggerMove(triggerMove)
+				.incrementScales(incrementScales)
 				.build();
 		} finally {
 			seekStuffLock.unlock();
@@ -216,8 +235,10 @@ public class Seek {
 				// check if the client protocol version
 				if (cc.protocolVersion <= 1) {
 					cc.sendWithoutLogging("Seek " + type + st[0]);
-				} else {
+				} else if (cc.protocolVersion == 2) {
 					cc.sendWithoutLogging("Seek " + type + st[1]);
+				} else {
+					cc.sendWithoutLogging("Seek " + type + st[2]);
 				}
 			}
 		} finally {
@@ -274,10 +295,28 @@ public class Seek {
 				opponent.length() != 0 ? opponent : "0",
 				client.player.isBot() ? "1" : "0"
 			});
-			// return both v1 and v2 seek
+			String v3Seek = String.join(" ", new String[] {
+				Integer.toString(no),
+				playerName,
+				Integer.toString(boardSize),
+				Integer.toString(time),
+				Integer.toString(incr),
+				incrementScales ? "1" : "0",
+				clr,
+				Integer.toString(komi),
+				Integer.toString(pieces),
+				Integer.toString(capstones),
+				Integer.toString(unrated),
+				Integer.toString(tournament),
+				Integer.toString(triggerMove),
+				Integer.toString(timeAmount),
+				opponent.length() != 0 ? opponent : "0",
+				client.player.isBot() ? "1" : "0"
+			});
 			return new String[] {
 				v1Seek,
-				v2Seek
+				v2Seek,
+				v3Seek
 			};
 		} finally {
 			seekStuffLock.unlock();

@@ -81,6 +81,11 @@ public class Game implements Publisher<GameUpdate> {
 	int tournament;
 	int triggerMove;
 	int timeAmount;
+	/**
+	 * When true, the increment awarded after each move is multiplied by the
+	 * (1-indexed) move number of the player who just moved.
+	 */
+	boolean incrementScales;
 	int playerWhiteMoveCount;
 	int playerBlackMoveCount;
 	boolean isBotGame;
@@ -247,6 +252,32 @@ public class Game implements Publisher<GameUpdate> {
 	Board board;
 	Stack<Board> boardHistory;
 
+	/**
+	 * Snapshot of all time-related state at a particular point in the game.
+	 * Pushed onto {@link #timeHistory} after every move (and once at game start),
+	 * popped on undo so we can restore the exact pre-move state — refunding
+	 * thinking time, removing increments, reverting trigger-move bonuses, and
+	 * restoring move counters in a single operation.
+	 */
+	private static class TimeSnapshot {
+		final long whiteTime;
+		final long blackTime;
+		final long lastUpdateTime;
+		final int playerWhiteMoveCount;
+		final int playerBlackMoveCount;
+
+		TimeSnapshot(long whiteTime, long blackTime, long lastUpdateTime,
+				int playerWhiteMoveCount, int playerBlackMoveCount) {
+			this.whiteTime = whiteTime;
+			this.blackTime = blackTime;
+			this.lastUpdateTime = lastUpdateTime;
+			this.playerWhiteMoveCount = playerWhiteMoveCount;
+			this.playerBlackMoveCount = playerBlackMoveCount;
+		}
+	}
+
+	Stack<TimeSnapshot> timeHistory;
+
 	static int DEFAULT_SIZE = 5;
 
 	static final char FLAT = 'f';
@@ -260,10 +291,16 @@ public class Game implements Publisher<GameUpdate> {
 	 * @param b:           board size
 	 * @param t:           time in seconds
 	 * @param clr:         color choice of p2
-	 * @param triggerMove: move number to trigger time amount to add
-	 * @param timeAmount:  amount of time to add from trigger move
-	 * @param pntId:       ID of the Playtak Native Tournament game this game is related to. Use `null` if not related to PNT.
+	 * @param triggerMove:     move number to trigger time amount to add
+	 * @param timeAmount:      amount of time to add from trigger move
+	 * @param incrementScales: when true, each move's increment is scaled by the player's move number.
+	 * @param pntId:           ID of the Playtak Native Tournament game this game is related to. Use `null` if not related to PNT.
 	 */
+	Game(Player p1, Player p2, int b, int t, int i, Seek.COLOR clr, int komi, int pieces, int capstones, int unrated, int tournament, int triggerMove, int timeAmount, boolean incrementScales, Integer pntId) {
+		this(p1, p2, b, t, i, clr, komi, pieces, capstones, unrated, tournament, triggerMove, timeAmount, pntId);
+		this.incrementScales = incrementScales;
+	}
+
 	Game(Player p1, Player p2, int b, int t, int i, Seek.COLOR clr, int komi, int pieces, int capstones, int unrated, int tournament, int triggerMove, int timeAmount, Integer pntId) {
 		gameLock = new ReentrantLock();
 		gameLock.lock();
@@ -277,6 +314,7 @@ public class Game implements Publisher<GameUpdate> {
 			this.tournament = tournament;
 			this.triggerMove = triggerMove;
 			this.timeAmount = timeAmount * 1000;
+			this.incrementScales = false;
 			this.playerWhiteMoveCount = 0;
 			this.playerBlackMoveCount = 0;
 			this.isBotGame = p1.isbot || p2.isbot;
@@ -320,6 +358,7 @@ public class Game implements Publisher<GameUpdate> {
 
 			board = new Board(b);
 			boardHistory = new Stack<>();
+			timeHistory = new Stack<>();
 
 			gameState = gameS.NONE;
 			drawOfferedBy = null;
@@ -328,6 +367,8 @@ public class Game implements Publisher<GameUpdate> {
 			moveList = Collections.synchronizedList(new ArrayList<>());
 
 			boardHistory.push(board.clone());//store empty position
+			timeHistory.push(new TimeSnapshot(whiteTime, blackTime, lastUpdateTime,
+					playerWhiteMoveCount, playerBlackMoveCount));//store initial time state
 			spectators = new ConcurrentHashSet<>();
 
 			insertEmpty();
@@ -413,13 +454,7 @@ public class Game implements Publisher<GameUpdate> {
 				Player otherPlayer = (p == white) ? black : white;
 				otherPlayer.sendWithoutLogging("Game#" + no + " RequestUndo");
 			} else if (undoRequestedBy != p) {
-				// logic is backwards which is why its not whites turn but removing white move count
-				if (!isWhitesTurn()) {
-					this.playerWhiteMoveCount--;
-				} else {
-					this.playerBlackMoveCount--;
-				}
-				updateTimeTurnChange();
+				revertTimeTurnChange();
 				undoRequestedBy = null;
 				undoPosition();
 				updateOutOfTime();
@@ -440,6 +475,44 @@ public class Game implements Publisher<GameUpdate> {
 				Player otherPlayer = (p == white) ? black : white;
 				otherPlayer.sendWithoutLogging("Game#" + no + " RemoveUndo");
 			}
+		} finally {
+			gameLock.unlock();
+		}
+	}
+
+	/** Fixed Lichess-style amount of time (in milliseconds) granted per click of the "Give time" button. */
+	static final long GIVE_TIME_AMOUNT_MS = 15_000;
+
+	/**
+	 * Award a fixed amount of time to the opponent of {@code p}, Lichess-style.
+	 * No-op if either player is missing or the game has ended. Sends a
+	 * {@code Game#<no> GivenTime <toColor> <ms>} notification to both players
+	 * and spectators, followed by an immediate {@link #sendTimeToAll()} update.
+	 */
+	void giveTime(Player p) {
+		gameLock.lock();
+		try {
+			if (gameState != gameS.NONE) return;
+			if (p != white && p != black) return;
+			//keep the live clocks consistent before mutating
+			justUpdateTime();
+			String toColor;
+			if (p == white) {
+				blackTime += GIVE_TIME_AMOUNT_MS;
+				toColor = "black";
+			} else {
+				whiteTime += GIVE_TIME_AMOUNT_MS;
+				toColor = "white";
+			}
+			String notice = "Game#" + no + " GivenTime " + toColor + " " + GIVE_TIME_AMOUNT_MS;
+			white.sendWithoutLogging(notice);
+			black.sendWithoutLogging(notice);
+			for (Player sp : spectators) {
+				sp.sendWithoutLogging(notice);
+			}
+			sendTimeToAll();
+			//re-arm the timeout TimerTask in case the receiver was about to flag
+			updateOutOfTime();
 		} finally {
 			gameLock.unlock();
 		}
@@ -508,6 +581,7 @@ public class Game implements Publisher<GameUpdate> {
 			sb.append(" ").append(board.boardSize);
 			sb.append(" ").append(originalTime / 1000);
 			sb.append(" ").append(incrementTime / 1000);
+			sb.append(" ").append(incrementScales ? 1 : 0);
 			sb.append(" ").append(komi);
 			sb.append(" ").append(tileCount);
 			sb.append(" ").append(capCount);
@@ -540,6 +614,7 @@ public class Game implements Publisher<GameUpdate> {
 				.timeIncrement((int) (incrementTime / 1000))
 				.extraTimeAmount(timeAmount / 1000)
 				.extraTimeTriggerMove(triggerMove)
+				.incrementScales(incrementScales)
 				.moves(moveList.toArray(String[]::new))
 				.result(result.equals("---") ? null : result)
 				.build();
@@ -717,14 +792,16 @@ public class Game implements Publisher<GameUpdate> {
 		}
 
 		if (!isWhitesTurn()) {
-			blackTime += incrementTime;
+			// playerBlackMoveCount has already been incremented in placeMove/moveStones,
+			// so it equals the (1-indexed) number of the move black just completed.
+			blackTime += incrementScales ? incrementTime * this.playerBlackMoveCount : incrementTime;
 			// Add time once trigger move is met
 			if (this.playerBlackMoveCount == this.triggerMove) {
 				blackTime += this.timeAmount;
 				this.playerBlackMoveCount++;
 			}
 		} else {
-			whiteTime += incrementTime;
+			whiteTime += incrementScales ? incrementTime * this.playerWhiteMoveCount : incrementTime;
 			// Add time once trigger move is met
 			if (this.playerWhiteMoveCount == this.triggerMove) {
 				whiteTime += this.timeAmount;
@@ -733,6 +810,40 @@ public class Game implements Publisher<GameUpdate> {
 		}
 
 		justUpdateTime();
+		// Snapshot the post-move time state so a subsequent undo can rewind here.
+		timeHistory.push(new TimeSnapshot(whiteTime, blackTime, lastUpdateTime,
+				playerWhiteMoveCount, playerBlackMoveCount));
+		sendTimeToAll();
+	}
+
+	/**
+	 * Inverse of {@link #updateTimeTurnChange()} for use during undo.
+	 *
+	 * Pops the most recent {@link TimeSnapshot} (representing the just-played,
+	 * about-to-be-undone move) and restores the previous snapshot — fully rewinding
+	 * both clocks, the per-player move counters, and any trigger-move bonus state.
+	 * {@code lastUpdateTime} is reset to "now" so the resumed clock starts ticking
+	 * fresh and we don't double-charge for time spent during the undone move or
+	 * the undo discussion.
+	 */
+	private void revertTimeTurnChange() {
+		if (gameState != gameS.NONE) {
+			return;
+		}
+		if (timeHistory.size() < 2) {
+			// Nothing to revert to (shouldn't happen in practice — undo guards on moveCount > 0).
+			return;
+		}
+		timeHistory.pop();//discard the snapshot for the move being undone
+		TimeSnapshot snap = timeHistory.peek();
+		whiteTime = snap.whiteTime;
+		blackTime = snap.blackTime;
+		playerWhiteMoveCount = snap.playerWhiteMoveCount;
+		playerBlackMoveCount = snap.playerBlackMoveCount;
+		// Reset the running-clock anchor to now so the resumed player's clock begins
+		// counting down from this moment, not from the snapshot's stale timestamp.
+		lastUpdateTime = System.nanoTime();
+
 		sendTimeToAll();
 	}
 
@@ -1031,7 +1142,7 @@ public class Game implements Publisher<GameUpdate> {
 
 	private void insertEmpty() {
 		try {
-			String sql = "INSERT INTO games (date, size, player_white, player_black, timertime, timerinc, notation, result, rating_white, rating_black, unrated, tournament, komi, pieces, capstones, rating_change_white, rating_change_black, extra_time_amount, extra_time_trigger) " + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+			String sql = "INSERT INTO games (date, size, player_white, player_black, timertime, timerinc, notation, result, rating_white, rating_black, unrated, tournament, komi, pieces, capstones, rating_change_white, rating_change_black, extra_time_amount, extra_time_trigger, increment_scales) " + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 			PreparedStatement stmt = Database.gamesConnection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
 			stmt.setLong(1, time);
 			stmt.setInt(2, board.boardSize);
@@ -1053,6 +1164,7 @@ public class Game implements Publisher<GameUpdate> {
 			stmt.setInt(17, -1000);
 			stmt.setInt(18, timeAmount / 1000);
 			stmt.setInt(19, triggerMove);
+			stmt.setInt(20, incrementScales ? 1 : 0);
 			stmt.executeUpdate();
 			ResultSet inserted = stmt.getGeneratedKeys();
 			if (inserted.next()) no = inserted.getInt(1);
@@ -1306,7 +1418,11 @@ public class Game implements Publisher<GameUpdate> {
 			} else {
 				m += "Game Start " + no + " " + white.getName() + " vs " + black.getName() + " ";
 				m += ((white == p) ? "white" : "black") + " ";
-				m += board.boardSize + " " + (originalTime / 1000) + " " + incrementTime / 1000 + " " + komi + " " + tileCount + " " + capCount + " " + unrated + " " + tournament + " " + triggerMove + " " + timeAmount / 1000 + " ";
+				m += board.boardSize + " " + (originalTime / 1000) + " " + incrementTime / 1000 + " ";
+				if (p.client.protocolVersion >= 3) {
+					m += (incrementScales ? "1" : "0") + " ";
+				}
+				m += komi + " " + tileCount + " " + capCount + " " + unrated + " " + tournament + " " + triggerMove + " " + timeAmount / 1000 + " ";
 				if (this.isBotGame) {
 					m += "1";
 				} else {
