@@ -381,7 +381,7 @@ public class Game implements Publisher<GameUpdate> {
 		g.gameLock.lock();
 		try {
 			Game.games.put(g.no, g);
-			Game.updateGameListListeners("Add " + g.stringForm());
+			Game.updateGameListListeners(g, "Add");
 		} finally {
 			g.gameLock.unlock();
 		}
@@ -390,7 +390,7 @@ public class Game implements Publisher<GameUpdate> {
 	static void removeGame(Game g) {
 		g.gameLock.lock();
 		try {
-			Game.updateGameListListeners("Remove " + g.stringForm());
+			Game.updateGameListListeners(g, "Remove");
 			Game.games.remove(g.no);
 		} finally {
 			g.gameLock.unlock();
@@ -400,7 +400,7 @@ public class Game implements Publisher<GameUpdate> {
 	void newSpectator(Player p) {
 		gameLock.lock();
 		try {
-			p.send("Observe " + stringForm());
+			p.send("Observe " + stringForm(p.client.protocolVersion >= 4));
 			sendMoveListTo(p);
 			spectators.add(p);
 			updateTime(p);
@@ -558,7 +558,7 @@ public class Game implements Publisher<GameUpdate> {
 
 	static void sendGameListTo(Player p) {
 		for (Integer no : Game.games.keySet()) {
-			p.sendWithoutLogging("GameList Add " + Game.games.get(no).stringForm());
+			p.sendWithoutLogging("GameList Add " + Game.games.get(no).stringForm(p.client.protocolVersion >= 4));
 		}
 	}
 
@@ -572,7 +572,7 @@ public class Game implements Publisher<GameUpdate> {
 		}
 	}
 
-	String stringForm() {
+	String stringForm(boolean includeIncrementScales) {
 		gameLock.lock();
 		try {
 			StringBuilder sb = new StringBuilder(no + "");
@@ -581,7 +581,9 @@ public class Game implements Publisher<GameUpdate> {
 			sb.append(" ").append(board.boardSize);
 			sb.append(" ").append(originalTime / 1000);
 			sb.append(" ").append(incrementTime / 1000);
-			sb.append(" ").append(incrementScales ? 1 : 0);
+			if (includeIncrementScales) {
+				sb.append(" ").append(incrementScales ? 1 : 0);
+			}
 			sb.append(" ").append(komi);
 			sb.append(" ").append(tileCount);
 			sb.append(" ").append(capCount);
@@ -632,9 +634,11 @@ public class Game implements Publisher<GameUpdate> {
 		gameListeners.remove(p);
 	}
 
-	static void updateGameListListeners(final String st) {
+	static void updateGameListListeners(final Game g, final String action) {
+		String withScale = "GameList " + action + " " + g.stringForm(true);
+		String withoutScale = "GameList " + action + " " + g.stringForm(false);
 		for (Player p : gameListeners) {
-			p.sendWithoutLogging("GameList " + st);
+			p.sendWithoutLogging(p.client.protocolVersion >= 4 ? withScale : withoutScale);
 		}
 	}
 
@@ -1419,7 +1423,7 @@ public class Game implements Publisher<GameUpdate> {
 				m += "Game Start " + no + " " + white.getName() + " vs " + black.getName() + " ";
 				m += ((white == p) ? "white" : "black") + " ";
 				m += board.boardSize + " " + (originalTime / 1000) + " " + incrementTime / 1000 + " ";
-				if (p.client.protocolVersion >= 3) {
+				if (p.client.protocolVersion >= 4) {
 					m += (incrementScales ? "1" : "0") + " ";
 				}
 				m += komi + " " + tileCount + " " + capCount + " " + unrated + " " + tournament + " " + triggerMove + " " + timeAmount / 1000 + " ";

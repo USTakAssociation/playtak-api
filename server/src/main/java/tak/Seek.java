@@ -172,7 +172,7 @@ public class Seek {
 				String[] st = Seek.seeks.get(no).buildSeekStringArray();
 				if (c.protocolVersion <= 1) {
 					c.send("Seek new " + st[0]);
-				} else if (c.protocolVersion == 2) {
+				} else if (c.protocolVersion <= 3) {
 					c.send("Seek new " + st[1]);
 				} else {
 					c.send("Seek new " + st[2]);
@@ -235,7 +235,7 @@ public class Seek {
 				// check if the client protocol version
 				if (cc.protocolVersion <= 1) {
 					cc.sendWithoutLogging("Seek " + type + st[0]);
-				} else if (cc.protocolVersion == 2) {
+				} else if (cc.protocolVersion <= 3) {
 					cc.sendWithoutLogging("Seek " + type + st[1]);
 				} else {
 					cc.sendWithoutLogging("Seek " + type + st[2]);

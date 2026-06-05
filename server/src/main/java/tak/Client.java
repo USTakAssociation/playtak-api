@@ -1054,7 +1054,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 		} else {
 			msg += "Game Start " + game.no + " " + game.white.getName() + " vs " + game.black.getName();
 			msg2 += sk.boardSize + " " + sk.time + " " + sk.incr + " ";
-			if (protocolVersion >= 3) {
+			if (protocolVersion >= 4) {
 				msg2 += (sk.incrementScales ? "1" : "0") + " ";
 			}
 			msg2 += sk.komi + " " + sk.pieces + " " + sk.capstones + " " + sk.unrated + " " + sk.tournament + " " + sk.triggerMove + " " + sk.timeAmount + " ";
