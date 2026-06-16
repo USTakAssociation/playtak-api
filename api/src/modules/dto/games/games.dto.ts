@@ -21,6 +21,7 @@ export class Game {
 	extra_time_amount: number;
 	extra_time_trigger: number;
 	increment_scales: number;
+	opening: string;
 }
 
 export class GamesList {

@@ -3,6 +3,7 @@ package tak.DTOs;
 import lombok.Builder;
 import lombok.Value;
 import lombok.extern.jackson.Jacksonized;
+import tak.Opening;
 import tak.Seek;
 
 @Value
@@ -34,6 +35,11 @@ public class SeekDto {
 	 * (1-indexed) move number of the player who just moved.
 	 */
 	public boolean incrementScales;
+	/**
+	 * Opening variant as the canonical PTN Ninja tag value ("swap" / "double black stack").
+	 * Defaults to "swap" when absent.
+	 */
+	public String opening;
 	public float komi;
 
 	public int boardSize;
@@ -45,6 +51,10 @@ public class SeekDto {
 
 	public int tournamentInt() {
 		return tournament ? 1 : 0;
+	}
+
+	public int openingCode() {
+		return Opening.fromPtn(opening).code;
 	}
 
 	public int unratedInt() {

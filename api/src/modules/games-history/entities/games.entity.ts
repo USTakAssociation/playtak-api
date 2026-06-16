@@ -63,4 +63,7 @@ export class Games {
 
 	@Column({ default: 0 })
 	increment_scales: number;
+
+	@Column({ default: 'swap' })
+	opening: string;
 }

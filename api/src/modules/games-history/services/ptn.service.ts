@@ -40,7 +40,7 @@ export class PTNService {
 		return '';
 	}
 
-	public getMoves(notation: string) {
+	public getMoves(notation: string, opening?: string) {
 		let moves = '';
 		let count = 0;
 		const moveArray = notation.split(',');
@@ -51,6 +51,11 @@ export class PTNService {
 			}
 
 			moves += ' ';
+			// Double Black Stack opening: White's first ply places two black flats,
+			// written in PTN with a leading "2" (e.g. "2a1").
+			if (i === 0 && opening === 'double black stack') {
+				moves += '2';
+			}
 			moves += this.convertMove(move);
 
 			count += 1;
@@ -114,7 +119,12 @@ export class PTNService {
 		ptn += this.getHeader('Flats', gpieces);
 		ptn += this.getHeader('Caps', gcaps);
 
-		ptn += '\n' + this.getMoves(game.notation);
+		// Opening variant (PTN Ninja tag). Omitted for the default "swap" so legacy PTN is unchanged.
+		if (game.opening && game.opening !== 'swap') {
+			ptn += this.getHeader('Opening', game.opening);
+		}
+
+		ptn += '\n' + this.getMoves(game.notation, game.opening);
 		ptn += '\n' + game.result + '\n';
 
 		return ptn;
