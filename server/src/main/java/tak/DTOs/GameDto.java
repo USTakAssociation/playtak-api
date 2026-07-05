@@ -33,6 +33,10 @@ public class GameDto {
 	 * (1-indexed) move number of the player who just moved.
 	 */
 	public boolean incrementScales;
+	/**
+	 * Opening variant as the canonical PTN Ninja tag value ("swap" / "double black stack").
+	 */
+	public String opening;
 	public float komi;
 
 	public int boardSize;

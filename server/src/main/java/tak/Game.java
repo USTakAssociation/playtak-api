@@ -86,6 +86,8 @@ public class Game implements Publisher<GameUpdate> {
 	 * (1-indexed) move number of the player who just moved.
 	 */
 	boolean incrementScales;
+	/** Opening variant code (0 = swap, 1 = double black stack). See {@link Opening}. */
+	int opening;
 	int playerWhiteMoveCount;
 	int playerBlackMoveCount;
 	boolean isBotGame;
@@ -296,9 +298,12 @@ public class Game implements Publisher<GameUpdate> {
 	 * @param incrementScales: when true, each move's increment is scaled by the player's move number.
 	 * @param pntId:           ID of the Playtak Native Tournament game this game is related to. Use `null` if not related to PNT.
 	 */
-	Game(Player p1, Player p2, int b, int t, int i, Seek.COLOR clr, int komi, int pieces, int capstones, int unrated, int tournament, int triggerMove, int timeAmount, boolean incrementScales, Integer pntId) {
+	Game(Player p1, Player p2, int b, int t, int i, Seek.COLOR clr, int komi, int pieces, int capstones, int unrated, int tournament, int triggerMove, int timeAmount, boolean incrementScales, int opening, Integer pntId) {
 		this(p1, p2, b, t, i, clr, komi, pieces, capstones, unrated, tournament, triggerMove, timeAmount, pntId);
 		this.incrementScales = incrementScales;
+		this.opening = opening;
+		// Persist the empty game row now that incrementScales and opening are set.
+		insertEmpty();
 	}
 
 	Game(Player p1, Player p2, int b, int t, int i, Seek.COLOR clr, int komi, int pieces, int capstones, int unrated, int tournament, int triggerMove, int timeAmount, Integer pntId) {
@@ -315,6 +320,7 @@ public class Game implements Publisher<GameUpdate> {
 			this.triggerMove = triggerMove;
 			this.timeAmount = timeAmount * 1000;
 			this.incrementScales = false;
+			this.opening = 0;
 			this.playerWhiteMoveCount = 0;
 			this.playerBlackMoveCount = 0;
 			this.isBotGame = p1.isbot || p2.isbot;
@@ -371,7 +377,9 @@ public class Game implements Publisher<GameUpdate> {
 					playerWhiteMoveCount, playerBlackMoveCount));//store initial time state
 			spectators = new ConcurrentHashSet<>();
 
-			insertEmpty();
+			// NOTE: insertEmpty() is intentionally NOT called here. It is called at the
+			// end of the full constructor below, once incrementScales and opening have
+			// been set, so those columns persist correctly in the games row.
 		} finally {
 			gameLock.unlock();
 		}
@@ -591,6 +599,12 @@ public class Game implements Publisher<GameUpdate> {
 			sb.append(" ").append(tournament);
 			sb.append(" ").append(triggerMove);
 			sb.append(" ").append(timeAmount / 1000);
+			// Protocol 4 appends the opening code (trailing, like createGameStartString)
+			// so reconnecting spectators restore the opening. GameList consumers ignore
+			// the extra trailing field.
+			if (includeIncrementScales) {
+				sb.append(" ").append(opening);
+			}
 			return sb.toString();
 		} finally {
 			gameLock.unlock();
@@ -617,6 +631,7 @@ public class Game implements Publisher<GameUpdate> {
 				.extraTimeAmount(timeAmount / 1000)
 				.extraTimeTriggerMove(triggerMove)
 				.incrementScales(incrementScales)
+				.opening(Opening.fromCode(opening).ptn)
 				.moves(moveList.toArray(String[]::new))
 				.result(result.equals("---") ? null : result)
 				.build();
@@ -885,6 +900,16 @@ public class Game implements Publisher<GameUpdate> {
 				}
 
 				sq.add(ch);
+
+				// Double Black Stack opening: on White's first move, place a second
+				// black flat on top of the swapped black flat, drawn from Black's
+				// reserves. Net reserves after the opening (e.g. 6x6): White 29, Black 28.
+				// Rendered in PTN as "2a1" by downstream consumers via the game's opening.
+				if (opening == Opening.DOUBLE_BLACK_STACK.code && board.moveCount / 2 == 0 && isWhitesTurn()) {
+					board.blackTilesCount--;
+					sq.add(ch);
+				}
+
 				// Add move count tracker add time trigger
 				// the logic is backwards which is why it's not whites turn but adding to whites move count
 				if (isWhitesTurn()) {
@@ -1146,7 +1171,7 @@ public class Game implements Publisher<GameUpdate> {
 
 	private void insertEmpty() {
 		try {
-			String sql = "INSERT INTO games (date, size, player_white, player_black, timertime, timerinc, notation, result, rating_white, rating_black, unrated, tournament, komi, pieces, capstones, rating_change_white, rating_change_black, extra_time_amount, extra_time_trigger, increment_scales) " + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+			String sql = "INSERT INTO games (date, size, player_white, player_black, timertime, timerinc, notation, result, rating_white, rating_black, unrated, tournament, komi, pieces, capstones, rating_change_white, rating_change_black, extra_time_amount, extra_time_trigger, increment_scales, opening) " + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 			PreparedStatement stmt = Database.gamesConnection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
 			stmt.setLong(1, time);
 			stmt.setInt(2, board.boardSize);
@@ -1169,6 +1194,7 @@ public class Game implements Publisher<GameUpdate> {
 			stmt.setInt(18, timeAmount / 1000);
 			stmt.setInt(19, triggerMove);
 			stmt.setInt(20, incrementScales ? 1 : 0);
+			stmt.setString(21, Opening.fromCode(opening).ptn);
 			stmt.executeUpdate();
 			ResultSet inserted = stmt.getGeneratedKeys();
 			if (inserted.next()) no = inserted.getInt(1);
@@ -1431,6 +1457,11 @@ public class Game implements Publisher<GameUpdate> {
 					m += "1";
 				} else {
 					m += "0";
+				}
+				// Mirror createGameStartString: protocol 4 appends the opening code so
+				// a reconnecting client restores the opening (e.g. Double Black Stack).
+				if (p.client.protocolVersion >= 4) {
+					m += " " + opening;
 				}
 			}
 			p.send(m);

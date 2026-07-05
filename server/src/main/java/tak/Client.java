@@ -98,7 +98,8 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 	String giveTimeString = "^Game#(\\d+) GiveTime$";
 	Pattern giveTimePattern;
 
-	String seekV4String = "^Seek (\\d) (\\d+) (\\d+) (0|1) ([WBA]) (\\d+) (\\d+) (\\d+) (0|1) (0|1) (\\d+) (\\d+) ([A-Za-z0-9_]*)";
+	// V4 adds the incrementScales flag after increment, and a trailing opening code (0 = swap, 1 = double black stack) before the opponent.
+	String seekV4String = "^Seek (\\d) (\\d+) (\\d+) (0|1) ([WBA]) (\\d+) (\\d+) (\\d+) (0|1) (0|1) (\\d+) (\\d+) (0|1) ([A-Za-z0-9_]*)";
 	Pattern seekV4Pattern;
 
 	String seekV3String = "^Seek (\\d) (\\d+) (\\d+) ([WBA]) (\\d+) (\\d+) (\\d+) (0|1) (0|1) (\\d+) (\\d+) ([A-Za-z0-9_]*)";
@@ -110,7 +111,8 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 	String seekV1String = "^Seek (\\d) (\\d+) (\\d+)( [WB])?";
 	Pattern seekV1Pattern;
 
-	String rematchV2String = "^Rematch (\\d+) (\\d+) (\\d+) (\\d+) (0|1) ([WBA]) (\\d+) (\\d+) (\\d+) (0|1) (0|1) (\\d+) (\\d+) ([A-Za-z0-9_]*)";
+	// V2 adds incrementScales after increment, and a trailing opening code (0 = swap, 1 = double black stack) before the opponent.
+	String rematchV2String = "^Rematch (\\d+) (\\d+) (\\d+) (\\d+) (0|1) ([WBA]) (\\d+) (\\d+) (\\d+) (0|1) (0|1) (\\d+) (\\d+) (0|1) ([A-Za-z0-9_]*)";
 	Pattern rematchV2Pattern;
 
 	String rematchString = "^Rematch (\\d+) (\\d+) (\\d+) (\\d+) ([WBA]) (\\d+) (\\d+) (\\d+) (0|1) (0|1) (\\d+) (\\d+) ([A-Za-z0-9_]*)";
@@ -612,7 +614,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 
 								if ("W".equals(m.group(5))) clr = Seek.COLOR.WHITE;
 								else if ("B".equals(m.group(5))) clr = Seek.COLOR.BLACK;
-								seek = Seek.newSeek(this, Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)), clr, Integer.parseInt(m.group(6)), Integer.parseInt(m.group(7)), Integer.parseInt(m.group(8)), Integer.parseInt(m.group(9)), Integer.parseInt(m.group(10)), Integer.parseInt(m.group(11)), Integer.parseInt(m.group(12)), "1".equals(m.group(4)), m.group(13), null);
+								seek = Seek.newSeek(this, Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)), clr, Integer.parseInt(m.group(6)), Integer.parseInt(m.group(7)), Integer.parseInt(m.group(8)), Integer.parseInt(m.group(9)), Integer.parseInt(m.group(10)), Integer.parseInt(m.group(11)), Integer.parseInt(m.group(12)), "1".equals(m.group(4)), Integer.parseInt(m.group(13)), m.group(14), null);
 								Log("Seek " + seek.boardSize);
 							}
 						} finally {
@@ -734,7 +736,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 								unspectateAll();
 								otherClient.unspectateAll();
 
-								game = new Game(player, otherClient.player, sz, time, sk.incr, sk.color, sk.komi, sk.pieces, sk.capstones, sk.unrated, sk.tournament, sk.triggerMove, sk.timeAmount, sk.incrementScales, sk.pntId);
+								game = new Game(player, otherClient.player, sz, time, sk.incr, sk.color, sk.komi, sk.pieces, sk.capstones, sk.unrated, sk.tournament, sk.triggerMove, sk.timeAmount, sk.incrementScales, sk.opening, sk.pntId);
 								notifySubscribers(GameUpdate.gameCreated(game.toDto()));
 								for (var subscriber : subscribers) {
 									game.subscribe(subscriber);
@@ -789,7 +791,8 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 									Integer.parseInt(m.group(12)), // triggerMove
 									Integer.parseInt(m.group(13)), // timeAmount
 									"1".equals(m.group(5)), // incrementScales
-									m.group(14)); // opponent
+									Integer.parseInt(m.group(14)), // opening
+									m.group(15)); // opponent
 								send("Rematch seek created with ID: " + seek.no);
 							}
 						} finally {
@@ -1062,6 +1065,9 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 				msg2 += "1";
 			} else {
 				msg2 += "0";
+			}
+			if (protocolVersion >= 4) {
+				msg2 += " " + game.opening;
 			}
 		}
 		return msg + " " + ((game.white == player) ? "white" : "black") + " " + msg2;

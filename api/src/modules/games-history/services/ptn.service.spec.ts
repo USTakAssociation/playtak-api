@@ -59,6 +59,48 @@ describe('PTNService', () => {
 		});
 	});
 
+	describe('Double Black Stack opening', () => {
+		it("prepends 2 to white's first ply for double black stack", () => {
+			const moves = service.getMoves('P A1,P E5,P C3', 'double black stack');
+			expect(moves).toEqual('\n1. 2a1 e5\n2. c3');
+		});
+
+		it('leaves moves unchanged for swap / no opening', () => {
+			expect(service.getMoves('P A1,P E5', 'swap')).toEqual('\n1. a1 e5');
+			expect(service.getMoves('P A1,P E5')).toEqual('\n1. a1 e5');
+		});
+
+		it('emits the Opening header and 2a1 only for double black stack', () => {
+			const base = {
+				id: 1,
+				date: 1653488350594,
+				size: 6,
+				player_white: 'alice',
+				player_black: 'carol',
+				notation: 'P A1,P F6',
+				result: '0-0',
+				timertime: 600,
+				timerinc: 0,
+				rating_white: 1000,
+				rating_black: 1000,
+				unrated: 0,
+				tournament: 0,
+				komi: 0,
+				pieces: 30,
+				capstones: 1,
+				rating_change_white: 0,
+				rating_change_black: 0
+			};
+			const dbs = service.getPTN({ ...base, opening: 'double black stack' });
+			expect(dbs).toContain('[Opening "double black stack"]');
+			expect(dbs).toContain('1. 2a1 f6');
+
+			const swap = service.getPTN({ ...base, opening: 'swap' });
+			expect(swap).not.toContain('[Opening');
+			expect(swap).toContain('1. a1 f6');
+		});
+	});
+
 	describe('Get Timer Info', () => {
 		it('should return the correct string', () => {
 			const timerS = service.getTimerInfo(30, 20);
