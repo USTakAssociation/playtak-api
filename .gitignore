@@ -5,4 +5,4 @@ run/**
 
 .idea
 
-tak-tests/test-results.txt
+tests/test-results.txt

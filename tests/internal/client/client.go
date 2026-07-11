@@ -138,7 +138,7 @@ func (c *Client) DrainUntil(prefix string) string {
 	for time.Now().Before(deadline) {
 		got := c.Recv()
 		// uncomment the following line to debug why a message didn't match the expected prefix
-		c.t.Logf("checking %q against prefix %q", got, prefix)
+		// c.t.Logf("checking %q against prefix %q", got, prefix)
 		if strings.HasPrefix(got, prefix) {
 			return got
 		}
