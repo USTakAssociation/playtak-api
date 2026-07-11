@@ -62,7 +62,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 	String clientString = "^Client ([A-Za-z-.0-9]{1,60})";
 	Pattern clientPattern;
 
-	String protocolString = "^Protocol ([1-9][0-9]{0,8})";
+	String protocolString = "^Protocol ([0-9]{0,8})";
 	Pattern protocolPattern;
 
 	String changePasswordString = "^ChangePassword ([^\n\r\\s]{6,50}) ([^\n\r\\s]{6,50})";
