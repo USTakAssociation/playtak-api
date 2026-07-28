@@ -1,5 +1,6 @@
-/* istanbul ignore file */
 import { Module } from '@nestjs/common';
+import { CacheModule, CacheInterceptor } from '@nestjs/cache-manager';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { RatingsController } from './ratings.controller';
@@ -21,8 +22,19 @@ import { Games } from '../games-history/entities/games.entity';
 					limit: 60
 				}
 			]
+		}),
+		CacheModule.register({
+			ttl: 1800, // 30 minutes — rating refreshes every hour
+			max: 100 // maximum number of items in cache
 		})
 	],
-	providers: [RatingTask, RatingService]
+	providers: [
+		RatingTask,
+		RatingService,
+		{
+			provide: APP_INTERCEPTOR,
+			useClass: CacheInterceptor
+		}
+	]
 })
 export class RatingsModule {}

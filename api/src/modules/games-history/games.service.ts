@@ -130,11 +130,11 @@ export class GamesService {
 		const playerWhite = search['player_white'];
 		const playerBlack = search['player_black'];
 		if (playerWhite) {
-			search['player_white'] = Like(`${playerWhite}`);
+			search['player_white'] = playerWhite.includes('%') ? Like(`${playerWhite}`) : playerWhite;
 			player_search = true;
 		}
 		if (playerBlack) {
-			search['player_black'] = Like(`${playerBlack}`);
+			search['player_black'] = playerBlack.includes('%') ? Like(`${playerBlack}`) : playerBlack;
 			player_search = true;
 		}
 

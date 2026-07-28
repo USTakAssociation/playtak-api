@@ -1,5 +1,9 @@
-import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, Index } from 'typeorm';
 @Entity()
+@Index(['player_white', 'player_black', 'date'])
+@Index(['player_white'])
+@Index(['player_black'])
+@Index(['date'])
 export class Games {
 	@PrimaryGeneratedColumn()
 	id: number;

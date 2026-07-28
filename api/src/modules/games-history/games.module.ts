@@ -1,5 +1,6 @@
 /* istanbul ignore file */
 import { Module } from '@nestjs/common';
+import { CacheModule } from '@nestjs/cache-manager';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Games } from './entities/games.entity';
@@ -15,9 +16,13 @@ import { PTNService } from './services/ptn.service';
 			useFactory: () => [
 				{
 					ttl: 60,
-					limit: 60
+					limit: 20
 				}
 			]
+		}),
+		CacheModule.register({
+			ttl: 300, // seconds
+			max: 200 // maximum number of items in cache
 		})
 	],
 	providers: [GamesService, PTNService]
