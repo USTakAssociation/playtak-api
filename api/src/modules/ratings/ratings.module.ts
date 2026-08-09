@@ -18,7 +18,7 @@ import { Games } from '../games-history/entities/games.entity';
 		ThrottlerModule.forRootAsync({
 			useFactory: () => [
 				{
-					ttl: 60,
+					ttl: 60000,
 					limit: 60
 				}
 			]

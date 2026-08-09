@@ -12,7 +12,7 @@ import { EventsService } from './events.service';
 		ThrottlerModule.forRootAsync({
 			useFactory: () => [
 				{
-					ttl: 60,
+					ttl: 60000,
 					limit: 30
 				}
 			]
