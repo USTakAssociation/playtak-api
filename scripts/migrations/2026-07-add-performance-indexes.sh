@@ -7,11 +7,7 @@
 
 -- Games database indexes
 -- Create indexes on commonly queried columns to improve query performance
-CREATE INDEX IF NOT EXISTS idx_games_player_white ON games(player_white);
-CREATE INDEX IF NOT EXISTS idx_games_player_black ON games(player_black);
 CREATE INDEX IF NOT EXISTS idx_games_date ON games(date);
-CREATE INDEX IF NOT EXISTS idx_games_result ON games(result);
-CREATE INDEX IF NOT EXISTS idx_games_size ON games(size);
 -- Composite index for the most common search pattern (player searches)
 CREATE INDEX IF NOT EXISTS idx_games_player_date ON games(player_white, player_black, date);
 -- Mirror of the above for player_black-only lookups (UI defaults mirror=true,
