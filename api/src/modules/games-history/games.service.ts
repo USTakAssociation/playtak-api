@@ -118,6 +118,8 @@ export class GamesService {
 		if (query['type']) {
 			search[query['type'].toLowerCase()] = 1;
 		}
+		// Defaults to false here, but as of 2026-08-10 the playtak-games UI always
+		// sends mirror=true unless the user explicitly turns it off (see App.vue/Search.vue).
 		const mirror = query.mirror === 'true' ? true : false;
 
 		if (search['normal']) {
