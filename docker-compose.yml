@@ -14,6 +14,17 @@ services:
       - type: bind
         source: ./api/
         target: /usr/src/app
+      # The bind mount above replaces the whole directory, which hides the
+      # node_modules the Dockerfile built for Alpine/musl — leaving the
+      # container to load the host's binaries (wrong libc, so better-sqlite3
+      # fails with "fcntl64: symbol not found") or, on a fresh clone with no
+      # host install, no node_modules at all. This re-covers just that path
+      # with the image's copy.
+      #
+      # It is an anonymous volume, so it persists: after changing dependencies,
+      # `docker compose down -v` (or `up --build --renew-anon-volumes`) is
+      # needed for the container to pick them up.
+      - /usr/src/app/node_modules
       - type: bind
         source: ./playtakdb
         target: /playtakdb
