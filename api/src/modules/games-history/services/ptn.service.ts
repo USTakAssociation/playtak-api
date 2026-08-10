@@ -43,7 +43,11 @@ export class PTNService {
 	public getMoves(notation: string, opening?: string) {
 		let moves = '';
 		let count = 0;
-		const moveArray = notation.split(',');
+		// A game with no moves recorded yet has an empty notation, and
+		// ''.split(',') yields [''] rather than [], which ran the loop once and
+		// emitted a move number with nothing after it. For a double black stack
+		// game that produced a lone '2' prefix — "1. 2" — which is not valid PTN.
+		const moveArray = notation ? notation.split(',').filter((move) => move !== '') : [];
 		for (let i = 0; i < moveArray.length; i++) {
 			const move = moveArray[i];
 			if (count % 2 == 0) {
@@ -63,7 +67,7 @@ export class PTNService {
 		return moves;
 	}
 
-	public getTimerInfo(timertime: number, timerinc: number) {
+	public getTimerInfo(timertime: number, timerinc: number, incrementScales = false) {
 		const secs = timertime % 60;
 		timertime = timertime / 60;
 		const mins = timertime % 60;
@@ -80,7 +84,11 @@ export class PTNService {
 		}
 		val += secs.toString();
 		if (timerinc !== 0) {
-			val += ' +' + timerinc.toString();
+			// An increment that scales with the move number is written with a
+			// trailing "n" ("+1n" = one second per move elapsed), matching how the
+			// web client shows it. Without this the tag is identical to a fixed
+			// increment, so the time control cannot be recovered from the PTN.
+			val += ' +' + timerinc.toString() + (incrementScales ? 'n' : '');
 		}
 
 		return val;
@@ -106,7 +114,7 @@ export class PTNService {
 		if (wr) ptn += this.getHeader('Rating1', wr);
 		ptn += this.getHeader('Player2', bn);
 		if (wb) ptn += this.getHeader('Rating2', wb);
-		ptn += this.getHeader('Clock', this.getTimerInfo(game.timertime, game.timerinc));
+		ptn += this.getHeader('Clock', this.getTimerInfo(game.timertime, game.timerinc, !!game.increment_scales));
 		ptn += this.getHeader('Result', game.result);
 		ptn += this.getHeader('Size', game.size);
 		ptn += this.getHeader('Komi', (game.komi / 2).toString());
