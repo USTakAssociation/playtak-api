@@ -14,6 +14,9 @@ CREATE INDEX IF NOT EXISTS idx_games_result ON games(result);
 CREATE INDEX IF NOT EXISTS idx_games_size ON games(size);
 -- Composite index for the most common search pattern (player searches)
 CREATE INDEX IF NOT EXISTS idx_games_player_date ON games(player_white, player_black, date);
+-- Mirror of the above for player_black-only lookups (UI defaults mirror=true,
+-- and player_black-only + mirror is a real click path via the black player link)
+CREATE INDEX IF NOT EXISTS idx_games_player_black_date ON games(player_black, date);
 
 -- Players database indexes
 -- Index on name column for player lookups
