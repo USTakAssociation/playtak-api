@@ -9,6 +9,9 @@ import { EventsService } from './events.service';
 @Module({
 	controllers: [EventsController],
 	imports: [
+		// TODO: ThrottlerModule is @Global(), and forRootAsync is called separately
+		// here and in games.module.ts/ratings.module.ts with different limits.
+		// Verify these don't clobber each other (last-imported module winning globally).
 		ThrottlerModule.forRootAsync({
 			useFactory: () => [
 				{

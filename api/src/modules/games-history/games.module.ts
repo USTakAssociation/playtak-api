@@ -12,6 +12,9 @@ import { PTNService } from './services/ptn.service';
 	controllers: [GamesController],
 	imports: [
 		TypeOrmModule.forFeature([Games], 'games'),
+		// TODO: ThrottlerModule is @Global(), and forRootAsync is called separately
+		// here and in events.module.ts/ratings.module.ts with different limits.
+		// Verify these don't clobber each other (last-imported module winning globally).
 		ThrottlerModule.forRootAsync({
 			useFactory: () => [
 				{

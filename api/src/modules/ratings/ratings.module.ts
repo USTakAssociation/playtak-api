@@ -15,6 +15,9 @@ import { Games } from '../games-history/entities/games.entity';
 	imports: [
 		TypeOrmModule.forFeature([Ratings, Players], 'default'),
 		TypeOrmModule.forFeature([Games], 'games'),
+		// TODO: ThrottlerModule is @Global(), and forRootAsync is called separately
+		// here and in events.module.ts/games.module.ts with different limits.
+		// Verify these don't clobber each other (last-imported module winning globally).
 		ThrottlerModule.forRootAsync({
 			useFactory: () => [
 				{
