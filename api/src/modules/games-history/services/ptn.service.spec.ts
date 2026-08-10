@@ -101,6 +101,61 @@ describe('PTNService', () => {
 		});
 	});
 
+	describe('Increment scaling in the Clock header', () => {
+		const base = {
+			id: 2,
+			date: 1653488350594,
+			size: 6,
+			player_white: 'alice',
+			player_black: 'carol',
+			notation: 'P A1,P F6',
+			result: '0-0',
+			timertime: 10800,
+			timerinc: 1,
+			rating_white: 0,
+			rating_black: 0,
+			unrated: 0,
+			tournament: 0,
+			komi: 4,
+			pieces: 30,
+			capstones: 1,
+			rating_change_white: 0,
+			rating_change_black: 0
+		};
+
+		it('records the scaling so the time control survives the export', () => {
+			const scaled = service.getPTN({ ...base, increment_scales: 1 });
+			expect(scaled).toContain('[Clock "3:0:0 +1n"]');
+
+			const fixed = service.getPTN({ ...base, increment_scales: 0 });
+			expect(fixed).toContain('[Clock "3:0:0 +1"]');
+
+			// Two different time controls must not render identically.
+			expect(scaled).not.toEqual(fixed);
+		});
+
+		it('is unchanged for games predating the column', () => {
+			expect(service.getPTN(base)).toContain('[Clock "3:0:0 +1"]');
+		});
+	});
+
+	describe('Games with no moves yet', () => {
+		it('returns no move text for an empty notation', () => {
+			expect(service.getMoves('')).toEqual('');
+			expect(service.getMoves('', 'swap')).toEqual('');
+		});
+
+		it('does not emit a lone double black stack prefix', () => {
+			// ''.split(',') is [''], which used to produce "\n1. 2" — a move number
+			// and an opening prefix with no ply, which no PTN parser accepts.
+			expect(service.getMoves('', 'double black stack')).toEqual('');
+		});
+
+		it('ignores empty entries in the notation', () => {
+			expect(service.getMoves('P A1,P E5,')).toEqual('\n1. a1 e5');
+		});
+	});
+
 	describe('Get Timer Info', () => {
 		it('should return the correct string', () => {
 			const timerS = service.getTimerInfo(30, 20);
@@ -109,6 +164,72 @@ describe('PTNService', () => {
 			expect(timerS).toEqual('30 +20');
 			expect(timerM).toEqual('3:0 +20');
 			expect(timerH).toEqual('1:0:0 +20');
+		});
+
+		it('floors the minutes for a partial minute', () => {
+			// Was "1.5:30" / "4.5:30" — mins was the only component left unfloored.
+			expect(service.getTimerInfo(90, 0)).toEqual('1:30');
+			expect(service.getTimerInfo(270, 0)).toEqual('4:30');
+			expect(service.getTimerInfo(5430, 0)).toEqual('1:30:30');
+		});
+
+		it('marks an increment that scales with the move number', () => {
+			expect(service.getTimerInfo(10800, 1, true)).toEqual('3:0:0 +1n');
+			expect(service.getTimerInfo(300, 2, true)).toEqual('5:0 +2n');
+		});
+
+		it('leaves a fixed increment unchanged', () => {
+			expect(service.getTimerInfo(10800, 1, false)).toEqual('3:0:0 +1');
+			expect(service.getTimerInfo(10800, 1)).toEqual('3:0:0 +1');
+		});
+
+		it('omits the marker when there is no increment', () => {
+			expect(service.getTimerInfo(600, 0, true)).toEqual('10:0');
+		});
+	});
+
+	describe('Bonus time at a move', () => {
+		it('records the trigger and the amount granted', () => {
+			expect(service.getTimerInfo(600, 20, false, 35, 600)).toEqual('10:0 +20 @35 +10:0');
+			expect(service.getTimerInfo(600, 20, false, 35, 90)).toEqual('10:0 +20 @35 +1:30');
+		});
+
+		it('combines with a scaling increment', () => {
+			expect(service.getTimerInfo(10800, 1, true, 30, 300)).toEqual('3:0:0 +1n @30 +5:0');
+		});
+
+		it('is omitted when either half is missing', () => {
+			expect(service.getTimerInfo(600, 20, false, 35, 0)).toEqual('10:0 +20');
+			expect(service.getTimerInfo(600, 20, false, 0, 600)).toEqual('10:0 +20');
+			expect(service.getTimerInfo(600, 20)).toEqual('10:0 +20');
+		});
+
+		it('reaches the Clock header', () => {
+			// Real row: prod game 864011 grants ten minutes at move 35, which the
+			// JSON reports but the PTN used to drop.
+			const ptn = service.getPTN({
+				id: 864011,
+				date: 1653488350594,
+				size: 6,
+				player_white: 'alice',
+				player_black: 'carol',
+				notation: 'P A1,P F6',
+				result: '0-0',
+				timertime: 600,
+				timerinc: 20,
+				rating_white: 0,
+				rating_black: 0,
+				unrated: 0,
+				tournament: 0,
+				komi: 0,
+				pieces: 30,
+				capstones: 1,
+				rating_change_white: 0,
+				rating_change_black: 0,
+				extra_time_trigger: 35,
+				extra_time_amount: 600
+			});
+			expect(ptn).toContain('[Clock "10:0 +20 @35 +10:0"]');
 		});
 	});
 
