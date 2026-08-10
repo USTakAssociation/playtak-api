@@ -166,6 +166,13 @@ describe('PTNService', () => {
 			expect(timerH).toEqual('1:0:0 +20');
 		});
 
+		it('floors the minutes for a partial minute', () => {
+			// Was "1.5:30" / "4.5:30" — mins was the only component left unfloored.
+			expect(service.getTimerInfo(90, 0)).toEqual('1:30');
+			expect(service.getTimerInfo(270, 0)).toEqual('4:30');
+			expect(service.getTimerInfo(5430, 0)).toEqual('1:30:30');
+		});
+
 		it('marks an increment that scales with the move number', () => {
 			expect(service.getTimerInfo(10800, 1, true)).toEqual('3:0:0 +1n');
 			expect(service.getTimerInfo(300, 2, true)).toEqual('5:0 +2n');
@@ -178,6 +185,51 @@ describe('PTNService', () => {
 
 		it('omits the marker when there is no increment', () => {
 			expect(service.getTimerInfo(600, 0, true)).toEqual('10:0');
+		});
+	});
+
+	describe('Bonus time at a move', () => {
+		it('records the trigger and the amount granted', () => {
+			expect(service.getTimerInfo(600, 20, false, 35, 600)).toEqual('10:0 +20 @35 +10:0');
+			expect(service.getTimerInfo(600, 20, false, 35, 90)).toEqual('10:0 +20 @35 +1:30');
+		});
+
+		it('combines with a scaling increment', () => {
+			expect(service.getTimerInfo(10800, 1, true, 30, 300)).toEqual('3:0:0 +1n @30 +5:0');
+		});
+
+		it('is omitted when either half is missing', () => {
+			expect(service.getTimerInfo(600, 20, false, 35, 0)).toEqual('10:0 +20');
+			expect(service.getTimerInfo(600, 20, false, 0, 600)).toEqual('10:0 +20');
+			expect(service.getTimerInfo(600, 20)).toEqual('10:0 +20');
+		});
+
+		it('reaches the Clock header', () => {
+			// Real row: prod game 864011 grants ten minutes at move 35, which the
+			// JSON reports but the PTN used to drop.
+			const ptn = service.getPTN({
+				id: 864011,
+				date: 1653488350594,
+				size: 6,
+				player_white: 'alice',
+				player_black: 'carol',
+				notation: 'P A1,P F6',
+				result: '0-0',
+				timertime: 600,
+				timerinc: 20,
+				rating_white: 0,
+				rating_black: 0,
+				unrated: 0,
+				tournament: 0,
+				komi: 0,
+				pieces: 30,
+				capstones: 1,
+				rating_change_white: 0,
+				rating_change_black: 0,
+				extra_time_trigger: 35,
+				extra_time_amount: 600
+			});
+			expect(ptn).toContain('[Clock "10:0 +20 @35 +10:0"]');
 		});
 	});
 
