@@ -34,6 +34,14 @@ export class GamesService {
 		return true;
 	}
 
+	// A player term is only a pattern when the caller asked for one with %. Plain names
+	// have to stay equality: LIKE is not index-usable on these columns (the indexes are
+	// BINARY, LIKE is case-insensitive by default), so wrapping them turns a player
+	// search into a full table scan.
+	private playerTerm(name: string) {
+		return name.includes('%') ? Like(`${name}`) : name;
+	}
+
 	generateSearchQuery(query: GameQuery) {
 		const search = {};
 		if (query['id']) {
@@ -132,11 +140,11 @@ export class GamesService {
 		const playerWhite = search['player_white'];
 		const playerBlack = search['player_black'];
 		if (playerWhite) {
-			search['player_white'] = playerWhite.includes('%') ? Like(`${playerWhite}`) : playerWhite;
+			search['player_white'] = this.playerTerm(playerWhite);
 			player_search = true;
 		}
 		if (playerBlack) {
-			search['player_black'] = playerBlack.includes('%') ? Like(`${playerBlack}`) : playerBlack;
+			search['player_black'] = this.playerTerm(playerBlack);
 			player_search = true;
 		}
 
@@ -156,11 +164,11 @@ export class GamesService {
 			delete mirrorSearch['player_black'];
 			delete mirrorSearch['player_white'];
 			if (playerWhite) {
-				mirrorSearch['player_black'] = Like(`${playerWhite}`);
+				mirrorSearch['player_black'] = this.playerTerm(playerWhite);
 				player_search = true;
 			}
 			if (playerBlack) {
-				mirrorSearch['player_white'] = Like(`${playerBlack}`);
+				mirrorSearch['player_white'] = this.playerTerm(playerBlack);
 				player_search = true;
 			}
 			if (search['game_result']) {
@@ -210,6 +218,44 @@ export class GamesService {
 		return { search, mirrorSearch };
 	}
 
+	// Runs the two halves of a mirror search as separate indexed queries and merges them,
+	// in place of the single OR. Only ids are read here -- a deep page would otherwise
+	// pull `notation` for every row it is about to discard. The halves overlap only when
+	// a player met themselves, which the id set dedupes.
+	private async getMirrorPage(
+		search: object,
+		mirrorSearch: object,
+		order: 'ASC' | 'DESC',
+		limit: number,
+		offset: number
+	) {
+		const head = offset + limit;
+		const halves = await Promise.all(
+			[search, mirrorSearch].map((where) =>
+				this.repository
+					.createQueryBuilder()
+					.select('id')
+					.where(where)
+					.orderBy('id', order)
+					.limit(head)
+					.execute()
+			)
+		);
+		const ids = [...new Set<number>(halves.flat().map((row) => row.id))].sort((a, b) =>
+			order === 'DESC' ? b - a : a - b
+		);
+		const pageIds = ids.slice(offset, head);
+		if (!pageIds.length) {
+			return [];
+		}
+		return this.repository
+			.createQueryBuilder()
+			.select('*')
+			.where({ id: In(pageIds) })
+			.orderBy('id', order)
+			.execute();
+	}
+
 	async getAll(query?: GameQuery): Promise<any> {
 		const limit = parseInt(query.limit) || 50;
 		const skip = parseInt(query.skip) || 0;
@@ -231,12 +277,16 @@ export class GamesService {
 				dbQuery = this.repository.createQueryBuilder().select('*').where(search).orderBy(sort, order);
 			}
 
+			const offset = limit * page || skip;
 			const total = await dbQuery.getCount();
-			const result = await dbQuery
-				.clone()
-				.limit(limit)
-				.offset(limit * page || skip)
-				.execute();
+			// The OR form cannot use an index for `ORDER BY id DESC LIMIT n`, so SQLite
+			// scans the table even when both halves are individually indexable. Fetching
+			// the halves separately keeps each one on a player index. Only worth it for
+			// the default `id` sort, which is the only one the UI ever asks for.
+			const result =
+				mirror && sort === 'id' && (query['player_white'] || query['player_black'])
+					? await this.getMirrorPage(search, mirrorSearch, order, limit, offset)
+					: await dbQuery.clone().limit(limit).offset(offset).execute();
 
 			return {
 				items: result || [],

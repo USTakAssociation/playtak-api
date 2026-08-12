@@ -76,11 +76,13 @@ describe('GamesService', () => {
 			expect(search['id']._type).toEqual('in');
 			expect(mirrorSearch).toStrictEqual({});
 		});
+		// A name without % is matched by equality on both the main and the mirror side.
+		// LIKE is not index-usable on these columns, so wrapping a plain name turns the
+		// search into a full table scan.
 		it('Should return the correct values for player white and empty for mirror', () => {
 			const mockQuery = { player_white: 'bcreature', mirror: 'false' };
 			const { search, mirrorSearch } = service.generateSearchQuery(mockQuery);
-			expect(search['player_white']._value).toEqual('bcreature');
-			expect(search['player_white']._type).toEqual('like');
+			expect(search['player_white']).toEqual('bcreature');
 			expect(mirrorSearch).toStrictEqual({});
 		});
 
@@ -90,10 +92,8 @@ describe('GamesService', () => {
 				mirror: 'true'
 			};
 			const { search, mirrorSearch } = service.generateSearchQuery(mockQuery);
-			expect(search['player_black']._value).toEqual('bcreature');
-			expect(search['player_black']._type).toEqual('like');
-			expect(mirrorSearch['player_white']._value).toEqual('bcreature');
-			expect(mirrorSearch['player_white']._type).toEqual('like');
+			expect(search['player_black']).toEqual('bcreature');
+			expect(mirrorSearch['player_white']).toEqual('bcreature');
 		});
 
 		it('Should return the correct values for player white and empty for mirror', () => {
@@ -102,12 +102,29 @@ describe('GamesService', () => {
 				mirror: 'true'
 			};
 			const { search, mirrorSearch } = service.generateSearchQuery(mockQuery);
-			expect(search['player_white']._value).toEqual('bcreature');
-			expect(search['player_white']._type).toEqual('like');
+			expect(search['player_white']).toEqual('bcreature');
 			expect(search['date']._value).toEqual('1461430800000');
 			expect(search['date']._type).toEqual('moreThan');
-			expect(mirrorSearch['player_black']._value).toEqual('bcreature');
+			expect(mirrorSearch['player_black']).toEqual('bcreature');
+		});
+
+		// ... but an explicit % is still a pattern, on both sides.
+		it('Should keep a wildcard player term as LIKE on both sides', () => {
+			const mockQuery = { player_white: '%creature', mirror: 'true' };
+			const { search, mirrorSearch } = service.generateSearchQuery(mockQuery);
+			expect(search['player_white']._value).toEqual('%creature');
+			expect(search['player_white']._type).toEqual('like');
+			expect(mirrorSearch['player_black']._value).toEqual('%creature');
 			expect(mirrorSearch['player_black']._type).toEqual('like');
+		});
+
+		it('Should use equality on both sides for a head-to-head mirror search', () => {
+			const mockQuery = { player_white: 'bcreature', player_black: 'invaderb', mirror: 'true' };
+			const { search, mirrorSearch } = service.generateSearchQuery(mockQuery);
+			expect(search['player_white']).toEqual('bcreature');
+			expect(search['player_black']).toEqual('invaderb');
+			expect(mirrorSearch['player_white']).toEqual('invaderb');
+			expect(mirrorSearch['player_black']).toEqual('bcreature');
 		});
 
 		it('Should return the correct values for normal', () => {
