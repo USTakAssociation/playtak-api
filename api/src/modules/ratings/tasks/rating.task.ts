@@ -14,15 +14,21 @@ export class RatingTask implements OnModuleInit {
 
 	onModuleInit() {
 		this.logger.log('Rating task initialized');
-		if (process.env.RATING_CRON_VALUE) {
-			const job = new CronJob(process.env.RATING_CRON_VALUE, () => {
-				// What you want to do here
-				this.handleTask();
-			});
-
-			this.schedulerRegistry.addCronJob('RatingTask', job);
-			job.start();
+		if (!process.env.RATING_CRON_VALUE) {
+			return;
 		}
+
+		if (this.schedulerRegistry.doesExist('cron', 'RatingTask')) {
+			this.logger.warn('Rating task already registered; skipping duplicate cron registration');
+			return;
+		}
+
+		const job = new CronJob(process.env.RATING_CRON_VALUE, () => {
+			this.handleTask();
+		});
+
+		this.schedulerRegistry.addCronJob('RatingTask', job);
+		job.start();
 	}
 	// * * * * * *
 	// | | | | | |

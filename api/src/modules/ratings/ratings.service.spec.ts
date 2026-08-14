@@ -5,6 +5,7 @@ import { RatingService } from './ratings.service';
 import { Players } from './entities/players.entity';
 import { Games } from '../games-history/entities/games.entity';
 import { Player } from '../dto/players/player.dto';
+import { RatingTask } from './tasks/rating.task';
 
 describe('RatingService', () => {
 	let service: RatingService;
@@ -82,6 +83,23 @@ describe('RatingService', () => {
 
 	it('should be defined', () => {
 		expect(service).toBeDefined();
+	});
+
+	describe('RatingTask', () => {
+		it('should not register a duplicate cron job', () => {
+			const mockService = { generateRating: jest.fn() } as any;
+			const schedulerRegistry = {
+				doesExist: jest.fn().mockReturnValue(true),
+				addCronJob: jest.fn()
+			} as any;
+			process.env.RATING_CRON_VALUE = '0 * * * * *';
+
+			const task = new RatingTask(mockService, schedulerRegistry);
+			task.onModuleInit();
+
+			expect(schedulerRegistry.doesExist).toHaveBeenCalledWith('cron', 'RatingTask');
+			expect(schedulerRegistry.addCronJob).not.toHaveBeenCalled();
+		});
 	});
 
 	describe('Adjust Player', () => {
