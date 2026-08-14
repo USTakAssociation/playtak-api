@@ -416,6 +416,8 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 					}
 				}
 				temp = temp.replaceAll("[\\n\\r]+$", "");
+				// mark client active on any received message (not just PING)
+				updateLastActivity();
 
 				if (temp.equals("quit")) {
 					break;
