@@ -25,16 +25,6 @@ func wsAddr(t *testing.T) string {
 	return "localhost:9999"
 }
 
-// httpAddr returns the HTTP API address of the server under test.
-// Defaults to localhost:9998 if TAK_HTTP_ADDR is not set.
-func httpAddr(t *testing.T) string {
-	t.Helper()
-	if addr := os.Getenv("TAK_HTTP_ADDR"); addr != "" {
-		return addr
-	}
-	return "localhost:9998"
-}
-
 // testUser returns credentials for a pre-seeded test account.
 // Accounts must be created with scripts/development/add_user.sh before running tests.
 // All accounts use the password "password".

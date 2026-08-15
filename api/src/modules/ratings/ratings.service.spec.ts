@@ -1,37 +1,38 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { vi } from 'vitest';
+import { Player } from '../dto/players/player.dto';
+import { Games } from '../games-history/entities/games.entity';
+import { Players } from './entities/players.entity';
 import { Ratings } from './entities/ratings.entity';
 import { RatingService } from './ratings.service';
-import { Players } from './entities/players.entity';
-import { Games } from '../games-history/entities/games.entity';
-import { Player } from '../dto/players/player.dto';
 import { RatingTask } from './tasks/rating.task';
 
 describe('RatingService', () => {
 	let service: RatingService;
 
 	const mockRepo = {
-		findAndCount: jest.fn().mockImplementation(() => [[{ sn: '1234' }], 1]),
-		findOne: jest.fn(),
-		findByIds: jest.fn(),
-		find: jest.fn(),
-		save: jest.fn(),
-		update: jest.fn(),
-		delete: jest.fn(),
-		createQueryBuilder: jest.fn(() => ({
-			select: () => jest.fn(),
-			where: () => jest.fn(),
-			orWhere: () => jest.fn(),
-			from: () => jest.fn(),
-			whereInIds: () => jest.fn(),
-			orderBy: () => jest.fn(),
-			groupBy: () => jest.fn(),
-			delete: () => jest.fn(),
-			execute: () => jest.fn()
+		findAndCount: vi.fn().mockImplementation(() => [[{ sn: '1234' }], 1]),
+		findOne: vi.fn(),
+		findByIds: vi.fn(),
+		find: vi.fn(),
+		save: vi.fn(),
+		update: vi.fn(),
+		delete: vi.fn(),
+		createQueryBuilder: vi.fn(() => ({
+			select: () => vi.fn(),
+			where: () => vi.fn(),
+			orWhere: () => vi.fn(),
+			from: () => vi.fn(),
+			whereInIds: () => vi.fn(),
+			orderBy: () => vi.fn(),
+			groupBy: () => vi.fn(),
+			delete: () => vi.fn(),
+			execute: () => vi.fn()
 		})),
 		manager: {
 			connection: {
-				transaction: jest.fn()
+				transaction: vi.fn()
 			}
 		}
 	};
@@ -87,10 +88,10 @@ describe('RatingService', () => {
 
 	describe('RatingTask', () => {
 		it('should not register a duplicate cron job', () => {
-			const mockService = { generateRating: jest.fn() } as any;
+			const mockService = { generateRating: vi.fn() } as any;
 			const schedulerRegistry = {
-				doesExist: jest.fn().mockReturnValue(true),
-				addCronJob: jest.fn()
+				doesExist: vi.fn().mockReturnValue(true),
+				addCronJob: vi.fn()
 			} as any;
 			process.env.RATING_CRON_VALUE = '0 * * * * *';
 

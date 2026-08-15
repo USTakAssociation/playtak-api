@@ -45,7 +45,7 @@ func TestClockProtocol0UsesTimeInSeconds(t *testing.T) {
 	if whiteTime > 700 || whiteTime < 500 {
 		t.Errorf("white time in seconds should be near 600, got %d", whiteTime)
 	}
-	
+
 	// clean up active games so the test doesn't leave a dangling game
 	client.CleanupActiveGames(t, c1, gameID)
 }
@@ -214,20 +214,39 @@ func TestClockGiveTimeUpdatesClockMessage(t *testing.T) {
 	c2.DrainUntil(fmt.Sprintf("Game#%d P A1", gameID))
 	c2.Send(fmt.Sprintf("Game#%d P A2", gameID))
 	c2.DrainUntil("OK")
-	// Drain the time update
-	c1.DrainUntil(fmt.Sprintf("Game#%d Timems", gameID))
+	// Drain the time update and capture black's time before giving time
+	timeBeforeMsg := c1.DrainUntil(fmt.Sprintf("Game#%d Timems", gameID))
 	c1.DrainUntil(fmt.Sprintf("Game#%d P A2", gameID))
 
-	// Capture black's time before giving time
+	// Parse black's time (field 3, which is c2's clock)
+	parts := strings.Fields(timeBeforeMsg)
+	if len(parts) < 4 {
+		t.Fatalf("not enough fields in initial Timems: %q", timeBeforeMsg)
+	}
+	blackTimeBefore, err := strconv.ParseInt(parts[3], 10, 64)
+	if err != nil {
+		t.Fatalf("could not parse black time: %v", err)
+	}
+
 	c1.Send(fmt.Sprintf("Game#%d GiveTime", gameID))
 	c1.DrainUntil(fmt.Sprintf("Game#%d GivenTime", gameID))
 	c2.DrainUntil(fmt.Sprintf("Game#%d GivenTime", gameID))
 
 	// A fresh Timems should follow showing the updated time
-	timeMsg := c1.DrainUntil(fmt.Sprintf("Game#%d Timems", gameID))
-	parts := strings.Fields(timeMsg)
-	if len(parts) < 4 {
-		t.Fatalf("not enough fields in Timems after GiveTime: %q", timeMsg)
+	timeAfterMsg := c1.DrainUntil(fmt.Sprintf("Game#%d Timems", gameID))
+	partsAfter := strings.Fields(timeAfterMsg)
+	if len(partsAfter) < 4 {
+		t.Fatalf("not enough fields in Timems after GiveTime: %q", timeAfterMsg)
+	}
+	blackTimeAfter, err := strconv.ParseInt(partsAfter[3], 10, 64)
+	if err != nil {
+		t.Fatalf("could not parse black time after GiveTime: %v", err)
+	}
+
+	// Verify black's time increased by approximately 15,000 ms (with reasonable tolerance)
+	timeDiff := blackTimeAfter - blackTimeBefore
+	if timeDiff < 14000 || timeDiff > 16000 {
+		t.Errorf("black time should increase by ~15000ms after GiveTime, got %dms", timeDiff)
 	}
 	// clean up active games so the test doesn't leave a dangling game
 	client.CleanupActiveGames(t, c1, gameID)

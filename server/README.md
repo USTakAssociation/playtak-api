@@ -67,6 +67,7 @@ A http server is running on `porthttp`, allowing the creation of tournament seek
 Details need to be filled in here. Until then, please see [TakServer.java](./src/main/java/tak/TakServer.java) for details.
 
 ### HTTP API
+
 ||URL|Body|Return|Comment|
 |-|-|-|-|-|
 |PUT|/api/v1/seeks|[SeekDto](./src/main/java/tak/SeekDto.java) without `id`|[SeekDto](./src/main/java/tak/SeekDto.java)|Creates a seek|
@@ -121,8 +122,8 @@ Komi is given in half flats as an integer from 0 to 8, denoting komis from +0.0 
 
 | Commands to server | Description|
 |--------------|------------------|
-| PING | Pings to inform server that the client is alive. Recommended ping spacing is 30 seconds. Server may disconnect clients if pings are not received | quit | Sent by client to indicate it is going to quit. Server removes all seeks, abandons (which loses) game if any |
-| quit | Closes the connection
+| PING | Pings to inform server that the client is alive. Recommended ping spacing is 30 seconds. Server may disconnect clients if pings are not received |
+| quit | Sent by client to indicate it is going to quit. Server removes all seeks, abandons (which loses) game if any |
 
 #### Pre Authentication Messages
 
@@ -134,21 +135,21 @@ Komi is given in half flats as an integer from 0 to 8, denoting komis from +0.0 
 | Login **username password**| Login with the username and password|
 | Login Guest| Login as a guest|
 | Login Guest **token**| Login as a guest and set a token for rejoining, use the same token within 4 hours of last activity to continue using the same guest account. The token must be a cryptographically random composition of 20 lower-case letters|
-| SendResetToken **username** **email** | Request a token to the email to change a forgotten password with
-| ResetPassword **username** **token** **new_password** | Change password using token
+| SendResetToken **username** **email** | Request a token to the email to change a forgotten password with |
+| ResetPassword **username** **token** **new_password** | Change password using token |
 
 
 #### Post Authentication Messages
 
 | Commands to server| Description|
 |--------------|------------------|
-| ChangePassword **old_password** **new_password** | Change password while logged in
+| ChangePassword **old_password** **new_password** | Change password while logged in |
 | Seek **size** **time** **incr** **W/B** | V1 Seeks a game of board size **size** with time per player **time** specified in seconds, increment per move **incr** specified in seconds and an optional choice of color **W** for white, **B** for black |
 | Seek **size** **time** **incr** **W/B/A** **komi** **pieces** **capstones** **unrated** **tournament** **opponent**| V2 Seeks a game, **A** is now used for random color, adding options for **komi** and custom piece counts, **unrated** and **tournament** are flags (either *1* or *0*), **opponent** is the name of the opponent allowed to join, blank to allow anyone to join  |
 | Seek **size** **time** **incr** **W/B/A** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **opponent** | V3 Seeks a game, **extra_time_amount** is extra time to add when move trigger is hit, **extra_time_trigger** is the move number on when to add the extra time to clock|
-| Seek **size** **time** **incr** **scale_increment** **W/B/A** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **opponent** | V4 Seeks a game, **scale_increment** is a flag (either *1* or *0*), if set, the increment is scaled by the move count (1-indexed) |
-|Rematch **game_id** **size** **time** **increment** **new_color** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **opponent** |V1 The client can send the rematch command using the last game id and previous game parameters, which creates a new seek with a rematch ID using the passed in game ID, so if both players send a rematch the server will send an "Accept Rematch **seek_id**" to the player that last sent the rematch command to accept the seek using the **seek_id**
-|Rematch **game_id** **size** **time** **increment** **scale_increment** **new_color** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **opponent** |V2 of Rematch command, adds **scale_increment**
+| Seek **size** **time** **incr** **scale_increment** **W/B/A** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **opening** **opponent** | V4 Seeks a game, **scale_increment** is a flag (either *1* or *0*), if set, the increment is scaled by the move count (1-indexed), **opening** is the opening variant code before the opponent, accepted values are **0** = swap and **1** = double black stack |
+|Rematch **game_id** **size** **time** **increment** **new_color** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **opponent** |V1 The client can send the rematch command using the last game id and previous game parameters, which creates a new seek with a rematch ID using the passed in game ID, so if both players send a rematch the server will send an "Accept Rematch **seek_id**" to the player that last sent the rematch command to accept the seek using the **seek_id** |
+|Rematch **game_id** **size** **time** **increment** **scale_increment** **new_color** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **opening** **opponent** |V2 of Rematch command, adds **scale_increment** and **opening**; **opening** is the opening variant code before the opponent, accepted values are **0** = swap and **1** = double black stack |
 | Accept **id**| Accepts the seek with the number **id**|
 | Game#**id** P **Sq** C\|W|Sends a 'Place' move to the specified game id. The optional suffix 'C' or 'W' denote if it is a capstone or a wall (standing stone)|
 | Game#**id** M **Sq1** **Sq2** **no1** **no2**... | Sends a 'Move' move to the specified game id. **Sq1** is beginning square, **Sq2** is ending square, **no1**, **no2**, **no3**.. are the number of pieces dropped in the in-between squares (including the last square)|
@@ -159,11 +160,11 @@ Komi is given in half flats as an integer from 0 to 8, denoting komis from +0.0 
 | Game#**id** Show **Sq** | Prints the position in the specified square |
 | Game#**id** RequestUndo | Requests the other player to undo the last move or accept the other player's undo request |
 | Game#**id** RemoveUndo | Removes your undo request|
-| Game#**id** GiveTime | Give opponent a flat amount of time |
+| Game#**id** GiveTime | Give the opponent 15 seconds of time |
 | List | Request list of seeks |
 | GameList | Request list of games in progress |
 | Observe **id** | Observe the specified game. Server sends the game moves and clock info |
-| Unobserve **id** | Unobserve the specified game 
+| Unobserve **id** | Unobserve the specified game |
 | Shout **text** | Send message **text** to all logged in players |
 | JoinRoom **room** | Join the room **room** |
 | ShoutRoom **room** **text** | Send test to players in room **room** |
@@ -171,27 +172,29 @@ Komi is given in half flats as an integer from 0 to 8, denoting komis from +0.0 
 | Tell **player** **text** | Send private message **text** to **player** |
 
 #### Moderator/Admin Commands
+
 | Commands to server| Description|
 |--------------|------------------|
-| sudo gag **user** | Prevent **user** from using chat
-| sudo ungag **user** | Allow **user** to use chat again
-| sudo ban **user** | Ban **user**
-| sudo unban **user** | Unban **user**
-| sudo kick **user** | Disconnect **user**
-| sudo list **gag\|ban\|mod\|admin\|online** | List group of users
+| sudo gag **user** | Prevent **user** from using chat |
+| sudo ungag **user** | Allow **user** to use chat again |
+| sudo ban **user** | Ban **user** |
+| sudo unban **user** | Unban **user** |
+| sudo kick **user** | Disconnect **user** |
+| sudo list **gag\|ban\|mod\|admin\|online** | List group of users |
 
 #### Admin only commands
+
 | Commands to server| Description|
 |--------------|------------------|
-| sudo set password **user** **new_password**| Set password for user
-| sudo reload wordconfig | Reloads word filter
-| sudo mod **user** | Make user a mod
-| sudo unmod **user** | Remove user as mod
-| sudo admin **user** | Make user an admin
-| sudo unadmin **user** | Remove user as admin
-| sudo bot **user** | Mark user as bot
-| sudo unbot **user** | Unmark user as bot
-| sudo broadcast **msg** | Broadcast message to every client, msg is sent as is to clients, not to be confused by the "Message" message sent by the server
+| sudo set password **user** **new_password**| Set password for user |
+| sudo reload wordconfig | Reloads word filter |
+| sudo mod **user** | Make user a mod |
+| sudo unmod **user** | Remove user as mod |
+| sudo admin **user** | Make user an admin |
+| sudo unadmin **user** | Remove user as admin |
+| sudo bot **user** | Mark user as bot |
+| sudo unbot **user** | Unmark user as bot |
+| sudo broadcast **msg** | Broadcast message to every client, msg is sent as is to clients, not to be confused by the "Message" message sent by the server |
 
 
 ### Server to Client Communication
@@ -200,82 +203,84 @@ The server to client messages and their format is as below.
 
 #### Authentication
 
-|Messages from server|Description|Protocol Version
+|Messages from server|Description|Protocol Version |
 |--------------------|-----------|-----------|
-|Welcome! |Just a welcome message when connected to server|>= 0
-|Login or Register |Login with username/password or login as guest or register after this message|>= 0
-|Registered **name**. check your email for password | Sent on successful registration | >= 0
-|Reset token sent | Successfully sent reset token | >= 0 
-|Password is changed | Password successfully changed (when changed with token) | >= 0
-|Password changed | Password successfully changed (when changed after login) | >= 0
-|Welcome **name**! |A welcome message indicating that you've logged in as **name**|>= 0
-|Is Mod |Sent on login if user is a moderator or admin|>= 0
+|Welcome! |Just a welcome message when connected to server|>= 0 |
+|Login or Register |Login with username/password or login as guest or register after this message|>= 0 |
+|Registered **name**. check your email for password | Sent on successful registration | >= 0 |
+|Reset token sent | Successfully sent reset token | >= 0 |
+|Password is changed | Password successfully changed (when changed with token) | >= 0 |
+|Password changed | Password successfully changed (when changed after login) | >= 0 |
+|Welcome **name**! |A welcome message indicating that you've logged in as **name**|>= 0 |
+|Is Mod |Sent on login if user is a moderator or admin|>= 0 |
 
 
 #### Game Activity
-|Messages from server|Description|Protocol Version
+
+|Messages from server|Description|Protocol Version |
 |--------------------|-----------|-----------|
-|GameList Add **id** **player_white** **player_black** **size** **original_time** **incr** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** |Notifies client that a game has started (which the client can observe if it wants)|0 - 3
-|GameList Remove **id** **player_white** **player_black** **size** **original_time** **incr** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** |Notifies client that the game has ended|0 - 3
-|GameList Add **id** **player_white** **player_black** **size** **original_time** **incr** **scale_increment** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** |As the protocol 0-3 `GameList Add` but with the **scale_increment** flag immediately after **incr**|>= 4
-|GameList Remove **id** **player_white** **player_black** **size** **original_time** **incr** **scale_increment** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** |As the protocol 0-3 `GameList Remove` but with the **scale_increment** flag immediately after **incr**|>= 4
-|Seek new **id** **name** **boardsize** **time** **increment** **W/B/A** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **opponent** |There is a new seek with seek id **id** posted by **name** with board size **boardsize** with **time** seconds for each player. W, B or A denotes the color of the seeker, **opponent** is the name of the player allowed to join, blank to let anyone join | <= 1
-|Seek remove **id** **name** **boardsize** **time** **increment** **W/B/A** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **opponent** |Existing seek id **id** is removed (either the client has joined another game or has changed his seek or has quit)|<= 1
-|Seek new **id** **name** **boardsize** **time** **increment** **W/B/A** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **opponent** **is_bot**  |There is a new seek with seek id **id** posted by **name** with board size **boardsize** with **time** seconds for each player. W, B or A denotes the color of the seeker, **opponent** is the name of the player allowed to join, 0 to let anyone join, **is_bot** is 1 if created by a bot or 0 if not | 2 - 3
-|Seek remove **id** **name** **boardsize** **time** **increment** **W/B/A** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **opponent** **is_bot** |Existing seek id **id** is removed (either the client has joined another game or has changed his seek or has quit)| 2 - 3
-|Seek new **id** **name** **boardsize** **time** **increment** **scale_increment** **W/B/A** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **opponent** **is_bot**  |There is a new seek with seek id **id** posted by **name** with board size **boardsize** with **time** seconds for each player. W, B or A denotes the color of the seeker, **opponent** is the name of the player allowed to join, 0 to let anyone join, **scale_increment** is 1 if increment scales by move count or 0 if not | >= 4
-|Seek remove **id** **name** **boardsize** **time** **increment** **scale_increment** **W/B/A** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **opponent** **is_bot** |Existing seek id **id** is removed (either the client has joined another game or has changed his seek or has quit)| >= 4
-|Game Start **id** **size** **player_white** vs **player_black** **your_color** **time** **komi** **pieces** **capstones** **extra_time_trigger** **extra_time_amount** |Notifies client to start a game. The game id. being **id**, players' names being **white_player**, **black_player** and **your_color** being your color which could be either "white" or "black"| <= 1
-|Game Start **id** **player_white** vs **player_black** **your color** **size** **time** **increment** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **is_bot** |Notifies client to start a game. The game id. being **id**, players' names being **white_player**, **black_player** and **your_color** being your color which could be either "white" or "black", **is_bot** is 1 if at least one of the players is a bot, otherwise 0 | 2 - 3
-|Game Start **id** **player_white** vs **player_black** **your color** **size** **time** **increment** **scale_increment** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **is_bot** |Notifies client to start a game. The game id. being **id**, players' names being **white_player**, **black_player** and **your_color** being your color which could be either "white" or "black", **scale_increment** is 1 if increment scales with movecount, otherwise 0 | >= 4
-|Observe **id** **player_white** **player_black** **size** **original_time** **incr** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount**| Start observing the game **id** of board size **size** with original time setting of **original_time** seconds| 0 - 3
-|Observe **id** **player_white** **player_black** **size** **original_time** **incr** **scale_increment** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount**| As the protocol 0-3 `Observe` but with the **scale_increment** flag immediately after **incr**| >= 4
-|Accept Rematch **id** | Server tells the client to attempt to accept seek with id **id**| >= 0
-|Rematch seek created with ID: **id** | Server has created rematch seek for you | >= 0
+|GameList Add **id** **player_white** **player_black** **size** **original_time** **incr** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** |Notifies client that a game has started (which the client can observe if it wants)|0 - 3 |
+|GameList Remove **id** **player_white** **player_black** **size** **original_time** **incr** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** |Notifies client that the game has ended|0 - 3 |
+|GameList Add **id** **player_white** **player_black** **size** **original_time** **incr** **scale_increment** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **opening** |As the protocol 0-3 `GameList Add` but with the **scale_increment** flag immediately after **incr** and the trailing **opening** code in protocol 4|>= 4 |
+|GameList Remove **id** **player_white** **player_black** **size** **original_time** **incr** **scale_increment** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **opening** |As the protocol 0-3 `GameList Remove` but with the **scale_increment** flag immediately after **incr** and the trailing **opening** code in protocol 4|>= 4 |
+|Seek new **id** **name** **boardsize** **time** **increment** **W/B/A** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **opponent** |There is a new seek with seek id **id** posted by **name** with board size **boardsize** with **time** seconds for each player. W, B or A denotes the color of the seeker, **opponent** is the name of the player allowed to join, blank to let anyone join | <= 1 |
+|Seek remove **id** **name** **boardsize** **time** **increment** **W/B/A** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **opponent** |Existing seek id **id** is removed (either the client has joined another game or has changed his seek or has quit)|<= 1 |
+|Seek new **id** **name** **boardsize** **time** **increment** **W/B/A** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **opponent** **is_bot**  |There is a new seek with seek id **id** posted by **name** with board size **boardsize** with **time** seconds for each player. W, B or A denotes the color of the seeker, **opponent** is the name of the player allowed to join, 0 to let anyone join, **is_bot** is 1 if created by a bot or 0 if not | 2 - 3 |
+|Seek remove **id** **name** **boardsize** **time** **increment** **W/B/A** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **opponent** **is_bot** |Existing seek id **id** is removed (either the client has joined another game or has changed his seek or has quit)| 2 - 3 |
+|Seek new **id** **name** **boardsize** **time** **increment** **scale_increment** **W/B/A** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **opponent** **is_bot** **opening**  |There is a new seek with seek id **id** posted by **name** with board size **boardsize** with **time** seconds for each player. W, B or A denotes the color of the seeker, **opponent** is the name of the player allowed to join, 0 to let anyone join, **scale_increment** is 1 if increment scales by move count or 0 if not, **opening** is 0 for swap or 1 for double black stack | >= 4 |
+|Seek remove **id** **name** **boardsize** **time** **increment** **scale_increment** **W/B/A** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **opponent** **is_bot** **opening** |Existing seek id **id** is removed (either the client has joined another game or has changed his seek or has quit), **opening** is 0 for swap or 1 for double black stack| >= 4 |
+|Game Start **id** **size** **player_white** vs **player_black** **your_color** **time** **komi** **pieces** **capstones** **extra_time_trigger** **extra_time_amount** |Notifies client to start a game. The game id. being **id**, players' names being **white_player**, **black_player** and **your_color** being your color which could be either "white" or "black"| <= 1 |
+|Game Start **id** **player_white** vs **player_black** **your color** **size** **time** **increment** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **is_bot** |Notifies client to start a game. The game id. being **id**, players' names being **white_player**, **black_player** and **your_color** being your color which could be either "white" or "black", **is_bot** is 1 if at least one of the players is a bot, otherwise 0 | 2 - 3 |
+|Game Start **id** **player_white** vs **player_black** **your color** **size** **time** **increment** **scale_increment** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **is_bot** **opening** |Notifies client to start a game. The game id. being **id**, players' names being **white_player**, **black_player** and **your_color** being your color which could be either "white" or "black", **scale_increment** is 1 if increment scales with movecount, otherwise 0, **opening** is 0 for swap or 1 for double black stack | >= 4 |
+|Observe **id** **player_white** **player_black** **size** **original_time** **incr** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount**| Start observing the game **id** of board size **size** with original time setting of **original_time** seconds| 0 - 3 |
+|Observe **id** **player_white** **player_black** **size** **original_time** **incr** **scale_increment** **komi** **pieces** **capstones** **unrated** **tournament** **extra_time_trigger** **extra_time_amount** **opening**| As the protocol 0-3 `Observe` but with the **scale_increment** flag immediately after **incr** and the trailing **opening** code in protocol 4| >= 4 |
+|Accept Rematch **id** | Server tells the client to attempt to accept seek with id **id**| >= 0 |
+|Rematch seek created with ID: **id** | Server has created rematch seek for you | >= 0 |
 
 
 #### In Game
-|Messages from server|Description|Protocol Version
+
+|Messages from server|Description|Protocol Version |
 |--------------------|-----------|-----------|
-|Game#**id** P **Sq** C\|W|The 'Place' move played by the other player in game number **id**. The format is same as the command from client to server|>= 0
-|Game#**id** M **Sq1** **Sq2** **no1** **no2**...|The 'Move' move played by the other player in game number **id**. The format is same as the command from client to server|>= 0
-|Game#**id** Time **whitetime** **blacktime** |Update the clock with the time specified for white and black players, time given in seconds| = 0
-|Game#**id** Timems **whitetime** **blacktime** |Update the clock with the time specified for white and black players, time given in milliseconds| >= 1
-|Game#**id** Over **result**|Game number **id** is over. **result** is one of *R-0*, *0-R*, *F-0*, *0-F*, *1/2-1/2*| >= 0
-|Game#**id** OfferDraw |Indicates the opponent has offered a draw|>= 0
-|Game#**id** RemoveDraw |Indicates your opponent has taken back his offer to draw|>= 0
-|Game#**id** RequestUndo |Request from opponent to undo the last move|>= 0
-|Game#**id** RemoveUndo |Opponent removes his undo request|>= 0
-|Game#**id** GivenTime **color** **amount** | The server has given a player **amount** time, in ms. **color** is either *white* or *black* | >= 0
-|Game#**id** Undo |Undo the last move. Client is supposed to keep track of previous board states and undo to the last state.|>= 0
-|Game#**id** Abandoned. **player** quit|Game number **id** is abandoned by **player** as they quit. Clients can treat this as resign.|>= 0
+|Game#**id** P **Sq** C\|W|The 'Place' move played by the other player in game number **id**. The format is same as the command from client to server|>= 0 |
+|Game#**id** M **Sq1** **Sq2** **no1** **no2**...|The 'Move' move played by the other player in game number **id**. The format is same as the command from client to server|>= 0 |
+|Game#**id** Time **whitetime** **blacktime** |Update the clock with the time specified for white and black players, time given in seconds| = 0 |
+|Game#**id** Timems **whitetime** **blacktime** |Update the clock with the time specified for white and black players, time given in milliseconds| >= 1 |
+|Game#**id** Over **result**|Game number **id** is over. **result** is one of *R-0*, *0-R*, *F-0*, *0-F*, *1/2-1/2*| >= 0 |
+|Game#**id** OfferDraw |Indicates the opponent has offered a draw|>= 0 |
+|Game#**id** RemoveDraw |Indicates your opponent has taken back his offer to draw|>= 0 |
+|Game#**id** RequestUndo |Request from opponent to undo the last move|>= 0 |
+|Game#**id** RemoveUndo |Opponent removes his undo request|>= 0 |
+|Game#**id** GivenTime **color** **amount** | The server has given a player **amount** time, in ms. **color** is either *white* or *black* | >= 0 |
+|Game#**id** Undo |Undo the last move. Client is supposed to keep track of previous board states and undo to the last state.|>= 0 |
+|Game#**id** Abandoned. **player** quit|Game number **id** is abandoned by **player** as they quit. Clients can treat this as resign.|>= 0 |
 
 
 #### Chat
 
-|Messages from server|Description|Protocol Version
+|Messages from server|Description|Protocol Version |
 |--------------------|-----------|-----------|
-|Shout \<**player**\> **text** |Chat message **text** from **player** (angle brackets are included)|>= 0
-|Joined room **room** |Indicates you've joined the room **room**|>= 0
-|ShoutRoom **room** \<**player**\> **text** |Message **text** from **player** to chat room **room** (angle brackets are included)|>= 0
-|Tell \<**player**\> **text** |Private chat message **text** from **player** (angle brackets are included)|>= 0
-|Told \<**player**\> **text** |Confirmation that your message is sent to **player**. You'll receive this even if **player** is not logged in (angle brackets are included) |>= 0
+|Shout \<**player**\> **text** |Chat message **text** from **player** (angle brackets are included)|>= 0 |
+|Joined room **room** |Indicates you've joined the room **room**|>= 0 |
+|ShoutRoom **room** \<**player**\> **text** |Message **text** from **player** to chat room **room** (angle brackets are included)|>= 0 |
+|Tell \<**player**\> **text** |Private chat message **text** from **player** (angle brackets are included)|>= 0 |
+|Told \<**player**\> **text** |Confirmation that your message is sent to **player**. You'll receive this even if **player** is not logged in (angle brackets are included) |>= 0 |
 
 
 #### Status Messages
 
-|Messages from server|Description|Protocol Version
+|Messages from server|Description|Protocol Version |
 |--------------------|-----------|-----------|
-|Online **count** |**count** players are connected to server|>= 0
-|OnlinePlayers \[**"username"**,...\] | A comma seperated list of usernames connected to the server, does not include bots (quotation marks _are_ included)|>= 0
-|Message **text** | A message from server. Might be used to indicate announcements like name accepted/server going down, etc|>= 0
-|sudoReply **text**| Response to some mod commands | >= 0
-|OK | Indicates previous command is ok. Clients can ignore this. *I might remove this message altogether in future as it serves no real purpose*|>= 0
-|NOK |Indicates the command client send is invalid or unrecognized|>= 0
-|Error: **text** |Generic error message|>= 0
-|Registration Error: **reason** |Registration failed |>= 0
-|Reset Token Error: **reason** | SendResetToken command failed  |>= 0
-|Wrong token | Could not reset password using token, as it was incorrect | >= 0
-|Wrong password | Password was incorrect (sent specifically when trying to change password) | >= 0
-|No such player| sent if command features player that does not exist | >= 0
-|Authentication Failure | Authentication failed |>= 0
+|Online **count** |**count** players are connected to server|>= 0 |
+|OnlinePlayers \[**"username"**,...\] | A comma seperated list of usernames connected to the server, does not include bots (quotation marks _are_ included)|>= 0 |
+|Message **text** | A message from server. Might be used to indicate announcements like name accepted/server going down, etc|>= 0 |
+|sudoReply **text**| Response to some mod commands | >= 0 |
+|OK | Indicates previous command is ok. Clients can ignore this. *I might remove this message altogether in future as it serves no real purpose*|>= 0 |
+|NOK |Indicates the command client send is invalid or unrecognized|>= 0 |
+|Error: **text** |Generic error message|>= 0 |
+|Registration Error: **reason** |Registration failed |>= 0 |
+|Reset Token Error: **reason** | SendResetToken command failed  |>= 0 |
+|Wrong token | Could not reset password using token, as it was incorrect | >= 0 |
+|Wrong password | Password was incorrect (sent specifically when trying to change password) | >= 0 |
+|No such player| sent if command features player that does not exist | >= 0 |
+|Authentication Failure | Authentication failed |>= 0 |

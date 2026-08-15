@@ -71,7 +71,7 @@ func TestChatToldConfirmationSentToSender(t *testing.T) {
 	c1.DrainUntil(fmt.Sprintf("Told <%s>", u2))
 }
 
-func TestChatTellAngelBracketsInTold(t *testing.T) {
+func TestChatTellAngleBracketsInTold(t *testing.T) {
 	u1, p1 := testUser(t, 1)
 	u2, p2 := testUser(t, 2)
 

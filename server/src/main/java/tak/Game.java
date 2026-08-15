@@ -405,10 +405,17 @@ public class Game implements Publisher<GameUpdate> {
 		}
 	}
 
+	private static int protocolVersionFor(Player p) {
+		if (p == null || p.client == null) {
+			return 0;
+		}
+		return p.client.protocolVersion;
+	}
+
 	void newSpectator(Player p) {
 		gameLock.lock();
 		try {
-			p.send("Observe " + stringForm(p.client.protocolVersion >= 4));
+			p.send("Observe " + stringForm(protocolVersionFor(p) >= 4));
 			sendMoveListTo(p);
 			spectators.add(p);
 			updateTime(p);
@@ -566,7 +573,7 @@ public class Game implements Publisher<GameUpdate> {
 
 	static void sendGameListTo(Player p) {
 		for (Integer no : Game.games.keySet()) {
-			p.sendWithoutLogging("GameList Add " + Game.games.get(no).stringForm(p.client.protocolVersion >= 4));
+			p.sendWithoutLogging("GameList Add " + Game.games.get(no).stringForm(protocolVersionFor(p) >= 4));
 		}
 	}
 
@@ -653,7 +660,7 @@ public class Game implements Publisher<GameUpdate> {
 		String withScale = "GameList " + action + " " + g.stringForm(true);
 		String withoutScale = "GameList " + action + " " + g.stringForm(false);
 		for (Player p : gameListeners) {
-			p.sendWithoutLogging(p.client.protocolVersion >= 4 ? withScale : withoutScale);
+			p.sendWithoutLogging(protocolVersionFor(p) >= 4 ? withScale : withoutScale);
 		}
 	}
 

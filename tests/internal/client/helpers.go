@@ -56,14 +56,12 @@ func LoginGuestWS(t *testing.T, c *WSClient) string {
 }
 
 // LoginUser performs a full named-user login handshake over a telnet Client.
-// Drains until the "Online" message so the caller starts with a clean slate.
 func LoginUser(t *testing.T, c *Client, username, password string) {
 	t.Helper()
 	c.Expect("Welcome!")
 	c.Expect("Login or Register")
 	c.Send(fmt.Sprintf("Login %s %s", username, password))
 	c.ExpectPrefix("Welcome " + username)
-	//c.DrainUntil("Online ")
 }
 
 // LoginUserWS is the WebSocket variant of LoginUser.

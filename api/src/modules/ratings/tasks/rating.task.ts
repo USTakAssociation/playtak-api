@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { SchedulerRegistry } from '@nestjs/schedule';
-import { RatingService } from '../ratings.service';
 import { CronJob } from 'cron';
+import { RatingService } from '../ratings.service';
 
 @Injectable()
 export class RatingTask implements OnModuleInit {

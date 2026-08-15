@@ -62,7 +62,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 	String clientString = "^Client ([A-Za-z-.0-9]{1,60})";
 	Pattern clientPattern;
 
-	String protocolString = "^Protocol ([0-9]{0,8})";
+	String protocolString = "^Protocol ([0-9]{1,8})";
 	Pattern protocolPattern;
 
 	String changePasswordString = "^ChangePassword ([^\n\r\\s]{6,50}) ([^\n\r\\s]{6,50})";
@@ -448,7 +448,11 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 					}
 					// What protocol version is this client using
 					else if ((m = protocolPattern.matcher(temp)).find()) {
-						this.protocolVersion = Integer.parseInt(m.group(1));
+						this.protocolVersion = 0;
+						String protocolValue = m.group(1);
+						if (protocolValue != null && !protocolValue.isEmpty()) {
+							this.protocolVersion = Integer.parseInt(protocolValue);
+						}
 						sendWithoutLogging("OK");
 					}
 					//Login Guest
