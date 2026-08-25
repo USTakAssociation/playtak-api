@@ -92,8 +92,8 @@ func TestProtocolGameListFormatV0to3(t *testing.T) {
 }
 
 func TestProtocolGameListFormatV4(t *testing.T) {
-	// Protocol 4: adds scale_increment field immediately after incr, and
-	// an opening code at the end — 17 fields total.
+	// Protocol 4: adds scale_increment immediately after incr and appends opening
+	// at the end of the protocol-specific GameList Add payload.
 	c1, _, gameID := startGameWithProtocol(t, 4)
 
 	c3 := client.New(t, telnetAddr(t))
@@ -103,12 +103,14 @@ func TestProtocolGameListFormatV4(t *testing.T) {
 	msg := c3.DrainUntil(fmt.Sprintf("GameList Add %d ", gameID))
 
 	parts := strings.Fields(msg)
-	// GameList Add <id> <white> <black> <size> <time> <incr> <scale_increment>
-	// <komi> <pieces> <capstones> <unrated> <tournament> <extra_trigger>
-	// <extra_amount> <opening>
-	// = 17 fields total
 	if len(parts) != 17 {
 		t.Errorf("protocol 4 GameList Add should have 17 fields, got %d: %q", len(parts), msg)
+	}
+	if got, want := parts[8], "1"; got != want {
+		t.Errorf("protocol 4 GameList Add scale_increment should be %q at index 8, got %q in %q", want, got, msg)
+	}
+	if got, want := parts[16], "1"; got != want {
+		t.Errorf("protocol 4 GameList Add opening should be %q at index 16, got %q in %q", want, got, msg)
 	}
 	client.CleanupActiveGames(t, c1, gameID)
 }
@@ -139,6 +141,7 @@ func TestProtocolGameStartFormatV0and1(t *testing.T) {
 	if parts[0] != "Game" || parts[1] != "Start" {
 		t.Errorf("expected 'Game Start ...', got %q", gs)
 	}
+	client.CleanupActiveGames(t, c, parseGameID(t, gs))
 }
 
 func TestProtocolGameStartFormatV2and3(t *testing.T) {
@@ -165,11 +168,11 @@ func TestProtocolGameStartFormatV2and3(t *testing.T) {
 	if len(parts) != 18 {
 		t.Errorf("protocol 2-3 Game Start should have 18 fields, got %d: %q", len(parts), gs)
 	}
+	client.CleanupActiveGames(t, c, parseGameID(t, gs))
 }
 
 func TestProtocolGameStartFormatV4(t *testing.T) {
-	// Protocol 4: adds scale_increment after incr, and opening code at end.
-	// = 20 fields total
+	// Protocol 4: adds scale_increment after incr and appends the opening code.
 	c := client.New(t, telnetAddr(t))
 	c2 := client.New(t, telnetAddr(t))
 	client.SetProtocol(t, c, 4)
@@ -177,19 +180,22 @@ func TestProtocolGameStartFormatV4(t *testing.T) {
 	client.SetProtocol(t, c2, 4)
 	client.LoginGuestAfterProtocol(t, c2)
 
-	seekID := postSeek(t, c, 5, 600, 30)
+	seekID, _ := postSeekV4(t, c, 5, 600, 30, 1, 1)
 	c2.Send(fmt.Sprintf("Accept %d", seekID))
 
 	gs := c.DrainUntil("Game Start ")
 	parts := strings.Fields(gs)
 
-	// "Game Start <id> <white> vs <black> <color> <size> <time> <incr>
-	//  <scale_increment> <komi> <pieces> <capstones> <unrated> <tournament>
-	//  <extra_trigger> <extra_amount> <is_bot> <opening>"
-	// = 20 fields
 	if len(parts) != 20 {
 		t.Errorf("protocol 4 Game Start should have 20 fields, got %d: %q", len(parts), gs)
 	}
+	if got, want := parts[10], "1"; got != want {
+		t.Errorf("protocol 4 Game Start scale_increment should be %q at index 10, got %q in %q", want, got, gs)
+	}
+	if got, want := parts[19], "1"; got != want {
+		t.Errorf("protocol 4 Game Start opening should be %q at index 19, got %q in %q", want, got, gs)
+	}
+	client.CleanupActiveGames(t, c, parseGameID(t, gs))
 }
 
 // ---- Protocol version affects Seek new/remove format ----
@@ -229,18 +235,19 @@ func TestProtocolSeekNewFormatV2and3(t *testing.T) {
 }
 
 func TestProtocolSeekNewFormatV4(t *testing.T) {
-	// Protocol 4 adds scale_increment after incr and is_bot at end = 18 fields
 	c := client.New(t, telnetAddr(t))
 	client.SetProtocol(t, c, 4)
 	client.LoginGuestAfterProtocol(t, c)
 
-	pieces, caps := defaultPieces(5)
-	// V4 seek: size time incr scale_increment color komi pieces capstones unrated tournament extra_trigger extra_amount opening opponent
-	c.Send(fmt.Sprintf("Seek 5 600 30 0 A 0 %d %d 0 0 0 0 0 ", pieces, caps))
-	msg := c.DrainUntil("Seek new ")
-
+	_, msg := postSeekV4(t, c, 5, 600, 30, 1, 1)
 	parts := strings.Fields(msg)
 	if len(parts) != 19 {
 		t.Errorf("protocol 4 Seek new should have 19 fields, got %d: %q", len(parts), msg)
+	}
+	if got, want := parts[7], "1"; got != want {
+		t.Errorf("protocol 4 Seek new scale_increment should be %q at index 7, got %q in %q", want, got, msg)
+	}
+	if got, want := parts[18], "1"; got != want {
+		t.Errorf("protocol 4 Seek new opening should be %q at index 18, got %q in %q", want, got, msg)
 	}
 }

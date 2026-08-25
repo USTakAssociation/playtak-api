@@ -1,15 +1,15 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Like, MoreThan, Repository } from 'typeorm';
-import { Ratings } from './entities/ratings.entity';
-import { Rating, RatingList, RatingQuery } from '../dto/rating/ratings.dto';
-import { access, readFile, writeFile } from 'fs/promises';
-import { Players } from './entities/players.entity';
-import { Games } from '../games-history/entities/games.entity';
-import { Fatigue, Player } from '../dto/players/player.dto';
-import { DefaultExceptionDto } from '../dto/error.dto';
-import { gzipSync } from 'zlib';
 import { writeFileSync } from 'fs';
+import { access, readFile, writeFile } from 'fs/promises';
+import { Like, MoreThan, Repository } from 'typeorm';
+import { gzipSync } from 'zlib';
+import { DefaultExceptionDto } from '../dto/error.dto';
+import { Fatigue, Player } from '../dto/players/player.dto';
+import { Rating, RatingList, RatingQuery } from '../dto/rating/ratings.dto';
+import { Games } from '../games-history/entities/games.entity';
+import { Players } from './entities/players.entity';
+import { Ratings } from './entities/ratings.entity';
 
 @Injectable()
 export class RatingService {
@@ -43,7 +43,7 @@ export class RatingService {
 		}
 		try {
 			const results = await this.ratingRepository.findAndCount({
-				select: ['name', 'rating', 'ratedgames', 'maxrating', 'participation_rating', 'isbot'],
+				select: { name: true, rating: true, ratedgames: true, maxrating: true, participation_rating: true, isbot: true },
 				where: whereSearch,
 				order: {
 					[sort]: order
@@ -69,7 +69,7 @@ export class RatingService {
 	public async getPlayersRating(name: string): Promise<Rating | DefaultExceptionDto> {
 		try {
 			const result = await this.ratingRepository.findOne({
-				select: ['name', 'rating', 'ratedgames', 'participation_rating', 'maxrating', 'isbot'],
+				select: { name: true, rating: true, ratedgames: true, participation_rating: true, maxrating: true, isbot: true },
 				where: { name: name }
 			});
 			if (!result) {

@@ -6,9 +6,9 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
-	"sync/atomic"
 )
 
 const DefaultTimeout = 5 * time.Second
@@ -23,9 +23,11 @@ type Client struct {
 	mu       sync.Mutex
 	received []string
 	cId      int
-	Name    string
+	Name     string
 }
+
 var globalConnectionCounter uint64
+
 // New dials the given address over TCP and returns a Client.
 // The connection is automatically closed when the test ends via t.Cleanup.
 func New(t *testing.T, addr string) *Client {
@@ -40,7 +42,7 @@ func New(t *testing.T, addr string) *Client {
 		conn:   conn,
 		reader: bufio.NewReader(conn),
 		cId:    int(connectionID),
-		Name:  "",
+		Name:   "",
 	}
 
 	t.Cleanup(func() { c.Close() })
@@ -73,7 +75,7 @@ func (c *Client) Recv() string {
 		c.t.Fatalf("client %d: recv failed (did the server close the connection?): %v", c.cId, err)
 	}
 	line = strings.TrimRight(line, "\r\n")
-	
+
 	c.t.Logf("R ← %s (TC #%d)", line, c.cId)
 	c.mu.Lock()
 	c.received = append(c.received, line)

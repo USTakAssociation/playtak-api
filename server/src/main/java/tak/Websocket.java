@@ -362,6 +362,12 @@ public class Websocket {
 				case 15:
 					reason = "exception in send";
 					break;
+				case 201:
+					reason = "client quit";
+					break;
+				case 202:
+					reason = "admin disconnect";
+					break;
 				default:
 					reason = "code " + String.valueOf(pos);
 					break;

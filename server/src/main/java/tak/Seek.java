@@ -299,7 +299,7 @@ public class Seek {
 				opponent.length() != 0 ? opponent : "0",
 				client.player.isBot() ? "1" : "0"
 			});
-			String v3Seek = String.join(" ", new String[] {
+			String v4Seek = String.join(" ", new String[] {
 				Integer.toString(no),
 				playerName,
 				Integer.toString(boardSize),
@@ -321,7 +321,7 @@ public class Seek {
 			return new String[] {
 				v1Seek,
 				v2Seek,
-				v3Seek
+				v4Seek
 			};
 		} finally {
 			seekStuffLock.unlock();

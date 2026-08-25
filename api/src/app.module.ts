@@ -1,15 +1,15 @@
 /* istanbul ignore file */
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
-import { EventsModule } from './modules/events/events.module';
-import { GamesModule } from './modules/games-history/games.module';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { RatingsModule } from './modules/ratings/ratings.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerGuard } from '@nestjs/throttler';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import * as path from 'path';
 import { AppController } from './app.controller';
+import { EventsModule } from './modules/events/events.module';
+import { GamesModule } from './modules/games-history/games.module';
+import { RatingsModule } from './modules/ratings/ratings.module';
 
 @Module({
 	imports: [
