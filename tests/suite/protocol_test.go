@@ -134,7 +134,7 @@ func TestProtocolGameStartFormatV0and1(t *testing.T) {
 
 	// "Game Start <id> <size> <white> vs <black> <color> <time> <komi>
 	//  <pieces> <capstones> <extra_trigger> <extra_amount>"
-	// = 13 fields
+	// = 14 fields
 	if len(parts) != 14 {
 		t.Errorf("protocol 0-1 Game Start should have 14 fields, got %d: %q", len(parts), gs)
 	}
@@ -204,7 +204,7 @@ func TestProtocolSeekNewFormatV0and1(t *testing.T) {
 	// Protocol 0-1: Seek new <id> <name> <size> <time> <incr> <color>
 	//               <komi> <pieces> <capstones> <unrated> <tournament>
 	//               <extra_trigger> <extra_amount> <opponent>
-	// = 16 fields, no is_bot
+	// = 15 fields, no is_bot
 	c := client.New(t, telnetAddr(t))
 	client.LoginGuest(t, c)
 
