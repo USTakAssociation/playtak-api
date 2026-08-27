@@ -125,7 +125,7 @@ Komi is given in half flats as an integer from 0 to 8, denoting komis from +0.0 
 | PING | Pings to inform server that the client is alive. Recommended ping spacing is 30 seconds. Server may disconnect clients if pings are not received |
 | quit | Sent by client to indicate it is going to quit. Server removes all seeks, abandons (which loses) game if any |
 
-#### Pre Authentication Messages
+#### Pre-Authentication Messages
 
 | Commands to server| Description|
 |--------------|------------------|
@@ -167,7 +167,7 @@ Komi is given in half flats as an integer from 0 to 8, denoting komis from +0.0 
 | Unobserve **id** | Unobserve the specified game |
 | Shout **text** | Send message **text** to all logged in players |
 | JoinRoom **room** | Join the room **room** |
-| ShoutRoom **room** **text** | Send test to players in room **room** |
+| ShoutRoom **room** **text** | Send text to players in room **room** |
 | LeaveRoom **room** | Leave the room **room** |
 | Tell **player** **text** | Send private message **text** to **player** |
 
@@ -182,7 +182,7 @@ Komi is given in half flats as an integer from 0 to 8, denoting komis from +0.0 
 | sudo kick **user** | Disconnect **user** |
 | sudo list **gag\|ban\|mod\|admin\|online** | List group of users |
 
-#### Admin only commands
+#### Admin-only commands
 
 | Commands to server| Description|
 |--------------|------------------|
@@ -197,7 +197,7 @@ Komi is given in half flats as an integer from 0 to 8, denoting komis from +0.0 
 | sudo broadcast **msg** | Broadcast message to every client, msg is sent as is to clients, not to be confused by the "Message" message sent by the server |
 
 
-### Server to Client Communication
+### Server-to-Client Communication
 
 The server to client messages and their format is as below.
 
@@ -272,8 +272,8 @@ The server to client messages and their format is as below.
 |Messages from server|Description|Protocol Version |
 |--------------------|-----------|-----------|
 |Online **count** |**count** players are connected to server|>= 0 |
-|OnlinePlayers \[**"username"**,...\] | A comma seperated list of usernames connected to the server, does not include bots (quotation marks _are_ included)|>= 0 |
-|Message **text** | A message from server. Might be used to indicate announcements like name accepted/server going down, etc|>= 0 |
+|OnlinePlayers \[**"username"**,...\] | A comma separated list of usernames connected to the server, does not include bots (quotation marks _are_ included)|>= 0 |
+|Message **text** | A message from server. It might be used to indicate announcements like name accepted/server going down, etc|>= 0 |
 |sudoReply **text**| Response to some mod commands | >= 0 |
 |OK | Indicates previous command is ok. Clients can ignore this. *I might remove this message altogether in future as it serves no real purpose*|>= 0 |
 |NOK |Indicates the command client send is invalid or unrecognized|>= 0 |

@@ -19,24 +19,30 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
       - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v1
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
+          cache: pnpm
+          cache-dependency-path: api/pnpm-lock.yaml
 
       - name: Install dependencies
         working-directory: ./api
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build
         working-directory: ./api
-        env: 
+        env:
             CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
           mkdir -p ./src/assets/
           touch ./src/assets/client_secret.json
           echo -n "${CLIENT_SECRET}" >> ./src/assets/client_secret.json
-          npm run build
+          pnpm run build
 
       - name: Prep Artifact
         working-directory: ./api
