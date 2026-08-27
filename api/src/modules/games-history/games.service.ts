@@ -8,11 +8,54 @@ import { PTNService } from './services/ptn.service';
 
 @Injectable()
 export class GamesService {
+	private static readonly SORTABLE_COLUMNS = new Set([
+		'id',
+		'date',
+		'size',
+		'player_white',
+		'player_black',
+		'notation',
+		'result',
+		'timertime',
+		'timerinc',
+		'rating_white',
+		'rating_black',
+		'unrated',
+		'tournament',
+		'komi',
+		'pieces',
+		'capstones',
+		'rating_change_white',
+		'rating_change_black',
+		'extra_time_amount',
+		'extra_time_trigger',
+		'increment_scales',
+		'opening'
+	]);
+
+	private static readonly TYPE_FILTERS = new Set(['normal', 'tournament', 'unrated']);
+
 	constructor(
 		@InjectRepository(Games, 'games')
 		private repository: Repository<Games>,
 		private ptnService: PTNService
 	) {}
+
+	// Query params are always strings at runtime, but a couple of GameQuery fields (e.g. size)
+	// are typed as number — accept both so callers don't need to know which.
+	// Returns undefined for anything that isn't a plain integer, instead of letting NaN
+	// silently flow into a TypeORM search value.
+	private parseIntStrict(value: string | number): number | undefined {
+		const str = String(value);
+		if (!/^-?\d+$/.test(str)) {
+			return undefined;
+		}
+		return parseInt(str, 10);
+	}
+
+	private clampInt(value: number, min: number, max = Number.MAX_SAFE_INTEGER): number {
+		return Math.min(Math.max(value, min), max);
+	}
 
 	validateIdQuery(id: string) {
 		const regex = /^(?!.*,,)(?!.*--)\d+([-,\d]*\d+)?$/;
@@ -36,34 +79,18 @@ export class GamesService {
 
 	generateSearchQuery(query: GameQuery) {
 		const search = {};
-		if (query['id']) {
-			search['id'] = parseInt(query['id']);
-		}
+		// validateIdQuery already rejects mixed separators, repeated separators and
+		// reversed ranges, so an id that gets past it needs no further repair. An id
+		// that does not is dropped rather than parsed into a NaN search value.
 		if (query['id'] && this.validateIdQuery(query['id'])) {
 			if (query['id'].includes(',')) {
-				const ids = query['id'].split(',');
-				const arr = [];
-				for (let i = 0; i < ids.length; i++) {
-					arr.push(parseInt(ids[i]));
-				}
-				search['id'] = In(arr);
+				search['id'] = In(query['id'].split(',').map((id) => parseInt(id, 10)));
+			} else if (query['id'].includes('-')) {
+				const [from, to] = query['id'].split('-').map((id) => parseInt(id, 10));
+				search['id'] = Between(from, to);
+			} else {
+				search['id'] = parseInt(query['id'], 10);
 			}
-			if (query['id'].includes('-')) {
-				const ids = query['id'].split('-');
-				search['id'] = Between(parseInt(ids[0]), parseInt(ids[1]));
-			}
-		}
-		if (query['id'] && query['id'].includes('-')) {
-			// remove duplicate hyphens
-			query['id'] = query['id'].replace(/-{2,}/g, '-');
-			const ids = query['id'].split('-');
-			// make sure the first id is smaller than the second
-			if (parseInt(ids[0]) > parseInt(ids[1])) {
-				const temp = ids[0];
-				ids[0] = ids[1];
-				ids[1] = temp;
-			}
-			search['id'] = Between(parseInt(ids[0]), parseInt(ids[1]));
 		}
 		// date query handling for single value, between, greater than, less than
 		if (query['date']) {
@@ -71,21 +98,26 @@ export class GamesService {
 				// remove duplicate hyphens
 				query['date'] = query['date'].replace(/-{2,}/g, '-');
 				const dates = query['date'].split('-');
-				// make sure the first date is smaller than the second
-				if (parseInt(dates[0]) > parseInt(dates[1])) {
-					const temp = dates[0];
-					dates[0] = dates[1];
-					dates[1] = temp;
+				const from = this.parseIntStrict(dates[0]);
+				const to = this.parseIntStrict(dates[1]);
+				if (from !== undefined && to !== undefined) {
+					search['date'] = from > to ? Between(to, from) : Between(from, to);
 				}
-				search['date'] = Between(parseInt(dates[0]), parseInt(dates[1]));
 			} else if (query['date'].startsWith('>')) {
-				const dateValue = query['date'].substring(1);
-				search['date'] = MoreThan(parseInt(dateValue));
+				const dateValue = this.parseIntStrict(query['date'].substring(1));
+				if (dateValue !== undefined) {
+					search['date'] = MoreThan(dateValue);
+				}
 			} else if (query['date'].startsWith('<')) {
-				const dateValue = query['date'].substring(1);
-				search['date'] = LessThan(parseInt(dateValue));
+				const dateValue = this.parseIntStrict(query['date'].substring(1));
+				if (dateValue !== undefined) {
+					search['date'] = LessThan(dateValue);
+				}
 			} else {
-				search['date'] = parseInt(query['date']);
+				const dateValue = this.parseIntStrict(query['date']);
+				if (dateValue !== undefined) {
+					search['date'] = dateValue;
+				}
 			}
 		}
 		if (query['player_white']) {
@@ -94,28 +126,48 @@ export class GamesService {
 		if (query['player_black']) {
 			search['player_black'] = query['player_black'];
 		}
+		// game_result/result are bound as parameterized WHERE *values* below (Like()/equality),
+		// never as column or identifier names, so they need no allowlisting here.
 		if (query['game_result']) {
 			search['game_result'] = query['game_result'];
 		}
 		if (query['size']) {
-			search['size'] = query['size'];
+			const size = this.parseIntStrict(query['size']);
+			if (size !== undefined) {
+				search['size'] = size;
+			}
 		}
 		if (query['timertime']) {
-			search['timertime'] = parseInt(query['timertime']);
+			const timertime = this.parseIntStrict(query['timertime']);
+			if (timertime !== undefined) {
+				search['timertime'] = timertime;
+			}
 		}
 		if (query['timerinc']) {
-			search['timerinc'] = parseInt(query['timerinc']);
+			const timerinc = this.parseIntStrict(query['timerinc']);
+			if (timerinc !== undefined) {
+				search['timerinc'] = timerinc;
+			}
 		}
 		if (query['extra_time_amount']) {
-			search['extra_time_amount'] = parseInt(query['extra_time_amount']);
+			const extraTimeAmount = this.parseIntStrict(query['extra_time_amount']);
+			if (extraTimeAmount !== undefined) {
+				search['extra_time_amount'] = extraTimeAmount;
+			}
 		}
 		if (query['extra_time_trigger']) {
-			search['extra_time_trigger'] = parseInt(query['extra_time_trigger']);
+			const extraTimeTrigger = this.parseIntStrict(query['extra_time_trigger']);
+			if (extraTimeTrigger !== undefined) {
+				search['extra_time_trigger'] = extraTimeTrigger;
+			}
 		}
 		if (query['increment_scales']) {
-			search['increment_scales'] = parseInt(query['increment_scales']);
+			const incrementScales = this.parseIntStrict(query['increment_scales']);
+			if (incrementScales !== undefined) {
+				search['increment_scales'] = incrementScales;
+			}
 		}
-		if (query['type']) {
+		if (query['type'] && GamesService.TYPE_FILTERS.has(query['type'].toLowerCase())) {
 			search[query['type'].toLowerCase()] = 1;
 		}
 		const mirror = query.mirror === 'true' ? true : false;
@@ -209,11 +261,14 @@ export class GamesService {
 	}
 
 	async getAll(query?: GameQuery): Promise<any> {
-		const limit = parseInt(query.limit) || 50;
-		const skip = parseInt(query.skip) || 0;
-		const page = parseInt(query.page) || 0;
-		const order: 'ASC' | 'DESC' = query.order || 'DESC';
-		const sort = query.sort ? query.sort : 'id';
+		// sort/order are concatenated directly into the generated SQL's ORDER BY clause
+		// (createQueryBuilder().select('*') means TypeORM can't resolve them against
+		// entity metadata, so they go out unescaped) — must be allowlisted, not just parsed.
+		const limit = this.clampInt(this.parseIntStrict(query.limit) ?? 50, 1, 200);
+		const skip = this.clampInt(this.parseIntStrict(query.skip) ?? 0, 0);
+		const page = this.clampInt(this.parseIntStrict(query.page) ?? 0, 0);
+		const order: 'ASC' | 'DESC' = String(query.order).toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+		const sort = query.sort && GamesService.SORTABLE_COLUMNS.has(query.sort) ? query.sort : 'id';
 		const mirror = query.mirror === 'true' ? true : false;
 		const { search, mirrorSearch } = this.generateSearchQuery(query);
 		try {
