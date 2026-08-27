@@ -47,6 +47,9 @@ importers:
       cache-manager:
         specifier: 7.2.9
         version: 7.2.9
+      cron:
+        specifier: 4.4.0
+        version: 4.4.0
       googleapis:
         specifier: 176.0.0
         version: 176.0.0(supports-color@8.1.1)
@@ -81,9 +84,6 @@ importers:
       '@types/cache-manager':
         specifier: 5.0.0
         version: 5.0.0
-      '@types/cron':
-        specifier: 2.4.3
-        version: 2.4.3
       '@types/node':
         specifier: 26.3.0
         version: 26.3.0
@@ -870,10 +870,6 @@ packages:
 
   '@types/cookiejar@2.1.5':
     resolution: {integrity: sha512-he+DHOWReW0nghN24E1WUqM0efK4kI9oTqDm6XmK8ZPe2djZ90BSNdGnIyCLzCPw7/pogPlGbzI2wHGGmi4O/Q==}
-
-  '@types/cron@2.4.3':
-    resolution: {integrity: sha512-ViRBkoZD9Rk0hGeMdd2GHGaOaZuH9mDmwsE5/Zo53Ftwcvh7h9VJc8lIt2wdgEwS4EW5lbtTX6vlE0idCLPOyA==}
-    deprecated: This is a stub types definition. cron provides its own type definitions, so you do not need this installed.
 
   '@types/deep-eql@4.0.2':
     resolution: {integrity: sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw==}
@@ -3407,10 +3403,6 @@ snapshots:
 
   '@types/cookiejar@2.1.5': {}
 
-  '@types/cron@2.4.3':
-    dependencies:
-      cron: 4.4.0
-
   '@types/deep-eql@4.0.2': {}
 
   '@types/eslint-scope@3.7.7':
@@ -4284,7 +4276,7 @@ snapshots:
 
   jest-worker@27.5.1:
     dependencies:
-      '@types/node': 26.2.0
+      '@types/node': 26.3.0
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
