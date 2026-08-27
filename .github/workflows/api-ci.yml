@@ -18,23 +18,29 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node-version }}
+          cache: pnpm
+          cache-dependency-path: api/pnpm-lock.yaml
 
       - name: Install Dependencies
         working-directory: ./api
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Lint code
         working-directory: ./api
-        run: npm run lint
+        run: pnpm run lint
 
       - name: Run Unit tests
         working-directory: ./api
-        run: npm run test
+        run: pnpm run test
 
       - name: Run build
         working-directory: ./api
-        run: npm run build
+        run: pnpm run build

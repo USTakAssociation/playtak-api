@@ -5,6 +5,7 @@
 	"author": "Braydon Harris",
 	"private": true,
 	"license": "MIT",
+	"packageManager": "pnpm@11.20.0",
 	"scripts": {
 		"build": "nest build",
 		"format": "biome format --write .",
