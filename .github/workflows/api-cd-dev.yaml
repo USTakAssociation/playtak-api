@@ -15,7 +15,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [22.x]
+        node-version: [24.x]
 
     steps:
       - uses: actions/checkout@v2
@@ -103,5 +103,5 @@ jobs:
             cp playtak-api-dev-tmp/previous.txt /var/apps/playtak-api-beta/previous.txt
             rm -rf playtak-api-dev-tmp
             rm artifact.tar.gz
-            pm2 restart playtak-api-beta --update-env --interpreter=/home/ubuntu/.nvm/versions/node/v22.11.0/bin/node
+            pm2 restart playtak-api-beta --update-env --interpreter=/home/ubuntu/.nvm/versions/node/v24.20.0/bin/node
           '
