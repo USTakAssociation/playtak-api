@@ -6,6 +6,13 @@ import { GameQuery } from '../dto/games/games.dto';
 import { Games } from './entities/games.entity';
 import { PTNService } from './services/ptn.service';
 
+// Highest game id at/before playtak's launch, the old `date > 1461430800000`
+// cutoff. Player search excludes id <= this (those ~7,983 rows are all "Anon" in
+// the anon export). id, not date, so the floor rides the rowid and needs no
+// idx_games_date. Confirmed on prod:
+//   /v1/games-history?date=<1461430800001&sort=id&order=DESC -> id 7989
+const PRELAUNCH_ID = 7989;
+
 @Injectable()
 export class GamesService {
 	constructor(
@@ -206,12 +213,12 @@ export class GamesService {
 		}
 		delete search['game_result'];
 		delete mirrorSearch['game_result'];
-		// Exclude pre-launch games from every player search (the old cutoff; kept
-		// as-is here -- swapping it for an id bound is a separate change).
-		if (player_search) {
-			search['date'] = MoreThan('1461430800000');
+		// Exclude pre-launch games from every player search (see PRELAUNCH_ID above).
+		// Skipped when the caller gave an explicit id filter -- that's more specific.
+		if (player_search && !('id' in search)) {
+			search['id'] = MoreThan(PRELAUNCH_ID);
 			if (mirror) {
-				mirrorSearch['date'] = MoreThan('1461430800000');
+				mirrorSearch['id'] = MoreThan(PRELAUNCH_ID);
 			}
 		}
 
@@ -235,36 +242,36 @@ export class GamesService {
 			// every match through a temp b-tree -- 100s of ms for a bot. Anything
 			// else (wildcard, extra filter, explicit id, non-id sort) falls through.
 			const onePlayer = playerWhite && !playerBlack ? playerWhite : playerBlack && !playerWhite ? playerBlack : null;
-			const nonFloorKeys = (o: object) => Object.keys(o).filter((k) => k !== 'date');
+			const nonFloorKeys = (o: object) => Object.keys(o).filter((k) => k !== 'id');
 			if (
 				mirror &&
 				sort === 'id' &&
 				order === 'DESC' &&
 				onePlayer &&
+				!query['id'] &&
 				!/[%_]/.test(onePlayer) &&
 				nonFloorKeys(search).length === 1 &&
 				nonFloorKeys(mirrorSearch).length === 1
 			) {
-				const FLOOR = '1461430800000';
 				const armLimit = offset + limit;
 				const items = await this.repository.query(
 					`SELECT * FROM (
-						SELECT * FROM (SELECT * FROM games WHERE player_white = ? COLLATE NOCASE AND date > ? ORDER BY id DESC LIMIT ?)
+						SELECT * FROM (SELECT * FROM games WHERE player_white = ? COLLATE NOCASE AND id > ? ORDER BY id DESC LIMIT ?)
 						UNION
-						SELECT * FROM (SELECT * FROM games WHERE player_black = ? COLLATE NOCASE AND date > ? ORDER BY id DESC LIMIT ?)
+						SELECT * FROM (SELECT * FROM games WHERE player_black = ? COLLATE NOCASE AND id > ? ORDER BY id DESC LIMIT ?)
 					) ORDER BY id DESC LIMIT ? OFFSET ?;`,
-					[onePlayer, FLOOR, armLimit, onePlayer, FLOOR, armLimit, limit, offset]
+					[onePlayer, PRELAUNCH_ID, armLimit, onePlayer, PRELAUNCH_ID, armLimit, limit, offset]
 				);
 				// Count via the same UNION, not `WHERE a = ? OR b = ?`: SQLite's
 				// MULTI-INDEX OR doesn't fire for an OR of two bound params, so that
 				// form scans (~240ms). UNION dedupes a player's self-games.
 				const [{ total }] = await this.repository.query(
 					`SELECT COUNT(*) AS total FROM (
-						SELECT id FROM games WHERE player_white = ? COLLATE NOCASE AND date > ?
+						SELECT id FROM games WHERE player_white = ? COLLATE NOCASE AND id > ?
 						UNION
-						SELECT id FROM games WHERE player_black = ? COLLATE NOCASE AND date > ?
+						SELECT id FROM games WHERE player_black = ? COLLATE NOCASE AND id > ?
 					);`,
-					[onePlayer, FLOOR, onePlayer, FLOOR]
+					[onePlayer, PRELAUNCH_ID, onePlayer, PRELAUNCH_ID]
 				);
 				return {
 					items: items || [],

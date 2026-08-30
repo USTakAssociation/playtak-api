@@ -97,6 +97,13 @@ describe('GamesService.getAll — search behaviour', () => {
 		expect(ids(res)).not.toContain(CUTOFF_ID);
 	});
 
+	it('an explicit id filter is honoured and not overridden by the pre-launch floor', async () => {
+		const res = await svc.getAll({ player_black: 'AaaarghBot', id: '1-9001', mirror: 'true' });
+		// rows 3 and 7989 are pre-launch AaaarghBot games -- visible only because
+		// the caller asked by id, so the floor is skipped
+		expect(ids(res)).toEqual([9001, CUTOFF_ID, 3]);
+	});
+
 	it('paginates: pages are disjoint, ordered, and total is stable', async () => {
 		const p0 = await svc.getAll({ player_black: 'AaaarghBot', mirror: 'true', limit: '3', page: '0' });
 		const p1 = await svc.getAll({ player_black: 'AaaarghBot', mirror: 'true', limit: '3', page: '1' });

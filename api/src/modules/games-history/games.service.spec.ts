@@ -111,11 +111,19 @@ describe('GamesService', () => {
 			const { search, mirrorSearch } = service.generateSearchQuery(mockQuery);
 			expect(search['player_white']._type).toEqual('raw');
 			expect(search['player_white']._objectLiteralParameters).toEqual({ pw: 'bcreature' });
-			expect(search['date']._value).toEqual('1461430800000');
-			expect(search['date']._type).toEqual('moreThan');
+			// pre-launch floor is now `id > 7989`, not `date > ...`
+			expect(search['id']._value).toEqual(7989);
+			expect(search['id']._type).toEqual('moreThan');
+			expect(search['date']).toBeUndefined();
 			expect(mirrorSearch['player_black']._type).toEqual('raw');
 			expect(mirrorSearch['player_black']._objectLiteralParameters).toEqual({ pwm: 'bcreature' });
-			expect(mirrorSearch['date']._value).toEqual('1461430800000');
+			expect(mirrorSearch['id']._value).toEqual(7989);
+		});
+
+		it('does not add the pre-launch id floor when the caller gave an explicit id', () => {
+			const { search } = service.generateSearchQuery({ player_white: 'bcreature', id: '5-100', mirror: 'false' });
+			expect(search['id']._type).toEqual('between');
+			expect(search['id']._value).toEqual([5, 100]);
 		});
 
 		it('Should return the correct values for normal', () => {
@@ -347,10 +355,10 @@ describe('GamesService', () => {
 			const [pageSql, pageParams] = mockRepo.query.mock.calls[0];
 			expect(pageSql).toContain('UNION');
 			expect(pageSql).toContain('COLLATE NOCASE');
-			expect(pageSql).toContain('date > ?');
-			expect(pageParams).toEqual(['AaaarghBot', '1461430800000', 50, 'AaaarghBot', '1461430800000', 50, 50, 0]);
+			expect(pageSql).toContain('id > ?');
+			expect(pageParams).toEqual(['AaaarghBot', 7989, 50, 'AaaarghBot', 7989, 50, 50, 0]);
 			expect(mockRepo.query.mock.calls[1][0]).toContain('COUNT(*)');
-			expect(mockRepo.query.mock.calls[1][1]).toEqual(['AaaarghBot', '1461430800000', 'AaaarghBot', '1461430800000']);
+			expect(mockRepo.query.mock.calls[1][1]).toEqual(['AaaarghBot', 7989, 'AaaarghBot', 7989]);
 			expect(res).toEqual({ items: [{ id: 5 }, { id: 4 }], total: 2, page: 1, perPage: 50, totalPages: 1 });
 			expect(mockRepo.createQueryBuilder).not.toHaveBeenCalled();
 		});
@@ -358,7 +366,7 @@ describe('GamesService', () => {
 		it('passes offset as page*limit into the arm limit and the outer offset', async () => {
 			mockRepo.query.mockResolvedValueOnce([]).mockResolvedValueOnce([{ total: 0 }]);
 			await service.getAll({ player_black: 'x', mirror: 'true', limit: '50', page: '3' });
-			expect(mockRepo.query.mock.calls[0][1]).toEqual(['x', '1461430800000', 200, 'x', '1461430800000', 200, 50, 150]);
+			expect(mockRepo.query.mock.calls[0][1]).toEqual(['x', 7989, 200, 'x', 7989, 200, 50, 150]);
 		});
 
 		it('falls back when an explicit id filter is present', async () => {
