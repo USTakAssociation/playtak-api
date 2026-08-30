@@ -16,17 +16,16 @@ describe('GamesService', () => {
 		save: vi.fn(),
 		update: vi.fn(),
 		delete: vi.fn(),
-		createQueryBuilder: vi.fn(() => ({
-			select: () => vi.fn(),
-			where: () => vi.fn(),
-			orWhere: () => vi.fn(),
-			from: () => vi.fn(),
-			whereInIds: () => vi.fn(),
-			orderBy: () => vi.fn(),
-			groupBy: () => vi.fn(),
-			delete: () => vi.fn(),
-			execute: () => vi.fn()
-		})),
+		query: vi.fn(),
+		createQueryBuilder: vi.fn(() => {
+			const qb: Record<string, unknown> = {};
+			for (const m of ['select', 'where', 'orWhere', 'from', 'whereInIds', 'orderBy', 'groupBy', 'delete', 'limit', 'offset', 'clone']) {
+				qb[m] = vi.fn(() => qb);
+			}
+			qb.getCount = vi.fn(async () => 0);
+			qb.execute = vi.fn(async () => []);
+			return qb;
+		}),
 		manager: {
 			connection: {
 				transaction: vi.fn()
@@ -80,9 +79,16 @@ describe('GamesService', () => {
 		it('Should return the correct values for player white and empty for mirror', () => {
 			const mockQuery = { player_white: 'bcreature', mirror: 'false' };
 			const { search, mirrorSearch } = service.generateSearchQuery(mockQuery);
-			expect(search['player_white']._value).toEqual('bcreature');
-			expect(search['player_white']._type).toEqual('like');
+			// wildcard-free -> `= ? COLLATE NOCASE` (a Raw operator), not LIKE
+			expect(search['player_white']._type).toEqual('raw');
+			expect(search['player_white']._objectLiteralParameters).toEqual({ pw: 'bcreature' });
 			expect(mirrorSearch).toStrictEqual({});
+		});
+
+		it('keeps LIKE when the player value contains a wildcard', () => {
+			const { search } = service.generateSearchQuery({ player_white: 'bcr%', mirror: 'false' });
+			expect(search['player_white']._type).toEqual('like');
+			expect(search['player_white']._value).toEqual('bcr%');
 		});
 
 		it('Should return the correct values for player black and empty for mirror', () => {
@@ -91,10 +97,10 @@ describe('GamesService', () => {
 				mirror: 'true'
 			};
 			const { search, mirrorSearch } = service.generateSearchQuery(mockQuery);
-			expect(search['player_black']._value).toEqual('bcreature');
-			expect(search['player_black']._type).toEqual('like');
-			expect(mirrorSearch['player_white']._value).toEqual('bcreature');
-			expect(mirrorSearch['player_white']._type).toEqual('like');
+			expect(search['player_black']._type).toEqual('raw');
+			expect(search['player_black']._objectLiteralParameters).toEqual({ pb: 'bcreature' });
+			expect(mirrorSearch['player_white']._type).toEqual('raw');
+			expect(mirrorSearch['player_white']._objectLiteralParameters).toEqual({ pbm: 'bcreature' });
 		});
 
 		it('Should return the correct values for player white and empty for mirror', () => {
@@ -103,12 +109,13 @@ describe('GamesService', () => {
 				mirror: 'true'
 			};
 			const { search, mirrorSearch } = service.generateSearchQuery(mockQuery);
-			expect(search['player_white']._value).toEqual('bcreature');
-			expect(search['player_white']._type).toEqual('like');
+			expect(search['player_white']._type).toEqual('raw');
+			expect(search['player_white']._objectLiteralParameters).toEqual({ pw: 'bcreature' });
 			expect(search['date']._value).toEqual('1461430800000');
 			expect(search['date']._type).toEqual('moreThan');
-			expect(mirrorSearch['player_black']._value).toEqual('bcreature');
-			expect(mirrorSearch['player_black']._type).toEqual('like');
+			expect(mirrorSearch['player_black']._type).toEqual('raw');
+			expect(mirrorSearch['player_black']._objectLiteralParameters).toEqual({ pwm: 'bcreature' });
+			expect(mirrorSearch['date']._value).toEqual('1461430800000');
 		});
 
 		it('Should return the correct values for normal', () => {
@@ -320,6 +327,72 @@ describe('GamesService', () => {
 			} as const;
 			const { search } = service.generateSearchQuery(mock);
 			expect(search['extra_time_trigger']).toEqual(20);
+		});
+	});
+
+	describe('getAll fast path (mirror + single wildcard-free player)', () => {
+		beforeEach(() => {
+			mockRepo.query.mockReset();
+			mockRepo.createQueryBuilder.mockClear();
+		});
+
+		it('uses the UNION split query for ?player_white=X&mirror=true', async () => {
+			mockRepo.query
+				.mockResolvedValueOnce([{ id: 5 }, { id: 4 }])
+				.mockResolvedValueOnce([{ total: 2 }]);
+
+			const res = await service.getAll({ player_white: 'AaaarghBot', mirror: 'true', limit: '50', page: '0' });
+
+			expect(mockRepo.query).toHaveBeenCalledTimes(2);
+			const [pageSql, pageParams] = mockRepo.query.mock.calls[0];
+			expect(pageSql).toContain('UNION');
+			expect(pageSql).toContain('COLLATE NOCASE');
+			expect(pageSql).toContain('date > ?');
+			expect(pageParams).toEqual(['AaaarghBot', '1461430800000', 50, 'AaaarghBot', '1461430800000', 50, 50, 0]);
+			expect(mockRepo.query.mock.calls[1][0]).toContain('COUNT(*)');
+			expect(mockRepo.query.mock.calls[1][1]).toEqual(['AaaarghBot', '1461430800000', 'AaaarghBot', '1461430800000']);
+			expect(res).toEqual({ items: [{ id: 5 }, { id: 4 }], total: 2, page: 1, perPage: 50, totalPages: 1 });
+			expect(mockRepo.createQueryBuilder).not.toHaveBeenCalled();
+		});
+
+		it('passes offset as page*limit into the arm limit and the outer offset', async () => {
+			mockRepo.query.mockResolvedValueOnce([]).mockResolvedValueOnce([{ total: 0 }]);
+			await service.getAll({ player_black: 'x', mirror: 'true', limit: '50', page: '3' });
+			expect(mockRepo.query.mock.calls[0][1]).toEqual(['x', '1461430800000', 200, 'x', '1461430800000', 200, 50, 150]);
+		});
+
+		it('falls back when an explicit id filter is present', async () => {
+			await service.getAll({ player_white: 'AaaarghBot', id: '5-100', mirror: 'true' });
+			expect(mockRepo.query).not.toHaveBeenCalled();
+			expect(mockRepo.createQueryBuilder).toHaveBeenCalled();
+		});
+
+		it('falls back to the query builder when a wildcard is present', async () => {
+			await service.getAll({ player_white: 'Aaa%', mirror: 'true' });
+			expect(mockRepo.query).not.toHaveBeenCalled();
+			expect(mockRepo.createQueryBuilder).toHaveBeenCalled();
+		});
+
+		it('falls back when another filter is present', async () => {
+			await service.getAll({ player_white: 'AaaarghBot', mirror: 'true', size: '6' });
+			expect(mockRepo.query).not.toHaveBeenCalled();
+			expect(mockRepo.createQueryBuilder).toHaveBeenCalled();
+		});
+
+		it('falls back when both players are given', async () => {
+			await service.getAll({ player_white: 'a', player_black: 'b', mirror: 'true' });
+			expect(mockRepo.query).not.toHaveBeenCalled();
+		});
+
+		it('falls back when mirror is off', async () => {
+			await service.getAll({ player_white: 'AaaarghBot', mirror: 'false' });
+			expect(mockRepo.query).not.toHaveBeenCalled();
+		});
+
+		it('falls back for a non-default sort or order', async () => {
+			await service.getAll({ player_white: 'AaaarghBot', mirror: 'true', order: 'ASC' });
+			await service.getAll({ player_white: 'AaaarghBot', mirror: 'true', sort: 'date' });
+			expect(mockRepo.query).not.toHaveBeenCalled();
 		});
 	});
 

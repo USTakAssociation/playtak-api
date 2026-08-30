@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { stat } from 'fs/promises';
-import { Between, In, LessThan, Like, MoreThan, Repository } from 'typeorm';
+import { Between, In, LessThan, Like, MoreThan, Raw, Repository } from 'typeorm';
 import { GameQuery } from '../dto/games/games.dto';
 import { Games } from './entities/games.entity';
 import { PTNService } from './services/ptn.service';
@@ -129,12 +129,20 @@ export class GamesService {
 		let player_search: boolean;
 		const playerWhite = search['player_white'];
 		const playerBlack = search['player_black'];
+		// Case-insensitive match (usernames are case-insensitive identities on the
+		// server -- Player.uniqifyName). `= ? COLLATE NOCASE` not LIKE: same rows,
+		// but `=` is a point not a range, so the NOCASE index can also serve
+		// ORDER BY id (no temp b-tree). Keep LIKE when the value has a real wildcard.
+		const playerMatch = (value: string, param: string) =>
+			/[%_]/.test(value)
+				? Like(`${value}`)
+				: Raw((col) => `${col} = :${param} COLLATE NOCASE`, { [param]: value });
 		if (playerWhite) {
-			search['player_white'] = Like(`${playerWhite}`);
+			search['player_white'] = playerMatch(playerWhite, 'pw');
 			player_search = true;
 		}
 		if (playerBlack) {
-			search['player_black'] = Like(`${playerBlack}`);
+			search['player_black'] = playerMatch(playerBlack, 'pb');
 			player_search = true;
 		}
 
@@ -154,11 +162,11 @@ export class GamesService {
 			delete mirrorSearch['player_black'];
 			delete mirrorSearch['player_white'];
 			if (playerWhite) {
-				mirrorSearch['player_black'] = Like(`${playerWhite}`);
+				mirrorSearch['player_black'] = playerMatch(playerWhite, 'pwm');
 				player_search = true;
 			}
 			if (playerBlack) {
-				mirrorSearch['player_white'] = Like(`${playerBlack}`);
+				mirrorSearch['player_white'] = playerMatch(playerBlack, 'pbm');
 				player_search = true;
 			}
 			if (search['game_result']) {
@@ -198,6 +206,8 @@ export class GamesService {
 		}
 		delete search['game_result'];
 		delete mirrorSearch['game_result'];
+		// Exclude pre-launch games from every player search (the old cutoff; kept
+		// as-is here -- swapping it for an id bound is a separate change).
 		if (player_search) {
 			search['date'] = MoreThan('1461430800000');
 			if (mirror) {
@@ -205,7 +215,7 @@ export class GamesService {
 			}
 		}
 
-		return { search, mirrorSearch };
+		return { search, mirrorSearch, playerWhite, playerBlack };
 	}
 
 	async getAll(query?: GameQuery): Promise<any> {
@@ -215,8 +225,56 @@ export class GamesService {
 		const order: 'ASC' | 'DESC' = query.order || 'DESC';
 		const sort = query.sort ? query.sort : 'id';
 		const mirror = query.mirror === 'true' ? true : false;
-		const { search, mirrorSearch } = this.generateSearchQuery(query);
+		const { search, mirrorSearch, playerWhite, playerBlack } = this.generateSearchQuery(query);
+		const offset = limit * page || skip;
 		try {
+			// Fast path: mirror search for one wildcard-free player, default id sort
+			// (the Table.vue player links, and most typed searches). Each colour arm
+			// is a point lookup the NOCASE index serves in id order, so per-arm
+			// ORDER BY id is a plain index walk; merge in SQL. `A OR B` instead sorts
+			// every match through a temp b-tree -- 100s of ms for a bot. Anything
+			// else (wildcard, extra filter, explicit id, non-id sort) falls through.
+			const onePlayer = playerWhite && !playerBlack ? playerWhite : playerBlack && !playerWhite ? playerBlack : null;
+			const nonFloorKeys = (o: object) => Object.keys(o).filter((k) => k !== 'date');
+			if (
+				mirror &&
+				sort === 'id' &&
+				order === 'DESC' &&
+				onePlayer &&
+				!/[%_]/.test(onePlayer) &&
+				nonFloorKeys(search).length === 1 &&
+				nonFloorKeys(mirrorSearch).length === 1
+			) {
+				const FLOOR = '1461430800000';
+				const armLimit = offset + limit;
+				const items = await this.repository.query(
+					`SELECT * FROM (
+						SELECT * FROM (SELECT * FROM games WHERE player_white = ? COLLATE NOCASE AND date > ? ORDER BY id DESC LIMIT ?)
+						UNION
+						SELECT * FROM (SELECT * FROM games WHERE player_black = ? COLLATE NOCASE AND date > ? ORDER BY id DESC LIMIT ?)
+					) ORDER BY id DESC LIMIT ? OFFSET ?;`,
+					[onePlayer, FLOOR, armLimit, onePlayer, FLOOR, armLimit, limit, offset]
+				);
+				// Count via the same UNION, not `WHERE a = ? OR b = ?`: SQLite's
+				// MULTI-INDEX OR doesn't fire for an OR of two bound params, so that
+				// form scans (~240ms). UNION dedupes a player's self-games.
+				const [{ total }] = await this.repository.query(
+					`SELECT COUNT(*) AS total FROM (
+						SELECT id FROM games WHERE player_white = ? COLLATE NOCASE AND date > ?
+						UNION
+						SELECT id FROM games WHERE player_black = ? COLLATE NOCASE AND date > ?
+					);`,
+					[onePlayer, FLOOR, onePlayer, FLOOR]
+				);
+				return {
+					items: items || [],
+					total: total || 0,
+					page: page + 1,
+					perPage: limit,
+					totalPages: Math.ceil(total / limit)
+				};
+			}
+
 			let dbQuery;
 			if (mirror) {
 				dbQuery = this.repository
@@ -230,11 +288,7 @@ export class GamesService {
 			}
 
 			const total = await dbQuery.getCount();
-			const result = await dbQuery
-				.clone()
-				.limit(limit)
-				.offset(limit * page || skip)
-				.execute();
+			const result = await dbQuery.clone().limit(limit).offset(offset).execute();
 
 			return {
 				items: result || [],
