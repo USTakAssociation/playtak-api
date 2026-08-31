@@ -42,3 +42,4 @@ echo "CREATE TABLE games (id INTEGER PRIMARY KEY, date INT, size INT, player_whi
 migrations="$scriptpath/../migrations"
 bash "$migrations/2026-05-add-increment-scales.sh" "$gamesdb"
 bash "$migrations/2026-08-add-nocase-player-indexes.sh" "$gamesdb"
+bash "$migrations/2026-08-add-player-games-view.sh" "$gamesdb"

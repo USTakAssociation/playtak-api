@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { vi } from 'vitest';
 import { Games } from './entities/games.entity';
+import { PlayerGames } from './entities/player-games.entity';
 import { GamesService } from './games.service';
 import { PTNService } from './services/ptn.service';
 
@@ -16,17 +17,16 @@ describe('GamesService', () => {
 		save: vi.fn(),
 		update: vi.fn(),
 		delete: vi.fn(),
-		createQueryBuilder: vi.fn(() => ({
-			select: () => vi.fn(),
-			where: () => vi.fn(),
-			orWhere: () => vi.fn(),
-			from: () => vi.fn(),
-			whereInIds: () => vi.fn(),
-			orderBy: () => vi.fn(),
-			groupBy: () => vi.fn(),
-			delete: () => vi.fn(),
-			execute: () => vi.fn()
-		})),
+		query: vi.fn(),
+		createQueryBuilder: vi.fn(() => {
+			const qb: Record<string, unknown> = {};
+			for (const m of ['select', 'where', 'orWhere', 'from', 'whereInIds', 'orderBy', 'groupBy', 'delete', 'limit', 'offset', 'clone']) {
+				qb[m] = vi.fn(() => qb);
+			}
+			qb.getCount = vi.fn(async () => 0);
+			qb.execute = vi.fn(async () => []);
+			return qb;
+		}),
 		manager: {
 			connection: {
 				transaction: vi.fn()
@@ -34,15 +34,21 @@ describe('GamesService', () => {
 		}
 	};
 
+	// the player_games view repo -- used by getAll's player path
+	const mockViewRepo = {
+		findAndCount: vi.fn(async () => [[], 0])
+	};
+
 	beforeEach(async () => {
+		mockRepo.query.mockReset();
+		mockRepo.createQueryBuilder.mockClear();
+		mockViewRepo.findAndCount.mockClear();
 		const module: TestingModule = await Test.createTestingModule({
 			providers: [
 				GamesService,
 				PTNService,
-				{
-					provide: getRepositoryToken(Games, 'games'),
-					useValue: mockRepo
-				}
+				{ provide: getRepositoryToken(Games, 'games'), useValue: mockRepo },
+				{ provide: getRepositoryToken(PlayerGames, 'games'), useValue: mockViewRepo }
 			]
 		}).compile();
 
@@ -80,9 +86,16 @@ describe('GamesService', () => {
 		it('Should return the correct values for player white and empty for mirror', () => {
 			const mockQuery = { player_white: 'bcreature', mirror: 'false' };
 			const { search, mirrorSearch } = service.generateSearchQuery(mockQuery);
-			expect(search['player_white']._value).toEqual('bcreature');
-			expect(search['player_white']._type).toEqual('like');
+			// wildcard-free -> `= ? COLLATE NOCASE` (a Raw operator), not LIKE
+			expect(search['player_white']._type).toEqual('raw');
+			expect(search['player_white']._objectLiteralParameters).toEqual({ pw: 'bcreature' });
 			expect(mirrorSearch).toStrictEqual({});
+		});
+
+		it('keeps LIKE when the player value contains a wildcard', () => {
+			const { search } = service.generateSearchQuery({ player_white: 'bcr%', mirror: 'false' });
+			expect(search['player_white']._type).toEqual('like');
+			expect(search['player_white']._value).toEqual('bcr%');
 		});
 
 		it('Should return the correct values for player black and empty for mirror', () => {
@@ -91,10 +104,10 @@ describe('GamesService', () => {
 				mirror: 'true'
 			};
 			const { search, mirrorSearch } = service.generateSearchQuery(mockQuery);
-			expect(search['player_black']._value).toEqual('bcreature');
-			expect(search['player_black']._type).toEqual('like');
-			expect(mirrorSearch['player_white']._value).toEqual('bcreature');
-			expect(mirrorSearch['player_white']._type).toEqual('like');
+			expect(search['player_black']._type).toEqual('raw');
+			expect(search['player_black']._objectLiteralParameters).toEqual({ pb: 'bcreature' });
+			expect(mirrorSearch['player_white']._type).toEqual('raw');
+			expect(mirrorSearch['player_white']._objectLiteralParameters).toEqual({ pbm: 'bcreature' });
 		});
 
 		it('Should return the correct values for player white and empty for mirror', () => {
@@ -103,12 +116,21 @@ describe('GamesService', () => {
 				mirror: 'true'
 			};
 			const { search, mirrorSearch } = service.generateSearchQuery(mockQuery);
-			expect(search['player_white']._value).toEqual('bcreature');
-			expect(search['player_white']._type).toEqual('like');
-			expect(search['date']._value).toEqual('1461430800000');
-			expect(search['date']._type).toEqual('moreThan');
-			expect(mirrorSearch['player_black']._value).toEqual('bcreature');
-			expect(mirrorSearch['player_black']._type).toEqual('like');
+			expect(search['player_white']._type).toEqual('raw');
+			expect(search['player_white']._objectLiteralParameters).toEqual({ pw: 'bcreature' });
+			// pre-launch floor is now `id > 7989`, not `date > ...`
+			expect(search['id']._value).toEqual(7989);
+			expect(search['id']._type).toEqual('moreThan');
+			expect(search['date']).toBeUndefined();
+			expect(mirrorSearch['player_black']._type).toEqual('raw');
+			expect(mirrorSearch['player_black']._objectLiteralParameters).toEqual({ pwm: 'bcreature' });
+			expect(mirrorSearch['id']._value).toEqual(7989);
+		});
+
+		it('does not add the pre-launch id floor when the caller gave an explicit id', () => {
+			const { search } = service.generateSearchQuery({ player_white: 'bcreature', id: '5-100', mirror: 'false' });
+			expect(search['id']._type).toEqual('between');
+			expect(search['id']._value).toEqual([5, 100]);
 		});
 
 		it('Should return the correct values for normal', () => {
@@ -321,6 +343,44 @@ describe('GamesService', () => {
 			const { search } = service.generateSearchQuery(mock);
 			expect(search['extra_time_trigger']).toEqual(20);
 		});
+	});
+
+	describe('getAll player path (reads the player_games view)', () => {
+		it('queries the view for ?player_white=X&mirror=true', async () => {
+			mockViewRepo.findAndCount.mockResolvedValueOnce([[{ id: 5 }, { id: 4 }], 2]);
+			const res = await service.getAll({ player_white: 'AaaarghBot', mirror: 'true', limit: '50', page: '0' });
+
+			expect(mockViewRepo.findAndCount).toHaveBeenCalledTimes(1);
+			const opts = mockViewRepo.findAndCount.mock.calls[0][0];
+			expect(opts.where.player_name._type).toEqual('raw');
+			expect(opts.where.player_name._objectLiteralParameters).toEqual({ n: 'AaaarghBot' });
+			expect(opts.where.id._type).toEqual('moreThan');
+			expect(opts.where.id._value).toEqual(7989);
+			expect(opts.order).toEqual({ id: 'DESC' });
+			expect(opts.take).toEqual(50);
+			expect(opts.skip).toEqual(0);
+			expect(res).toEqual({ items: [{ id: 5 }, { id: 4 }], total: 2, page: 1, perPage: 50, totalPages: 1 });
+			expect(mockRepo.createQueryBuilder).not.toHaveBeenCalled();
+		});
+
+		it('passes page*limit as skip', async () => {
+			await service.getAll({ player_black: 'x', mirror: 'true', limit: '50', page: '3' });
+			expect(mockViewRepo.findAndCount.mock.calls[0][0].skip).toEqual(150);
+		});
+
+		const fallsBack = async (q: Record<string, string>) => {
+			await service.getAll(q);
+			expect(mockViewRepo.findAndCount).not.toHaveBeenCalled();
+			expect(mockRepo.createQueryBuilder).toHaveBeenCalled();
+		};
+
+		it('falls back to the games table: explicit id', () => fallsBack({ player_white: 'X', id: '5-100', mirror: 'true' }));
+		it('falls back: wildcard', () => fallsBack({ player_white: 'Aaa%', mirror: 'true' }));
+		it('falls back: extra filter', () => fallsBack({ player_white: 'X', mirror: 'true', size: '6' }));
+		it('falls back: both players', () => fallsBack({ player_white: 'a', player_black: 'b', mirror: 'true' }));
+		it('falls back: mirror off', () => fallsBack({ player_white: 'X', mirror: 'false' }));
+		it('falls back: non-default sort', () => fallsBack({ player_white: 'X', mirror: 'true', sort: 'date' }));
+		it('falls back: non-default order', () => fallsBack({ player_white: 'X', mirror: 'true', order: 'ASC' }));
 	});
 
 	describe('validate ID search', () => {

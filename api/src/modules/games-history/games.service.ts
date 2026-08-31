@@ -1,16 +1,32 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { stat } from 'fs/promises';
-import { Between, In, LessThan, Like, MoreThan, Repository } from 'typeorm';
+import { Between, In, LessThan, Like, MoreThan, Raw, Repository } from 'typeorm';
 import { GameQuery } from '../dto/games/games.dto';
 import { Games } from './entities/games.entity';
+import { PlayerGames } from './entities/player-games.entity';
 import { PTNService } from './services/ptn.service';
+
+// Highest game id at/before playtak's launch (the old `date > 1461430800000`
+// cutoff -- 7989 is the last id at/before it, confirmed on prod). Player search
+// excludes id <= this: those ~7,983 rows are all "Anon" in the anon export.
+// An id bound rides the rowid, so it needs no idx_games_date.
+const PRELAUNCH_ID = 7989;
+
+// `player_white` / `player_black` match: case-insensitive (usernames are
+// case-insensitive identities on the server -- Player.uniqifyName), and `= ?
+// COLLATE NOCASE` rather than LIKE so it's a point not a range and the NOCASE
+// index can also serve ORDER BY id. A real wildcard keeps LIKE.
+const playerMatch = (value: string, param: string) =>
+	/[%_]/.test(value) ? Like(`${value}`) : Raw((col) => `${col} = :${param} COLLATE NOCASE`, { [param]: value });
 
 @Injectable()
 export class GamesService {
 	constructor(
 		@InjectRepository(Games, 'games')
 		private repository: Repository<Games>,
+		@InjectRepository(PlayerGames, 'games')
+		private playerGames: Repository<PlayerGames>,
 		private ptnService: PTNService
 	) {}
 
@@ -130,11 +146,11 @@ export class GamesService {
 		const playerWhite = search['player_white'];
 		const playerBlack = search['player_black'];
 		if (playerWhite) {
-			search['player_white'] = Like(`${playerWhite}`);
+			search['player_white'] = playerMatch(playerWhite, 'pw');
 			player_search = true;
 		}
 		if (playerBlack) {
-			search['player_black'] = Like(`${playerBlack}`);
+			search['player_black'] = playerMatch(playerBlack, 'pb');
 			player_search = true;
 		}
 
@@ -154,11 +170,11 @@ export class GamesService {
 			delete mirrorSearch['player_black'];
 			delete mirrorSearch['player_white'];
 			if (playerWhite) {
-				mirrorSearch['player_black'] = Like(`${playerWhite}`);
+				mirrorSearch['player_black'] = playerMatch(playerWhite, 'pwm');
 				player_search = true;
 			}
 			if (playerBlack) {
-				mirrorSearch['player_white'] = Like(`${playerBlack}`);
+				mirrorSearch['player_white'] = playerMatch(playerBlack, 'pbm');
 				player_search = true;
 			}
 			if (search['game_result']) {
@@ -198,14 +214,16 @@ export class GamesService {
 		}
 		delete search['game_result'];
 		delete mirrorSearch['game_result'];
-		if (player_search) {
-			search['date'] = MoreThan('1461430800000');
+		// Exclude pre-launch games from every player search. Skipped when the caller
+		// gave an explicit id filter -- that's already more specific.
+		if (player_search && !('id' in search)) {
+			search['id'] = MoreThan(PRELAUNCH_ID);
 			if (mirror) {
-				mirrorSearch['date'] = MoreThan('1461430800000');
+				mirrorSearch['id'] = MoreThan(PRELAUNCH_ID);
 			}
 		}
 
-		return { search, mirrorSearch };
+		return { search, mirrorSearch, playerWhite, playerBlack };
 	}
 
 	async getAll(query?: GameQuery): Promise<any> {
@@ -215,8 +233,41 @@ export class GamesService {
 		const order: 'ASC' | 'DESC' = query.order || 'DESC';
 		const sort = query.sort ? query.sort : 'id';
 		const mirror = query.mirror === 'true' ? true : false;
-		const { search, mirrorSearch } = this.generateSearchQuery(query);
+		const { search, mirrorSearch, playerWhite, playerBlack } = this.generateSearchQuery(query);
+		const offset = limit * page || skip;
 		try {
+			// One-player mirror search, default id sort: read the `player_games`
+			// view (see its migration). `player_name = ? AND id > ?` on the view
+			// plans as MERGE (UNION ALL) over the two NOCASE indexes -- no OR, no
+			// temp b-tree. A wildcard, an extra filter, an explicit id, a non-id
+			// sort, or mirror=false all fall through to the `games` table below.
+			const onePlayer =
+				playerWhite && !playerBlack ? playerWhite : playerBlack && !playerWhite ? playerBlack : null;
+			const onlyPlayerAndFloor = Object.keys(search).every((k) => k === 'id' || k.startsWith('player_'));
+			if (
+				mirror &&
+				sort === 'id' &&
+				order === 'DESC' &&
+				onePlayer &&
+				!query['id'] &&
+				!/[%_]/.test(onePlayer) &&
+				onlyPlayerAndFloor
+			) {
+				const [items, total] = await this.playerGames.findAndCount({
+					where: { player_name: playerMatch(onePlayer, 'n'), id: MoreThan(PRELAUNCH_ID) },
+					order: { id: 'DESC' },
+					take: limit,
+					skip: offset
+				});
+				return {
+					items: items || [],
+					total: total || 0,
+					page: page + 1,
+					perPage: limit,
+					totalPages: Math.ceil(total / limit)
+				};
+			}
+
 			let dbQuery;
 			if (mirror) {
 				dbQuery = this.repository
@@ -230,11 +281,7 @@ export class GamesService {
 			}
 
 			const total = await dbQuery.getCount();
-			const result = await dbQuery
-				.clone()
-				.limit(limit)
-				.offset(limit * page || skip)
-				.execute();
+			const result = await dbQuery.clone().limit(limit).offset(offset).execute();
 
 			return {
 				items: result || [],
