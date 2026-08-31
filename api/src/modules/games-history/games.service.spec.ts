@@ -9,39 +9,13 @@ import { PTNService } from './services/ptn.service';
 describe('GamesService', () => {
 	let service: GamesService;
 
-	const mockRepo = {
-		findAndCount: vi.fn().mockImplementation(() => [[{ sn: '1234' }], 1]),
-		findOne: vi.fn(),
-		findByIds: vi.fn(),
-		find: vi.fn(),
-		save: vi.fn(),
-		update: vi.fn(),
-		delete: vi.fn(),
-		query: vi.fn(),
-		createQueryBuilder: vi.fn(() => {
-			const qb: Record<string, unknown> = {};
-			for (const m of ['select', 'where', 'orWhere', 'from', 'whereInIds', 'orderBy', 'groupBy', 'delete', 'limit', 'offset', 'clone']) {
-				qb[m] = vi.fn(() => qb);
-			}
-			qb.getCount = vi.fn(async () => 0);
-			qb.execute = vi.fn(async () => []);
-			return qb;
-		}),
-		manager: {
-			connection: {
-				transaction: vi.fn()
-			}
-		}
-	};
-
-	// the player_games view repo -- used by getAll's player path
-	const mockViewRepo = {
-		findAndCount: vi.fn(async () => [[], 0])
-	};
+	// getAll reads via findAndCount on one repo or the other; nothing else here
+	// touches the DB.
+	const mockRepo = { findAndCount: vi.fn(async () => [[{ id: 1 }], 1]), findOne: vi.fn() };
+	const mockViewRepo = { findAndCount: vi.fn(async () => [[], 0]) };
 
 	beforeEach(async () => {
-		mockRepo.query.mockReset();
-		mockRepo.createQueryBuilder.mockClear();
+		mockRepo.findAndCount.mockClear();
 		mockViewRepo.findAndCount.mockClear();
 		const module: TestingModule = await Test.createTestingModule({
 			providers: [
@@ -351,16 +325,16 @@ describe('GamesService', () => {
 			const res = await service.getAll({ player_white: 'AaaarghBot', mirror: 'true', limit: '50', page: '0' });
 
 			expect(mockViewRepo.findAndCount).toHaveBeenCalledTimes(1);
+			expect(mockRepo.findAndCount).not.toHaveBeenCalled();
 			const opts = mockViewRepo.findAndCount.mock.calls[0][0];
 			expect(opts.where.player_name._type).toEqual('raw');
-			expect(opts.where.player_name._objectLiteralParameters).toEqual({ n: 'AaaarghBot' });
+			expect(opts.where.player_name._objectLiteralParameters).toEqual({ pw: 'AaaarghBot' });
 			expect(opts.where.id._type).toEqual('moreThan');
 			expect(opts.where.id._value).toEqual(7989);
 			expect(opts.order).toEqual({ id: 'DESC' });
 			expect(opts.take).toEqual(50);
 			expect(opts.skip).toEqual(0);
 			expect(res).toEqual({ items: [{ id: 5 }, { id: 4 }], total: 2, page: 1, perPage: 50, totalPages: 1 });
-			expect(mockRepo.createQueryBuilder).not.toHaveBeenCalled();
 		});
 
 		it('passes page*limit as skip', async () => {
@@ -371,7 +345,7 @@ describe('GamesService', () => {
 		const fallsBack = async (q: Record<string, string>) => {
 			await service.getAll(q);
 			expect(mockViewRepo.findAndCount).not.toHaveBeenCalled();
-			expect(mockRepo.createQueryBuilder).toHaveBeenCalled();
+			expect(mockRepo.findAndCount).toHaveBeenCalled();
 		};
 
 		it('falls back to the games table: explicit id', () => fallsBack({ player_white: 'X', id: '5-100', mirror: 'true' }));
