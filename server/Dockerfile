@@ -12,7 +12,6 @@ WORKDIR /app
 ENTRYPOINT exec amvn clean package exec:java --watch
 
 FROM base as production
-VOLUME /tmp
 WORKDIR /tmp/
 COPY ./pom.xml /tmp/
 RUN mvn dependency:resolve

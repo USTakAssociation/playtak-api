@@ -62,7 +62,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 	String clientString = "^Client ([A-Za-z-.0-9]{1,60})";
 	Pattern clientPattern;
 
-	String protocolString = "^Protocol ([1-9][0-9]{0,8})";
+	String protocolString = "^Protocol ([0-9]{1,8})";
 	Pattern protocolPattern;
 
 	String changePasswordString = "^ChangePassword ([^\n\r\\s]{6,50}) ([^\n\r\\s]{6,50})";
@@ -95,6 +95,13 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 	String resignString = "^Game#(\\d+) Resign";
 	Pattern resignPattern;
 
+	String giveTimeString = "^Game#(\\d+) GiveTime$";
+	Pattern giveTimePattern;
+
+	// V4 adds the incrementScales flag after increment, and a trailing opening code (0 = swap, 1 = double black stack) before the opponent.
+	String seekV4String = "^Seek (\\d) (\\d+) (\\d+) (0|1) ([WBA]) (\\d+) (\\d+) (\\d+) (0|1) (0|1) (\\d+) (\\d+) (0|1) ([A-Za-z0-9_]*)";
+	Pattern seekV4Pattern;
+
 	String seekV3String = "^Seek (\\d) (\\d+) (\\d+) ([WBA]) (\\d+) (\\d+) (\\d+) (0|1) (0|1) (\\d+) (\\d+) ([A-Za-z0-9_]*)";
 	Pattern seekV3Pattern;
 
@@ -103,6 +110,10 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 
 	String seekV1String = "^Seek (\\d) (\\d+) (\\d+)( [WB])?";
 	Pattern seekV1Pattern;
+
+	// V2 adds incrementScales after increment, and a trailing opening code (0 = swap, 1 = double black stack) before the opponent.
+	String rematchV2String = "^Rematch (\\d+) (\\d+) (\\d+) (\\d+) (0|1) ([WBA]) (\\d+) (\\d+) (\\d+) (0|1) (0|1) (\\d+) (\\d+) (0|1) ([A-Za-z0-9_]*)";
+	Pattern rematchV2Pattern;
 
 	String rematchString = "^Rematch (\\d+) (\\d+) (\\d+) (\\d+) ([WBA]) (\\d+) (\\d+) (\\d+) (0|1) (0|1) (\\d+) (\\d+) ([A-Za-z0-9_]*)";
 	Pattern rematchPattern;
@@ -214,11 +225,14 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 		drawPattern = Pattern.compile(drawString);
 		removeDrawPattern = Pattern.compile(removeDrawString);
 		resignPattern = Pattern.compile(resignString);
+		giveTimePattern = Pattern.compile(giveTimeString);
 		wrongRegisterPattern = Pattern.compile(wrongRegisterString);
+		seekV4Pattern = Pattern.compile(seekV4String);
 		seekV3Pattern = Pattern.compile(seekV3String);
 		seekV2Pattern = Pattern.compile(seekV2String);
 		seekV1Pattern = Pattern.compile(seekV1String);
 		rematchPattern = Pattern.compile(rematchString);
+		rematchV2Pattern = Pattern.compile(rematchV2String);
 		acceptSeekPattern = Pattern.compile(acceptSeekString);
 		listPattern = Pattern.compile(listString);
 		gameListPattern = Pattern.compile(gameListString);
@@ -402,6 +416,8 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 					}
 				}
 				temp = temp.replaceAll("[\\n\\r]+$", "");
+				// mark client active on any received message (not just PING)
+				updateLastActivity();
 
 				if (temp.equals("quit")) {
 					break;
@@ -432,7 +448,11 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 					}
 					// What protocol version is this client using
 					else if ((m = protocolPattern.matcher(temp)).find()) {
-						this.protocolVersion = Integer.parseInt(m.group(1));
+						this.protocolVersion = 0;
+						String protocolValue = m.group(1);
+						if (protocolValue != null && !protocolValue.isEmpty()) {
+							this.protocolVersion = Integer.parseInt(protocolValue);
+						}
 						sendWithoutLogging("OK");
 					}
 					//Login Guest
@@ -584,6 +604,29 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 					if ((m = listPattern.matcher(temp)).find()) {
 						Seek.sendListTo(this);
 					}
+					//Seek a game V4 (adds incrementScales flag after the increment field)
+					else if (game == null && (m = seekV4Pattern.matcher(temp)).find()) {
+						Seek.seekStuffLock.lock();
+						try {
+							if (seek != null) {
+								Seek.removeSeek(seek.no);
+							}
+							int no = Integer.parseInt(m.group(1));
+							if (no == 0) {
+								Log("Seek remove");
+								seek = null;
+							} else {
+								Seek.COLOR clr = Seek.COLOR.ANY;
+
+								if ("W".equals(m.group(5))) clr = Seek.COLOR.WHITE;
+								else if ("B".equals(m.group(5))) clr = Seek.COLOR.BLACK;
+								seek = Seek.newSeek(this, Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)), clr, Integer.parseInt(m.group(6)), Integer.parseInt(m.group(7)), Integer.parseInt(m.group(8)), Integer.parseInt(m.group(9)), Integer.parseInt(m.group(10)), Integer.parseInt(m.group(11)), Integer.parseInt(m.group(12)), "1".equals(m.group(4)), Integer.parseInt(m.group(13)), m.group(14), null);
+								Log("Seek " + seek.boardSize);
+							}
+						} finally {
+							Seek.seekStuffLock.unlock();
+						}
+					}
 					//Seek a game V3
 					else if (game == null && (m = seekV3Pattern.matcher(temp)).find()) {
 						Seek.seekStuffLock.lock();
@@ -699,7 +742,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 								unspectateAll();
 								otherClient.unspectateAll();
 
-								game = new Game(player, otherClient.player, sz, time, sk.incr, sk.color, sk.komi, sk.pieces, sk.capstones, sk.unrated, sk.tournament, sk.triggerMove, sk.timeAmount, sk.pntId);
+								game = new Game(player, otherClient.player, sz, time, sk.incr, sk.color, sk.komi, sk.pieces, sk.capstones, sk.unrated, sk.tournament, sk.triggerMove, sk.timeAmount, sk.incrementScales, sk.opening, sk.pntId);
 								notifySubscribers(GameUpdate.gameCreated(game.toDto()));
 								for (var subscriber : subscribers) {
 									game.subscribe(subscriber);
@@ -719,6 +762,44 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 								}
 							} else {
 								sendNOK();
+							}
+						} finally {
+							Seek.seekStuffLock.unlock();
+						}
+					}
+					// handle rematch request (with incrementScales)
+					else if (game == null && (m = rematchV2Pattern.matcher(temp)).find()) {
+						Seek.seekStuffLock.lock();
+						try {
+							if (seek != null) {
+								Seek.removeSeek(seek.no);
+							}
+							Seek sk = null;
+							for (Seek s : Seek.seeks.values()) {
+								if (s.rematchId == Integer.parseInt(m.group(1))) {
+									sk = s;
+									break;
+								}
+							}
+							if (sk != null && sk.opponent.toLowerCase().equals(player.getName().toLowerCase())) {
+								send("Accept Rematch " + sk.no);
+							} else {
+								seek = Seek.newRematchSeek(this, Integer.parseInt(m.group(1)), // ID
+									Integer.parseInt(m.group(2)), // size
+									Integer.parseInt(m.group(3)), // time
+									Integer.parseInt(m.group(4)), // increment
+									m.group(6), // color
+									Integer.parseInt(m.group(7)), // komi
+									Integer.parseInt(m.group(8)), // pieces
+									Integer.parseInt(m.group(9)), // capstones
+									Integer.parseInt(m.group(10)), // unrated
+									Integer.parseInt(m.group(11)), // tournament
+									Integer.parseInt(m.group(12)), // triggerMove
+									Integer.parseInt(m.group(13)), // timeAmount
+									"1".equals(m.group(5)), // incrementScales
+									Integer.parseInt(m.group(14)), // opening
+									m.group(15)); // opponent
+								send("Rematch seek created with ID: " + seek.no);
 							}
 						} finally {
 							Seek.seekStuffLock.unlock();
@@ -843,6 +924,11 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 					//Handle removing draw offer
 					else if (game != null && (m = removeDrawPattern.matcher(temp)).find() && game.no == Integer.parseInt(m.group(1))) {
 						game.removeDraw(player);
+						sendWithoutLogging("OK");
+					}
+					//Handle "give time to opponent" (Lichess-style fixed-amount gift)
+					else if (game != null && (m = giveTimePattern.matcher(temp)).find() && game.no == Integer.parseInt(m.group(1))) {
+						game.giveTime(player);
 						sendWithoutLogging("OK");
 					}
 					//Handle resignation
@@ -976,11 +1062,18 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 			msg2 += sk.time + " " + sk.komi + " " + sk.pieces + " " + sk.capstones + " " + sk.triggerMove + " " + sk.timeAmount;
 		} else {
 			msg += "Game Start " + game.no + " " + game.white.getName() + " vs " + game.black.getName();
-			msg2 += sk.boardSize + " " + sk.time + " " + sk.incr + " " + sk.komi + " " + sk.pieces + " " + sk.capstones + " " + sk.unrated + " " + sk.tournament + " " + sk.triggerMove + " " + sk.timeAmount + " ";
+			msg2 += sk.boardSize + " " + sk.time + " " + sk.incr + " ";
+			if (protocolVersion >= 4) {
+				msg2 += (sk.incrementScales ? "1" : "0") + " ";
+			}
+			msg2 += sk.komi + " " + sk.pieces + " " + sk.capstones + " " + sk.unrated + " " + sk.tournament + " " + sk.triggerMove + " " + sk.timeAmount + " ";
 			if (sk.botSeek == 1) {
 				msg2 += "1";
 			} else {
 				msg2 += "0";
+			}
+			if (protocolVersion >= 4) {
+				msg2 += " " + game.opening;
 			}
 		}
 		return msg + " " + ((game.white == player) ? "white" : "black") + " " + msg2;

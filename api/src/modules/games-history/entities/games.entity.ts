@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 @Entity()
 export class Games {
 	@PrimaryGeneratedColumn()
@@ -60,4 +60,10 @@ export class Games {
 
 	@Column()
 	extra_time_trigger: number;
+
+	@Column({ default: 0 })
+	increment_scales: number;
+
+	@Column({ default: 'swap' })
+	opening: string;
 }

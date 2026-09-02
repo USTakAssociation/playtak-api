@@ -1,10 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, In, LessThan, Like, MoreThan, Repository } from 'typeorm';
-import { Games } from './entities/games.entity';
 import { stat } from 'fs/promises';
-import { PTNService } from './services/ptn.service';
+import { Between, In, LessThan, Like, MoreThan, Repository } from 'typeorm';
 import { GameQuery } from '../dto/games/games.dto';
+import { Games } from './entities/games.entity';
+import { PTNService } from './services/ptn.service';
 
 @Injectable()
 export class GamesService {
@@ -111,6 +111,9 @@ export class GamesService {
 		}
 		if (query['extra_time_trigger']) {
 			search['extra_time_trigger'] = parseInt(query['extra_time_trigger']);
+		}
+		if (query['increment_scales']) {
+			search['increment_scales'] = parseInt(query['increment_scales']);
 		}
 		if (query['type']) {
 			search[query['type'].toLowerCase()] = 1;

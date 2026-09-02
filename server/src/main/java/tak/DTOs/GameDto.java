@@ -28,6 +28,15 @@ public class GameDto {
 	 * Seconds
 	 */
 	public int extraTimeAmount;
+	/**
+	 * When true, the increment awarded after each move is multiplied by the
+	 * (1-indexed) move number of the player who just moved.
+	 */
+	public boolean incrementScales;
+	/**
+	 * Opening variant as the canonical PTN Ninja tag value ("swap" / "double black stack").
+	 */
+	public String opening;
 	public float komi;
 
 	public int boardSize;

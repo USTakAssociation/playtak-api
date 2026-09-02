@@ -40,10 +40,14 @@ export class PTNService {
 		return '';
 	}
 
-	public getMoves(notation: string) {
+	public getMoves(notation: string, opening?: string) {
 		let moves = '';
 		let count = 0;
-		const moveArray = notation.split(',');
+		// A game with no moves recorded yet has an empty notation, and
+		// ''.split(',') yields [''] rather than [], which ran the loop once and
+		// emitted a move number with nothing after it. For a double black stack
+		// game that produced a lone '2' prefix — "1. 2" — which is not valid PTN.
+		const moveArray = notation ? notation.split(',').filter((move) => move !== '') : [];
 		for (let i = 0; i < moveArray.length; i++) {
 			const move = moveArray[i];
 			if (count % 2 == 0) {
@@ -51,6 +55,11 @@ export class PTNService {
 			}
 
 			moves += ' ';
+			// Double Black Stack opening: White's first ply places two black flats,
+			// written in PTN with a leading "2" (e.g. "2a1").
+			if (i === 0 && opening === 'double black stack') {
+				moves += '2';
+			}
 			moves += this.convertMove(move);
 
 			count += 1;
@@ -58,11 +67,14 @@ export class PTNService {
 		return moves;
 	}
 
-	public getTimerInfo(timertime: number, timerinc: number) {
-		const secs = timertime % 60;
-		timertime = timertime / 60;
-		const mins = timertime % 60;
-		const hrs = Math.floor(timertime / 60);
+	private formatDuration(totalSeconds: number) {
+		const secs = totalSeconds % 60;
+		totalSeconds = totalSeconds / 60;
+		// Floored like hrs below: without this a duration that is not a whole
+		// number of minutes rendered its minutes fractionally, e.g. 90 seconds
+		// as "1.5:30" instead of "1:30".
+		const mins = Math.floor(totalSeconds % 60);
+		const hrs = Math.floor(totalSeconds / 60);
 		let val = '';
 		let force = false;
 
@@ -74,8 +86,31 @@ export class PTNService {
 			val += mins.toString() + ':';
 		}
 		val += secs.toString();
+
+		return val;
+	}
+
+	public getTimerInfo(
+		timertime: number,
+		timerinc: number,
+		incrementScales = false,
+		extraTimeTrigger = 0,
+		extraTimeAmount = 0
+	) {
+		let val = this.formatDuration(timertime);
+
 		if (timerinc !== 0) {
-			val += ' +' + timerinc.toString();
+			// An increment that scales with the move number is written with a
+			// trailing "n" ("+1n" = one second per move elapsed), matching how the
+			// web client shows it. Without this the tag is identical to a fixed
+			// increment, so the time control cannot be recovered from the PTN.
+			val += ' +' + timerinc.toString() + (incrementScales ? 'n' : '');
+		}
+
+		if (extraTimeTrigger > 0 && extraTimeAmount > 0) {
+			// Bonus time granted once the game reaches a given move, written as
+			// "@move +duration" ("@35 +10:0" = ten minutes added at move 35).
+			val += ' @' + extraTimeTrigger.toString() + ' +' + this.formatDuration(extraTimeAmount);
 		}
 
 		return val;
@@ -101,7 +136,16 @@ export class PTNService {
 		if (wr) ptn += this.getHeader('Rating1', wr);
 		ptn += this.getHeader('Player2', bn);
 		if (wb) ptn += this.getHeader('Rating2', wb);
-		ptn += this.getHeader('Clock', this.getTimerInfo(game.timertime, game.timerinc));
+		ptn += this.getHeader(
+			'Clock',
+			this.getTimerInfo(
+				game.timertime,
+				game.timerinc,
+				!!game.increment_scales,
+				game.extra_time_trigger,
+				game.extra_time_amount
+			)
+		);
 		ptn += this.getHeader('Result', game.result);
 		ptn += this.getHeader('Size', game.size);
 		ptn += this.getHeader('Komi', (game.komi / 2).toString());
@@ -114,7 +158,12 @@ export class PTNService {
 		ptn += this.getHeader('Flats', gpieces);
 		ptn += this.getHeader('Caps', gcaps);
 
-		ptn += '\n' + this.getMoves(game.notation);
+		// Opening variant (PTN Ninja tag). Omitted for the default "swap" so legacy PTN is unchanged.
+		if (game.opening && game.opening !== 'swap') {
+			ptn += this.getHeader('Opening', game.opening);
+		}
+
+		ptn += '\n' + this.getMoves(game.notation, game.opening);
 		ptn += '\n' + game.result + '\n';
 
 		return ptn;

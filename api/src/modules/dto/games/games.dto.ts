@@ -20,6 +20,8 @@ export class Game {
 	unrated: number;
 	extra_time_amount: number;
 	extra_time_trigger: number;
+	increment_scales: number;
+	opening: string;
 }
 
 export class GamesList {
@@ -151,6 +153,13 @@ export class GameQuery {
 		enum: ['180', '300', '420', '600', '900', '1200', '1800', '2700', '3600']
 	})
 	extra_time_trigger?: string;
+
+	@ApiProperty({
+		description: 'Whether the increment scales by move number (0 or 1)',
+		required: false,
+		enum: ['0', '1']
+	})
+	increment_scales?: string;
 }
 
 export class GamePTN {}

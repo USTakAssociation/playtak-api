@@ -10,7 +10,8 @@ This repo contains the api and Tak server for servicing data to the PlayTak UI c
 
 - docker
 - nvm
-- node v20
+- node v22
+- pnpm
 - sqlite3
 
 ## Setup
@@ -20,7 +21,7 @@ Run the following commands to setup the api for local development
 ```bash
 nvm use
 cd ./api
-npm ci
+pnpm install
 cd ..
 ```
 
@@ -54,13 +55,13 @@ You can run tests for each of the apps:
 ```bash
 cd ./api
 # unit test
-npm run test
+pnpm run test
 
 # e2e tests
-npm run test:e2e
+pnpm run test:e2e
 
 # test coverage
-npm run test:cov
+pnpm run test:cov
 ```
 
 You can also run integration tests using [Bruno](https://www.usebruno.com/)
