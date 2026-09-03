@@ -105,11 +105,54 @@ public class Telnet extends Websocket {
 	}
 
 	public void kill(int pos) {
+		if (streamended) {
+			return;
+		}
 		try {
 			streamended = true;
-			socket.close();
-		} catch (Throwable t) {
+			try {
+				socket.close();
+			} catch (Throwable ignore) {
+			}
 
+			String remote = "unknown";
+			try {
+				if (socket != null && socket.getRemoteSocketAddress() != null) remote = socket.getRemoteSocketAddress().toString();
+			} catch (Throwable ignore) {}
+
+			String reason;
+			switch (pos) {
+				case 101:
+					reason = "socket setup failure";
+					break;
+				case 102:
+					reason = "buffer overflow";
+					break;
+				case 103:
+					reason = "blocking read returned < 0";
+					break;
+				case 104:
+					reason = "exception in recieve";
+					break;
+				case 105:
+					reason = "exception in send";
+					break;
+				case 201:
+					reason = "client quit";
+					break;
+				case 202:
+					reason = "admin disconnect";
+					break;
+				default:
+					reason = "code " + String.valueOf(pos);
+					break;
+			}
+
+			TakServer.Log(clientNo + ":" + playerName + ":Stream dead " + String.valueOf(pos) + " (" + reason + ") remote=" + remote + " headerended=" + headerended + " readbufferused=" + readbufferused);
+		} catch (Throwable t) {
+			try {
+				TakServer.Log("Error in kill: " + t.getMessage());
+			} catch (Throwable ignore) {}
 		}
 	}
 }
