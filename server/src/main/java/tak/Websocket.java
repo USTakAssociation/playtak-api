@@ -7,6 +7,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Base64;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Matcher;
@@ -36,6 +37,12 @@ public class Websocket {
 	boolean recievedtoken;
 	public boolean headerended;
 	public volatile boolean streamended;
+
+	// Guards kill() so that concurrent callers (e.g. the stale-connection
+	// reaper and the client's own thread reacting to the socket dying) only
+	// ever run the cleanup body once. `streamended` alone is check-then-act
+	// and not safe under real concurrency.
+	final AtomicBoolean killClaimed = new AtomicBoolean(false);
 
 	// Set by Client so log lines below (and in Telnet, which inherits these)
 	// can identify which connection/player they belong to, e.g. for
@@ -309,7 +316,7 @@ public class Websocket {
 	}
 
 	public void kill(int pos) {
-		if (streamended) {
+		if (!killClaimed.compareAndSet(false, true)) {
 			return;
 		}
 		try {

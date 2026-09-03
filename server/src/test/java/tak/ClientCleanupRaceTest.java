@@ -10,6 +10,10 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
@@ -96,6 +100,48 @@ class ClientCleanupRaceTest {
 		assertTrue(ws.streamended);
 		assertEquals(1, countMessagesContaining("Stream dead"),
 			"kill() should only log once even if called twice for the same connection");
+	}
+
+	@Test
+	void concurrentKillCallsOnlyRunCleanupOnce_websocket() throws InterruptedException {
+		Websocket ws = new Websocket(serverSideSocket);
+		runConcurrentKills(ws::kill);
+
+		assertTrue(ws.streamended);
+		assertEquals(1, countMessagesContaining("Stream dead"),
+			"concurrent kill() calls racing on the same connection should only perform cleanup once");
+	}
+
+	@Test
+	void concurrentKillCallsOnlyRunCleanupOnce_telnet() throws InterruptedException {
+		Telnet telnet = new Telnet(serverSideSocket);
+		runConcurrentKills(telnet::kill);
+
+		assertTrue(telnet.streamended);
+		assertEquals(1, countMessagesContaining("Stream dead"),
+			"concurrent kill() calls racing on the same connection should only perform cleanup once");
+	}
+
+	private void runConcurrentKills(java.util.function.IntConsumer kill) throws InterruptedException {
+		int threadCount = 20;
+		ExecutorService pool = Executors.newFixedThreadPool(threadCount);
+		CountDownLatch ready = new CountDownLatch(threadCount);
+		CountDownLatch go = new CountDownLatch(1);
+		for (int i = 0; i < threadCount; i++) {
+			final int pos = i;
+			pool.execute(() -> {
+				ready.countDown();
+				try {
+					go.await();
+				} catch (InterruptedException ignore) {
+				}
+				kill.accept(pos);
+			});
+		}
+		ready.await();
+		go.countDown();
+		pool.shutdown();
+		assertTrue(pool.awaitTermination(5, TimeUnit.SECONDS), "kill() calls did not complete in time");
 	}
 
 	@Test
