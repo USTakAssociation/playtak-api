@@ -323,6 +323,151 @@ describe('GamesService', () => {
 		});
 	});
 
+	describe('Sanitizes query params', () => {
+		it('Should drop an id that fails validation instead of searching on NaN', () => {
+			const { search } = service.generateSearchQuery({ id: 'abc1', mirror: 'false' });
+			expect(search).not.toHaveProperty('id');
+		});
+
+		it('Should drop a reversed id range rather than silently reversing it', () => {
+			const { search } = service.generateSearchQuery({ id: '10-1', mirror: 'false' });
+			expect(search).not.toHaveProperty('id');
+		});
+
+		it.each([['>abc'], ['<abc'], ['abc'], ['abc-def'], ['1622505600000-def']])(
+			'Should drop the date filter for %s',
+			(date) => {
+				const { search } = service.generateSearchQuery({ date, mirror: 'false' });
+				expect(search).not.toHaveProperty('date');
+			}
+		);
+
+		it('Should still order a reversed date range', () => {
+			const { search } = service.generateSearchQuery({
+				date: '1625097600000-1622505600000',
+				mirror: 'false'
+			});
+			expect(search['date']._value).toEqual([1622505600000, 1625097600000]);
+			expect(search['date']._type).toEqual('between');
+		});
+
+		it.each([
+			['size'],
+			['timertime'],
+			['timerinc'],
+			['extra_time_amount'],
+			['extra_time_trigger'],
+			['increment_scales']
+		])('Should drop a non-numeric %s', (field) => {
+			const { search } = service.generateSearchQuery({ [field]: '7; DROP TABLE games', mirror: 'false' });
+			expect(search).not.toHaveProperty(field);
+		});
+
+		it('Should accept increment_scales as a number', () => {
+			const { search } = service.generateSearchQuery({ increment_scales: '1', mirror: 'false' });
+			expect(search['increment_scales']).toEqual(1);
+		});
+
+		it.each([['tournament'], ['unrated']])('Should accept the %s type filter', (type) => {
+			const { search } = service.generateSearchQuery({ type, mirror: 'false' });
+			expect(search[type]).toEqual(1);
+		});
+
+		it('Should accept a type filter in any case', () => {
+			const { search } = service.generateSearchQuery({ type: 'TOURNAMENT', mirror: 'false' });
+			expect(search['tournament']).toEqual(1);
+		});
+
+		it('Should ignore a type filter that is not an allowed column', () => {
+			const { search } = service.generateSearchQuery({ type: 'notation', mirror: 'false' });
+			expect(search).toStrictEqual({});
+		});
+	});
+
+	describe('getAll bounds', () => {
+		let captured: { sort?: string; order?: string; limit?: number; offset?: number };
+
+		beforeEach(() => {
+			captured = {};
+			const builder = {
+				select: () => builder,
+				where: () => builder,
+				orWhere: () => builder,
+				clone: () => builder,
+				orderBy: (sort: string, order: string) => {
+					captured.sort = sort;
+					captured.order = order;
+					return builder;
+				},
+				limit: (value: number) => {
+					captured.limit = value;
+					return builder;
+				},
+				offset: (value: number) => {
+					captured.offset = value;
+					return builder;
+				},
+				getCount: async () => 0,
+				execute: async () => []
+			};
+			mockRepo.createQueryBuilder.mockReturnValue(builder);
+		});
+
+		it('Should default to 50 rows of the newest ids', async () => {
+			await service.getAll({ mirror: 'false' } as never);
+			expect(captured).toEqual({ sort: 'id', order: 'DESC', limit: 50, offset: 0 });
+		});
+
+		it.each([
+			['1000', 200],
+			['0', 1],
+			['-10', 1],
+			['abc', 50],
+			['25', 25]
+		])('Should clamp limit=%s to %s', async (limit, expected) => {
+			await service.getAll({ limit, mirror: 'false' } as never);
+			expect(captured.limit).toEqual(expected);
+		});
+
+		it('Should turn page and limit into an offset', async () => {
+			await service.getAll({ limit: '10', page: '3', mirror: 'false' } as never);
+			expect(captured.offset).toEqual(30);
+		});
+
+		it('Should fall back to skip when there is no page', async () => {
+			await service.getAll({ skip: '25', mirror: 'false' } as never);
+			expect(captured.offset).toEqual(25);
+		});
+
+		it.each([['-5'], ['abc']])('Should floor page=%s at zero', async (page) => {
+			await service.getAll({ page, mirror: 'false' } as never);
+			expect(captured.offset).toEqual(0);
+		});
+
+		it('Should sort by an allowed column', async () => {
+			await service.getAll({ sort: 'date', mirror: 'false' } as never);
+			expect(captured.sort).toEqual('date');
+		});
+
+		it.each([['notation; DROP TABLE games'], ['(SELECT 1)'], ['unknown_column']])(
+			'Should fall back to id for sort=%s',
+			async (sort) => {
+				await service.getAll({ sort, mirror: 'false' } as never);
+				expect(captured.sort).toEqual('id');
+			}
+		);
+
+		it.each([
+			['ASC', 'ASC'],
+			['asc', 'ASC'],
+			['DESC', 'DESC'],
+			['sideways', 'DESC']
+		])('Should resolve order=%s to %s', async (order, expected) => {
+			await service.getAll({ order, mirror: 'false' } as never);
+			expect(captured.order).toEqual(expected);
+		});
+	});
+
 	describe('validate ID search', () => {
 		it('Should return true for valid ID search 1234', () => {
 			const idString = '1234';
