@@ -170,6 +170,9 @@ export class RatingService {
 					changed: false
 				}))
 				.map(this.parseFatigue);
+			// name -> player lookup for the games loop; entries are the same objects
+			// held in playersArray, so mutations in the loop are visible in both
+			const playersByName = new Map(playersArray.map((player) => [player.name, player]));
 			// get all the games
 			const gamesQuery = `
 				SELECT id, date, player_white, player_black, result, unrated, size, timertime, timerinc, pieces, capstones, length(notation) as notationlength FROM games 
@@ -210,8 +213,8 @@ export class RatingService {
 			for (let i = 0; i < gamesData.length; i++) {
 				const game = gamesData[i];
 				// get the player white and player black from the playersArray
-				let player_white: Player = playersArray[playersArray.findIndex((p) => p.name == game.player_white)];
-				let player_black: Player = playersArray[playersArray.findIndex((p) => p.name == game.player_black)];
+				let player_white: Player = playersByName.get(game.player_white);
+				let player_black: Player = playersByName.get(game.player_black);
 				let whiteRating = 0;
 				let blackRating = 0;
 				let whiteAdjustedRating = 0;
