@@ -1,12 +1,15 @@
 import { CacheInterceptor } from '@nestjs/cache-manager';
 import { Controller, Get, Header, UseInterceptors } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { DefaultExceptionDto } from '../dto/error.dto';
 import { EventList } from '../dto/events/events.dto';
 import { EventsService } from './events.service';
 
 @ApiTags('Events')
 @Controller('events')
+// Keeps the tighter limit events.module.ts declared before the throttler was consolidated.
+@Throttle({ default: { limit: 30 } })
 export class EventsController {
 	constructor(private readonly service: EventsService) {}
 
