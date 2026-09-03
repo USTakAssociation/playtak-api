@@ -105,7 +105,7 @@ public class Telnet extends Websocket {
 	}
 
 	public void kill(int pos) {
-		if (streamended) {
+		if (!killClaimed.compareAndSet(false, true)) {
 			return;
 		}
 		try {
