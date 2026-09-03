@@ -35,7 +35,13 @@ public class Websocket {
 
 	boolean recievedtoken;
 	public boolean headerended;
-	public boolean streamended;
+	public volatile boolean streamended;
+
+	// Set by Client so log lines below (and in Telnet, which inherits these)
+	// can identify which connection/player they belong to, e.g. for
+	// `grep "<clientNo>:<playerName>:"` across a log file.
+	public int clientNo = 0;
+	public volatile String playerName = "";
 
 	Pattern websocketkeyPattern;
 	String wskey;
@@ -303,6 +309,9 @@ public class Websocket {
 	}
 
 	public void kill(int pos) {
+		if (streamended) {
+			return;
+		}
 		try {
 			streamended = true;
 			try {
@@ -373,7 +382,7 @@ public class Websocket {
 					break;
 			}
 
-			TakServer.Log("Stream dead " + String.valueOf(pos) + " (" + reason + ") remote=" + remote + " headerended=" + headerended + " readbufferused=" + readbufferused);
+			TakServer.Log(clientNo + ":" + playerName + ":Stream dead " + String.valueOf(pos) + " (" + reason + ") remote=" + remote + " headerended=" + headerended + " readbufferused=" + readbufferused);
 		} catch (Throwable t) {
 			try {
 				TakServer.Log("Error in kill: " + t.getMessage());
