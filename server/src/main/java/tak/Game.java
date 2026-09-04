@@ -415,7 +415,7 @@ public class Game implements Publisher<GameUpdate> {
 	void newSpectator(Player p) {
 		gameLock.lock();
 		try {
-			p.send("Observe " + stringForm(protocolVersionFor(p) >= 4));
+			p.sendWithoutLogging("Observe " + stringForm(protocolVersionFor(p) >= 4));
 			sendMoveListTo(p);
 			spectators.add(p);
 			updateTime(p);
@@ -473,8 +473,8 @@ public class Game implements Publisher<GameUpdate> {
 				undoRequestedBy = null;
 				undoPosition();
 				updateOutOfTime();
-				white.send("Game#" + no + " Undo");
-				black.send("Game#" + no + " Undo");
+				white.sendWithoutLogging("Game#" + no + " Undo");
+				black.sendWithoutLogging("Game#" + no + " Undo");
 				sendToSpectators("Game#" + no + " Undo");
 			}
 		} finally {

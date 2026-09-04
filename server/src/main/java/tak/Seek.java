@@ -174,11 +174,11 @@ public class Seek {
 			for (Integer no : Seek.seeks.keySet()) {
 				String[] st = Seek.seeks.get(no).buildSeekStringArray();
 				if (c.protocolVersion <= 1) {
-					c.send("Seek new " + st[0]);
+					c.sendWithoutLogging("Seek new " + st[0]);
 				} else if (c.protocolVersion <= 3) {
-					c.send("Seek new " + st[1]);
+					c.sendWithoutLogging("Seek new " + st[1]);
 				} else {
-					c.send("Seek new " + st[2]);
+					c.sendWithoutLogging("Seek new " + st[2]);
 				}
 			}
 		} finally {
