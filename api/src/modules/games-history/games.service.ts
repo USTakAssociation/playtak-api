@@ -1,16 +1,32 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { stat } from 'fs/promises';
-import { Between, In, LessThan, Like, MoreThan, Repository } from 'typeorm';
+import { Between, In, LessThan, Like, MoreThan, Raw, Repository } from 'typeorm';
 import { GameQuery } from '../dto/games/games.dto';
 import { Games } from './entities/games.entity';
+import { PlayerGames } from './entities/player-games.entity';
 import { PTNService } from './services/ptn.service';
+
+// Highest game id at/before playtak's launch (the old `date > 1461430800000`
+// cutoff -- 7989 is the last id at/before it, confirmed on prod). Player search
+// excludes id <= this: those ~7,983 rows are all "Anon" in the anon export.
+// An id bound rides the rowid, so it needs no idx_games_date.
+const PRELAUNCH_ID = 7989;
+
+// `player_white` / `player_black` match: case-insensitive (usernames are
+// case-insensitive identities on the server -- Player.uniqifyName), and `= ?
+// COLLATE NOCASE` rather than LIKE so it's a point not a range and the NOCASE
+// index can also serve ORDER BY id. A real wildcard keeps LIKE.
+const playerMatch = (value: string, param: string) =>
+	/[%_]/.test(value) ? Like(`${value}`) : Raw((col) => `${col} = :${param} COLLATE NOCASE`, { [param]: value });
 
 @Injectable()
 export class GamesService {
 	constructor(
 		@InjectRepository(Games, 'games')
 		private repository: Repository<Games>,
+		@InjectRepository(PlayerGames, 'games')
+		private playerGames: Repository<PlayerGames>,
 		private ptnService: PTNService
 	) {}
 
@@ -130,11 +146,11 @@ export class GamesService {
 		const playerWhite = search['player_white'];
 		const playerBlack = search['player_black'];
 		if (playerWhite) {
-			search['player_white'] = Like(`${playerWhite}`);
+			search['player_white'] = playerMatch(playerWhite, 'pw');
 			player_search = true;
 		}
 		if (playerBlack) {
-			search['player_black'] = Like(`${playerBlack}`);
+			search['player_black'] = playerMatch(playerBlack, 'pb');
 			player_search = true;
 		}
 
@@ -154,11 +170,11 @@ export class GamesService {
 			delete mirrorSearch['player_black'];
 			delete mirrorSearch['player_white'];
 			if (playerWhite) {
-				mirrorSearch['player_black'] = Like(`${playerWhite}`);
+				mirrorSearch['player_black'] = playerMatch(playerWhite, 'pwm');
 				player_search = true;
 			}
 			if (playerBlack) {
-				mirrorSearch['player_white'] = Like(`${playerBlack}`);
+				mirrorSearch['player_white'] = playerMatch(playerBlack, 'pbm');
 				player_search = true;
 			}
 			if (search['game_result']) {
@@ -198,46 +214,51 @@ export class GamesService {
 		}
 		delete search['game_result'];
 		delete mirrorSearch['game_result'];
-		if (player_search) {
-			search['date'] = MoreThan('1461430800000');
+		// Exclude pre-launch games from every player search. Skipped when the caller
+		// gave an explicit id filter -- that's already more specific.
+		if (player_search && !('id' in search)) {
+			search['id'] = MoreThan(PRELAUNCH_ID);
 			if (mirror) {
-				mirrorSearch['date'] = MoreThan('1461430800000');
+				mirrorSearch['id'] = MoreThan(PRELAUNCH_ID);
 			}
 		}
 
-		return { search, mirrorSearch };
+		return { search, mirrorSearch, playerWhite, playerBlack };
+	}
+
+	// Turn a query into { which table/view to read, the find `where` }. A plain
+	// one-player mirror search on the default id sort reads the `player_games`
+	// view (see its migration): `player_name = ? AND id > ?` there plans as
+	// MERGE (UNION ALL) over the two NOCASE indexes -- no OR, no temp b-tree.
+	// Everything else -- wildcard, extra filter, explicit id, non-id sort,
+	// mirror off -- reads the `games` table (`[search, mirrorSearch]` = OR).
+	planQuery(query: GameQuery): { source: 'games' | 'player_games'; where: object | object[] } {
+		const { search, mirrorSearch, playerWhite, playerBlack } = this.generateSearchQuery(query);
+		const mirror = query.mirror === 'true';
+		const idSort = (query.sort || 'id') === 'id' && (query.order || 'DESC') === 'DESC';
+		const onePlayer = playerWhite && !playerBlack ? playerWhite : playerBlack && !playerWhite ? playerBlack : null;
+		const onlyPlayerAndFloor = Object.keys(search).every((k) => k === 'id' || k.startsWith('player_'));
+
+		if (mirror && idSort && onePlayer && !query['id'] && !/[%_]/.test(onePlayer) && onlyPlayerAndFloor) {
+			// reuse the operators generateSearchQuery already built: the player match
+			// Raw is column-agnostic, so it reads fine under `player_name`.
+			return { source: 'player_games', where: { player_name: search['player_white'] || search['player_black'], id: search['id'] } };
+		}
+		return { source: 'games', where: mirror ? [search, mirrorSearch] : search };
 	}
 
 	async getAll(query?: GameQuery): Promise<any> {
 		const limit = parseInt(query.limit) || 50;
-		const skip = parseInt(query.skip) || 0;
 		const page = parseInt(query.page) || 0;
+		const skip = limit * page || parseInt(query.skip) || 0;
 		const order: 'ASC' | 'DESC' = query.order || 'DESC';
-		const sort = query.sort ? query.sort : 'id';
-		const mirror = query.mirror === 'true' ? true : false;
-		const { search, mirrorSearch } = this.generateSearchQuery(query);
+		const sort = query.sort || 'id';
+		const { source, where } = this.planQuery(query);
 		try {
-			let dbQuery;
-			if (mirror) {
-				dbQuery = this.repository
-					.createQueryBuilder()
-					.select('*')
-					.where(search)
-					.orWhere(mirrorSearch)
-					.orderBy(sort, order);
-			} else {
-				dbQuery = this.repository.createQueryBuilder().select('*').where(search).orderBy(sort, order);
-			}
-
-			const total = await dbQuery.getCount();
-			const result = await dbQuery
-				.clone()
-				.limit(limit)
-				.offset(limit * page || skip)
-				.execute();
-
+			const repo = source === 'player_games' ? this.playerGames : this.repository;
+			const [items, total] = await repo.findAndCount({ where, order: { [sort]: order }, take: limit, skip });
 			return {
-				items: result || [],
+				items: items || [],
 				total: total || 0,
 				page: page + 1,
 				perPage: limit,
