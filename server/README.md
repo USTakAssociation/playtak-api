@@ -197,6 +197,38 @@ Komi is given in half flats as an integer from 0 to 8, denoting komis from +0.0 
 | sudo broadcast **msg** | Broadcast message to every client, msg is sent as is to clients, not to be confused by the "Message" message sent by the server |
 
 
+### Protocol compatibility
+
+Newer protocol versions add fields to existing messages. Most of those fields are safe to
+withhold from an older client: the server is authoritative for the clock and pushes absolute
+times to both players and every spectator after each ply, so a client that never learns about
+the increment, increment scaling, extra time or `GivenTime` re-synchronises on the next move,
+and fields like `is_bot`, `unrated` and `tournament` are labels the game never depends on.
+Game *results* have never depended on the protocol version at all.
+
+The board is the exception. There is no automatic position resync — a client is sent the move
+stream and nothing else, and models the position independently for the whole game. So a
+setting that changes how the move stream maps onto the board, without changing the moves
+themselves, would leave an uninformed client permanently and silently out of step.
+
+The server therefore treats such a setting as requiring a minimum protocol version, and for a
+seek or game that uses one it will:
+
+- omit it from `Seek new` / `Seek remove` broadcasts and from the `List` response;
+- omit it from `GameList Add` / `GameList Remove` and from the `GameList` response;
+- answer `NOK` to `Accept` for that seek, and to `Observe` for that game;
+- answer `NOK` to a `Seek` or `Rematch` command that would create one, and reject the
+  equivalent `PUT /api/v1/seeks` request, since a client cannot post a seek it could not
+  itself play.
+
+Because a client's version is fixed before it registers as a listener, and a seek's and game's
+settings are fixed at creation, a client filtered out of an "add" is filtered out of the
+matching "remove" too and never holds a stale row.
+
+**Currently one setting is gated this way: `opening`, which requires protocol 4.** An older
+client is served every other seek and game as before, increment scaling included. See
+`tak.ProtocolFeature` for the registry and the reasoning behind each classification.
+
 ### Server-to-Client Communication
 
 The server to client messages and their format is as below.
