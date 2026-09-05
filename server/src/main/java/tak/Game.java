@@ -26,7 +26,7 @@ import java.util.logging.Logger;
  *
  * @author chaitu
  */
-public class Game implements Publisher<GameUpdate> {
+public class Game implements Publisher<GameUpdate>, GameSettings {
 
 	Player white;
 	Player black;
@@ -564,9 +564,23 @@ public class Game implements Publisher<GameUpdate> {
 		}
 	}
 
+	@Override
+	public int opening() {
+		return opening;
+	}
+
+	@Override
+	public boolean incrementScales() {
+		return incrementScales;
+	}
+
 	static void sendGameListTo(Player p) {
 		for (Integer no : Game.games.keySet()) {
-			p.sendWithoutLogging("GameList Add " + Game.games.get(no).stringForm(p.protocolVersion() >= 4));
+			Game g = Game.games.get(no);
+			// Withhold games this player's protocol can't describe faithfully, so they
+			// can't observe a position their client would render wrong.
+			if (!ProtocolFeature.isCompatible(p.protocolVersion(), g)) continue;
+			p.sendWithoutLogging("GameList Add " + g.stringForm(p.protocolVersion() >= 4));
 		}
 	}
 
@@ -649,10 +663,18 @@ public class Game implements Publisher<GameUpdate> {
 		gameListeners.remove(p);
 	}
 
+	/**
+	 * Broadcast a game-list "Add"/"Remove" to every listener whose protocol can describe
+	 * the game. A listener filtered out of the "Add" is filtered out of the "Remove" too —
+	 * neither the protocol version nor the game's settings can change in between — so no
+	 * listener is left holding a game it never saw start.
+	 */
 	static void updateGameListListeners(final Game g, final String action) {
 		String withScale = "GameList " + action + " " + g.stringForm(true);
 		String withoutScale = "GameList " + action + " " + g.stringForm(false);
+		final int requiredVersion = ProtocolFeature.requiredProtocolVersion(g);
 		for (Player p : gameListeners) {
+			if (p.protocolVersion() < requiredVersion) continue;
 			p.sendWithoutLogging(p.protocolVersion() >= 4 ? withScale : withoutScale);
 		}
 	}

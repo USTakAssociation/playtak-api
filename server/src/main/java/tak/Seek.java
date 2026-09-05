@@ -21,7 +21,7 @@ import static tak.Game.DEFAULT_SIZE;
  *
  * @author chaitu
  */
-public class Seek {
+public class Seek implements GameSettings {
 	public enum COLOR {WHITE, BLACK, ANY}
 
 	Client client;
@@ -116,13 +116,23 @@ public class Seek {
 		}
 	}
 
+	@Override
+	public int opening() {
+		return opening;
+	}
+
+	@Override
+	public boolean incrementScales() {
+		return incrementScales;
+	}
+
 	static void removeSeek(int b) {
 		seekStuffLock.lock();
 		try {
 			Seek sk = Seek.seeks.get(b);
 			if (sk != null) {
 				Seek.seeks.remove(b);
-				updateListeners("remove ", sk.buildSeekStringArray());
+				updateListeners("remove ", sk);
 			}
 		} finally {
 			seekStuffLock.unlock();
@@ -135,7 +145,7 @@ public class Seek {
 			sk.client.removeSeeks();
 			sk.client.seek = sk;
 			Seek.seeks.put(sk.no, sk);
-			updateListeners("new ", sk.buildSeekStringArray());
+			updateListeners("new ", sk);
 		} finally {
 			seekStuffLock.unlock();
 		}
@@ -161,7 +171,7 @@ public class Seek {
 			Seek sk = new Seek(c, boardSize, time, increment, colorEnum, komi, pieces, capstones, unrated, tournament, triggerMove, timeAmount, incrementScales, opening, opponent, -1, id);
 			c.seek = sk;
 			Seek.seeks.put(sk.no, sk);
-			updateListeners("new ", sk.buildSeekStringArray());
+			updateListeners("new ", sk);
 			return sk;
 		} finally {
 			seekStuffLock.unlock();
@@ -172,7 +182,11 @@ public class Seek {
 		seekStuffLock.lock();
 		try {
 			for (Integer no : Seek.seeks.keySet()) {
-				String[] st = Seek.seeks.get(no).buildSeekStringArray();
+				Seek sk = Seek.seeks.get(no);
+				// Withhold seeks this client's protocol can't describe faithfully; it would
+				// otherwise see an ordinary-looking seek and desync on accepting it.
+				if (!ProtocolFeature.isCompatible(c.protocolVersion, sk)) continue;
+				String[] st = sk.buildSeekStringArray();
 				if (c.protocolVersion <= 1) {
 					c.send("Seek new " + st[0]);
 				} else if (c.protocolVersion <= 3) {
@@ -232,10 +246,21 @@ public class Seek {
 		}
 	}
 
-	static void updateListeners(String type, final String[] st) {
+	/**
+	 * Broadcast a seek "new "/"remove " to every listener whose protocol can describe it.
+	 *
+	 * <p>Takes the {@link Seek} rather than a prebuilt string array so the compatibility
+	 * gate sees the same settings the strings were built from. Because neither a client's
+	 * protocol version nor a seek's settings can change once set, a listener filtered out
+	 * of a "new " is filtered out of the matching "remove " too, and never holds a stale row.
+	 */
+	static void updateListeners(String type, final Seek sk) {
 		seekStuffLock.lock();
 		try {
+			final String[] st = sk.buildSeekStringArray();
+			final int requiredVersion = ProtocolFeature.requiredProtocolVersion(sk);
 			for (Client cc : seekListeners) {
+				if (cc.protocolVersion < requiredVersion) continue;
 				// check if the client protocol version
 				if (cc.protocolVersion <= 1) {
 					cc.sendWithoutLogging("Seek " + type + st[0]);

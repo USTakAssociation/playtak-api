@@ -57,6 +57,15 @@
                     <mainClass>tak.Main</mainClass>
                 </configuration>
             </plugin>
+            <!--
+                Pinned explicitly: the Surefire bundled with Maven 3.6.x is 2.12.4,
+                which predates and cannot run the JUnit 5 platform.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+            </plugin>
         </plugins>
     </build>
 
@@ -103,6 +112,16 @@
             <artifactId>lombok</artifactId>
             <version>1.18.32</version>
             <scope>provided</scope>
+        </dependency>
+        <!--
+            Test scope only: not bundled into the jar-with-dependencies assembly, and
+            not on the classpath for `mvn compile` / `exec:java`.
+        -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.10.2</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>
