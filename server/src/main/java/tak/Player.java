@@ -361,15 +361,6 @@ public class Player {
 		return client;
 	}
 
-	// Null-safe protocol version. `client` is set to null on logout/disconnect
-	// (see logout()/loggedOut()), yet a player may still linger in a broadcast
-	// set such as gameListeners or spectators. Callers iterating those sets must
-	// go through this instead of dereferencing `client` directly, or a single
-	// logged-out listener will NPE and abort the whole broadcast loop.
-	public int protocolVersion() {
-		return client != null ? client.protocolVersion : 0;
-	}
-
 	static SecureRandom random = new SecureRandom();
 
 	public static Player createPlayer(String name, String email) {

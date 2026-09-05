@@ -7,6 +7,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Base64;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Matcher;
@@ -35,7 +36,19 @@ public class Websocket {
 
 	boolean recievedtoken;
 	public boolean headerended;
-	public boolean streamended;
+	public volatile boolean streamended;
+
+	// Guards kill() so that concurrent callers (e.g. the stale-connection
+	// reaper and the client's own thread reacting to the socket dying) only
+	// ever run the cleanup body once. `streamended` alone is check-then-act
+	// and not safe under real concurrency.
+	final AtomicBoolean killClaimed = new AtomicBoolean(false);
+
+	// Set by Client so log lines below (and in Telnet, which inherits these)
+	// can identify which connection/player they belong to, e.g. for
+	// `grep "<clientNo>:<playerName>:"` across a log file.
+	public int clientNo = 0;
+	public volatile String playerName = "";
 
 	Pattern websocketkeyPattern;
 	String wskey;
@@ -303,13 +316,84 @@ public class Websocket {
 	}
 
 	public void kill(int pos) {
+		if (!killClaimed.compareAndSet(false, true)) {
+			return;
+		}
 		try {
 			streamended = true;
-			socket.close();
+			try {
+				socket.close();
+			} catch (Throwable ignore) {
+			}
 
-			TakServer.Log("Stream dead " + String.valueOf(pos));
+			String remote = "unknown";
+			try {
+				if (socket != null && socket.getRemoteSocketAddress() != null) remote = socket.getRemoteSocketAddress().toString();
+			} catch (Throwable ignore) {}
+
+			String reason;
+			switch (pos) {
+				case 1:
+					reason = "socket setup failure";
+					break;
+				case 2:
+					reason = "read returned < 0";
+					break;
+				case 3:
+					reason = "frame length 127 (unsupported)";
+					break;
+				case 4:
+					reason = "unexpected continuation (opcode 0)";
+					break;
+				case 5:
+					reason = "unexpected new opcode while building message";
+					break;
+				case 6:
+					reason = "frame too large for buffer";
+					break;
+				case 7:
+					reason = "close frame received (opcode 8)";
+					break;
+				case 8:
+					reason = "invalid opcode/frame";
+					break;
+				case 9:
+					reason = "blocking read returned < 0";
+					break;
+				case 10:
+					reason = "handshake missing token";
+					break;
+				case 11:
+					reason = "header overflow";
+					break;
+				case 12:
+					reason = "blocking header read < 0";
+					break;
+				case 13:
+					reason = "exception in recieve";
+					break;
+				case 14:
+					reason = "exception in sendstring";
+					break;
+				case 15:
+					reason = "exception in send";
+					break;
+				case 201:
+					reason = "client quit";
+					break;
+				case 202:
+					reason = "admin disconnect";
+					break;
+				default:
+					reason = "code " + String.valueOf(pos);
+					break;
+			}
+
+			TakServer.Log(clientNo + ":" + playerName + ":Stream dead " + String.valueOf(pos) + " (" + reason + ") remote=" + remote + " headerended=" + headerended + " readbufferused=" + readbufferused);
 		} catch (Throwable t) {
-
+			try {
+				TakServer.Log("Error in kill: " + t.getMessage());
+			} catch (Throwable ignore) {}
 		}
 	}
 }

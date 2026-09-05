@@ -188,11 +188,11 @@ public class Seek implements GameSettings {
 				if (!ProtocolFeature.isCompatible(c.protocolVersion, sk)) continue;
 				String[] st = sk.buildSeekStringArray();
 				if (c.protocolVersion <= 1) {
-					c.send("Seek new " + st[0]);
+					c.sendWithoutLogging("Seek new " + st[0]);
 				} else if (c.protocolVersion <= 3) {
-					c.send("Seek new " + st[1]);
+					c.sendWithoutLogging("Seek new " + st[1]);
 				} else {
-					c.send("Seek new " + st[2]);
+					c.sendWithoutLogging("Seek new " + st[2]);
 				}
 			}
 		} finally {
@@ -324,7 +324,7 @@ public class Seek implements GameSettings {
 				opponent.length() != 0 ? opponent : "0",
 				client.player.isBot() ? "1" : "0"
 			});
-			String v3Seek = String.join(" ", new String[] {
+			String v4Seek = String.join(" ", new String[] {
 				Integer.toString(no),
 				playerName,
 				Integer.toString(boardSize),
@@ -346,7 +346,7 @@ public class Seek implements GameSettings {
 			return new String[] {
 				v1Seek,
 				v2Seek,
-				v3Seek
+				v4Seek
 			};
 		} finally {
 			seekStuffLock.unlock();

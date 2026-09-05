@@ -405,10 +405,17 @@ public class Game implements Publisher<GameUpdate>, GameSettings {
 		}
 	}
 
+	private static int protocolVersionFor(Player p) {
+		if (p == null || p.client == null) {
+			return 0;
+		}
+		return p.client.protocolVersion;
+	}
+
 	void newSpectator(Player p) {
 		gameLock.lock();
 		try {
-			p.send("Observe " + stringForm(p.protocolVersion() >= 4));
+			p.sendWithoutLogging("Observe " + stringForm(protocolVersionFor(p) >= 4));
 			sendMoveListTo(p);
 			spectators.add(p);
 			updateTime(p);
@@ -466,8 +473,8 @@ public class Game implements Publisher<GameUpdate>, GameSettings {
 				undoRequestedBy = null;
 				undoPosition();
 				updateOutOfTime();
-				white.send("Game#" + no + " Undo");
-				black.send("Game#" + no + " Undo");
+				white.sendWithoutLogging("Game#" + no + " Undo");
+				black.sendWithoutLogging("Game#" + no + " Undo");
 				sendToSpectators("Game#" + no + " Undo");
 			}
 		} finally {
@@ -575,12 +582,13 @@ public class Game implements Publisher<GameUpdate>, GameSettings {
 	}
 
 	static void sendGameListTo(Player p) {
+		final int protocolVersion = protocolVersionFor(p);
 		for (Integer no : Game.games.keySet()) {
 			Game g = Game.games.get(no);
 			// Withhold games this player's protocol can't describe faithfully, so they
 			// can't observe a position their client would render wrong.
-			if (!ProtocolFeature.isCompatible(p.protocolVersion(), g)) continue;
-			p.sendWithoutLogging("GameList Add " + g.stringForm(p.protocolVersion() >= 4));
+			if (!ProtocolFeature.isCompatible(protocolVersion, g)) continue;
+			p.sendWithoutLogging("GameList Add " + g.stringForm(protocolVersion >= 4));
 		}
 	}
 
@@ -674,8 +682,9 @@ public class Game implements Publisher<GameUpdate>, GameSettings {
 		String withoutScale = "GameList " + action + " " + g.stringForm(false);
 		final int requiredVersion = ProtocolFeature.requiredProtocolVersion(g);
 		for (Player p : gameListeners) {
-			if (p.protocolVersion() < requiredVersion) continue;
-			p.sendWithoutLogging(p.protocolVersion() >= 4 ? withScale : withoutScale);
+			final int protocolVersion = protocolVersionFor(p);
+			if (protocolVersion < requiredVersion) continue;
+			p.sendWithoutLogging(protocolVersion >= 4 ? withScale : withoutScale);
 		}
 	}
 

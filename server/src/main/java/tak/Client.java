@@ -62,7 +62,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 	String clientString = "^Client ([A-Za-z-.0-9]{1,60})";
 	Pattern clientPattern;
 
-	String protocolString = "^Protocol ([1-9][0-9]{0,8})";
+	String protocolString = "^Protocol ([0-9]{1,8})";
 	Pattern protocolPattern;
 
 	String changePasswordString = "^ChangePassword ([^\n\r\\s]{6,50}) ([^\n\r\\s]{6,50})";
@@ -209,6 +209,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 	Client(Websocket socket) {
 		websocket = socket;
 		this.clientNo = totalClients.incrementAndGet();
+		websocket.clientNo = this.clientNo;
 		this.lastActivity = System.currentTimeMillis();
 
 		loginPattern = Pattern.compile(loginString);
@@ -330,7 +331,13 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 	}
 
 	void clientQuit() throws IOException {
-		clientConnections.remove(this);
+		// clientConnections is a ConcurrentHashSet backed by ConcurrentHashMap,
+		// whose remove() returns the removed value (or null if absent) rather
+		// than a boolean - null here means another thread already cleaned this
+		// client up (e.g. the stale-connection reaper), so this call is a no-op.
+		if (clientConnections.remove(this) == null) {
+			return;
+		}
 
 		if (player != null) {
 			Game game = player.getGame();
@@ -404,6 +411,9 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 			while (!websocket.headerended && !websocket.streamended) {
 				temp = websocket.recieve(true);
 			}
+			if (websocket.streamended) {
+				return;
+			}
 			websocket.send("Welcome!");
 			websocket.send("Login or Register");
 			Log("Welcome sent");
@@ -416,6 +426,8 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 					}
 				}
 				temp = temp.replaceAll("[\\n\\r]+$", "");
+				// mark client active on any received message (not just PING)
+				updateLastActivity();
 
 				if (temp.equals("quit")) {
 					break;
@@ -446,7 +458,11 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 					}
 					// What protocol version is this client using
 					else if ((m = protocolPattern.matcher(temp)).find()) {
-						this.protocolVersion = Integer.parseInt(m.group(1));
+						this.protocolVersion = 0;
+						String protocolValue = m.group(1);
+						if (protocolValue != null && !protocolValue.isEmpty()) {
+							this.protocolVersion = Integer.parseInt(protocolValue);
+						}
 						sendWithoutLogging("OK");
 					}
 					//Login Guest
@@ -475,6 +491,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 							}
 							player.login(this);
 							player.lastActivity = System.nanoTime();
+							websocket.playerName = player.getName();
 
 							send("Welcome " + player.getName() + "!");
 							Log("Player logged in");
@@ -520,6 +537,7 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 											send("Is Mod");
 										}
 										player.login(this);
+										websocket.playerName = player.getName();
 
 										Seek.registerListener(this);
 										Game.registerGameListListener(player);
@@ -591,7 +609,13 @@ public class Client extends Thread implements Publisher<GameUpdate> {
 						}
 					} else sendNOK();
 				} else {
-					Log("Read:" + temp);
+					// Place/move commands are by far the highest-volume traffic
+					// (every move of every active game) and add little value in
+					// the logs compared to everything else read here, so they're
+					// excluded to keep the logs readable.
+					if (!placePattern.matcher(temp).find() && !movePattern.matcher(temp).find()) {
+						Log("Read:" + temp);
+					}
 
 					Game game = player.getGame();
 					//List all seeks

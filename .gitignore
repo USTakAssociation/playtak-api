@@ -4,3 +4,5 @@ run
 run/**
 
 .idea
+
+tests/test-results.txt

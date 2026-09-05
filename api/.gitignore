@@ -28,6 +28,7 @@ lerna-debug.log*
 *.launch
 .settings/
 *.sublime-workspace
+tsconfig.build.tsbuildinfo
 
 # IDE - VSCode
 .vscode/*
