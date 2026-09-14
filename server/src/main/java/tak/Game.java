@@ -1247,6 +1247,50 @@ public class Game implements Publisher<GameUpdate>, GameSettings {
 		} catch (SQLException ex) {
 			Logger.getLogger(Player.class.getName()).log(Level.SEVERE, null, ex);
 		}
+		saveClocksToDB();
+	}
+
+	/**
+	 * Stores the per-ply clocks (see {@link ClockHistory}). Kept apart from
+	 * {@link #saveToDB()}'s statement so a database that has not been migrated to
+	 * the {@code clocks} column still records the game's notation and result.
+	 */
+	private void saveClocksToDB() {
+		// timeHistory holds the initial clocks followed by one snapshot per ply.
+		if (timeHistory.size() != moveList.size() + 1) {
+			Logger.getLogger(Game.class.getName()).log(Level.WARNING,
+					"Game#{0}: {1} clock snapshots for {2} moves, not saving clocks",
+					new Object[]{no, timeHistory.size(), moveList.size()});
+			return;
+		}
+		List<long[]> clocksAfterPly = new ArrayList<>();
+		for (int i = 1; i < timeHistory.size(); i++) {
+			TimeSnapshot snap = timeHistory.get(i);
+			clocksAfterPly.add(new long[]{snap.whiteTime, snap.blackTime});
+		}
+		try {
+			String sql = "UPDATE games SET clocks=? WHERE id=?";
+			PreparedStatement stmt = Database.gamesConnection.prepareStatement(sql);
+			stmt.setString(1, ClockHistory.encode(clocksAfterPly, sideToMoveTimeAtEnd()));
+			stmt.setInt(2, no);
+			stmt.executeUpdate();
+			stmt.close();
+		} catch (SQLException ex) {
+			Logger.getLogger(Game.class.getName()).log(Level.WARNING, "Game#" + no + ": could not save clocks", ex);
+		}
+	}
+
+	/**
+	 * Remaining time of the player to move at the moment the game ended. The
+	 * stored clocks are only brought up to date on moves and timeouts, so the
+	 * thinking time since then (e.g. before a resignation) is deducted here.
+	 */
+	private long sideToMoveTimeAtEnd() {
+		long remaining = isWhitesTurn() ? whiteTime : blackTime;
+		if (timerStarted) {
+			remaining -= (System.nanoTime() - lastUpdateTime) / 1000000;
+		}
+		return remaining;
 	}
 
 	private void sendMove(Player p, String move) {
