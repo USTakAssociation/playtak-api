@@ -1,5 +1,5 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { DefaultExceptionDto } from '../dto/error.dto';
 import { AnonDetails, Game, GameQuery, GamesList } from '../dto/games/games.dto';
 import { GamesService } from './games.service';
@@ -86,9 +86,15 @@ export class GamesController {
 		type: DefaultExceptionDto,
 		description: 'Returns 500 server error'
 	})
+	@ApiQuery({
+		name: 'clocks',
+		required: false,
+		description:
+			"Set to true to append each move's remaining clock as a PTN Ninja clock note, e.g. {clock1:4:32}. Intended for links that open the game in PTN Ninja."
+	})
 	@Get('ptn/:id')
-	getPTN(@Param('id') id: number) {
-		return this.service.getRawPTN(+id);
+	getPTN(@Param('id') id: number, @Query('clocks') clocks?: string) {
+		return this.service.getRawPTN(+id, clocks === 'true');
 	}
 
 	@ApiOperation({ operationId: 'anon-db', summary: 'Get anon db details' })

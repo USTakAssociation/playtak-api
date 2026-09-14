@@ -40,14 +40,14 @@ export class PTNService {
 		return '';
 	}
 
-	public getMoves(notation: string, opening?: string) {
+	public getMoves(notation: string, opening?: string, clocks?: number[] | null) {
 		let moves = '';
 		let count = 0;
 		// A game with no moves recorded yet has an empty notation, and
 		// ''.split(',') yields [''] rather than [], which ran the loop once and
 		// emitted a move number with nothing after it. For a double black stack
 		// game that produced a lone '2' prefix — "1. 2" — which is not valid PTN.
-		const moveArray = notation ? notation.split(',').filter((move) => move !== '') : [];
+		const moveArray = this.splitNotation(notation);
 		for (let i = 0; i < moveArray.length; i++) {
 			const move = moveArray[i];
 			if (count % 2 == 0) {
@@ -62,9 +62,73 @@ export class PTNService {
 			}
 			moves += this.convertMove(move);
 
+			if (clocks) {
+				// White (Player1) makes every even-indexed ply.
+				moves += ' ' + this.getClockComment(i % 2 === 0 ? 1 : 2, clocks[i]);
+			}
+
 			count += 1;
 		}
+		if (clocks && moveArray.length > 0) {
+			// The trailing value is the clock of the player to move when the game
+			// ended, so the final position shows what was left on it (e.g. 0:00
+			// after a timeout, or the time remaining at a resignation).
+			const playerToMove = moveArray.length % 2 === 0 ? 1 : 2;
+			moves += ' ' + this.getClockComment(playerToMove, clocks[moveArray.length]);
+		}
 		return moves;
+	}
+
+	private splitNotation(notation: string) {
+		return notation ? notation.split(',').filter((move) => move !== '') : [];
+	}
+
+	/**
+	 * Parses the games.clocks column: comma-separated remaining milliseconds, one
+	 * per ply for the player who made it, plus a final value for the player to move
+	 * when the game ended. Returns null for games without usable clock data so the
+	 * PTN is simply written without clocks.
+	 */
+	public parseClocks(clocks: string | null | undefined, notation: string): number[] | null {
+		if (!clocks) {
+			return null;
+		}
+		const values = clocks.split(',');
+		if (
+			values.length !== this.splitNotation(notation).length + 1 ||
+			!values.every((value) => /^\d+$/.test(value))
+		) {
+			return null;
+		}
+		return values.map(Number);
+	}
+
+	/**
+	 * A per-ply clock note in the form PTN Ninja records while spectating a PlayTak
+	 * game, e.g. "{clock1:4:32}" or "{clock2:0:08.34}"; PTN Ninja replays these when
+	 * stepping through the game.
+	 */
+	public getClockComment(player: 1 | 2, ms: number) {
+		return `{clock${player}:${this.formatClockValue(ms)}}`;
+	}
+
+	// Mirrors PTN Ninja's formatClockNoteValue: "M:SS" or "H:MM:SS", with decimal
+	// seconds (trailing zeros trimmed) only under a minute, where its timer shows them.
+	public formatClockValue(ms: number) {
+		const totalMs = Math.max(0, Math.round(ms));
+		const totalSeconds = Math.floor(totalMs / 1000);
+		const h = Math.floor(totalSeconds / 3600);
+		const m = Math.floor((totalSeconds % 3600) / 60);
+		const s = totalSeconds % 60;
+		const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
+		let secStr = pad(s);
+		if (totalMs < 60000) {
+			const frac = totalMs % 1000;
+			if (frac) {
+				secStr += '.' + String(frac).padStart(3, '0').replace(/0+$/, '');
+			}
+		}
+		return h > 0 ? `${h}:${pad(m)}:${secStr}` : `${m}:${secStr}`;
 	}
 
 	private formatDuration(totalSeconds: number) {
@@ -116,7 +180,12 @@ export class PTNService {
 		return val;
 	}
 
-	public getPTN(game: any) {
+	/**
+	 * @param options.includeClocks append each ply's remaining clock as a PTN Ninja
+	 *   clock note. Off by default so ordinary PTN exports stay compact; only
+	 *   links that open the game in PTN Ninja ask for it.
+	 */
+	public getPTN(game: any, options: { includeClocks?: boolean } = {}) {
 		let ptn = '';
 		const wn = game.date < 1461430800000 ? 'Anon' : game.player_white;
 		const wr = game.rating_white;
@@ -163,7 +232,8 @@ export class PTNService {
 			ptn += this.getHeader('Opening', game.opening);
 		}
 
-		ptn += '\n' + this.getMoves(game.notation, game.opening);
+		const clocks = options.includeClocks ? this.parseClocks(game.clocks, game.notation) : null;
+		ptn += '\n' + this.getMoves(game.notation, game.opening, clocks);
 		ptn += '\n' + game.result + '\n';
 
 		return ptn;

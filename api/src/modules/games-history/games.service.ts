@@ -216,17 +216,22 @@ export class GamesService {
 		const sort = query.sort ? query.sort : 'id';
 		const mirror = query.mirror === 'true' ? true : false;
 		const { search, mirrorSearch } = this.generateSearchQuery(query);
+		// Name the columns rather than selecting '*', which would also return the
+		// per-ply clocks for every game in the list.
+		const columns = this.repository.metadata.columns
+			.filter((column) => column.isSelect)
+			.map((column) => column.databaseName);
 		try {
 			let dbQuery;
 			if (mirror) {
 				dbQuery = this.repository
 					.createQueryBuilder()
-					.select('*')
+					.select(columns)
 					.where(search)
 					.orWhere(mirrorSearch)
 					.orderBy(sort, order);
 			} else {
-				dbQuery = this.repository.createQueryBuilder().select('*').where(search).orderBy(sort, order);
+				dbQuery = this.repository.createQueryBuilder().select(columns).where(search).orderBy(sort, order);
 			}
 
 			const total = await dbQuery.getCount();
@@ -295,19 +300,37 @@ export class GamesService {
 		}
 	}
 
-	async getRawPTN(id: number): Promise<any> {
+	async getRawPTN(id: number, includeClocks = false): Promise<any> {
 		try {
-			const result = await this.repository.findOne({
-				where: { id }
-			});
+			const result = includeClocks
+				? await this.findOneWithClocks(id)
+				: await this.repository.findOne({
+						where: { id }
+					});
 			if (!result) {
 				return new NotFoundException();
 			}
-			const ptn = this.ptnService.getPTN(result);
+			const ptn = this.ptnService.getPTN(result, { includeClocks });
 			return ptn;
 		} catch (error) {
 			console.error(error);
 			throw new Error(error);
+		}
+	}
+
+	private async findOneWithClocks(id: number): Promise<Games | null> {
+		try {
+			return await this.repository
+				.createQueryBuilder('game')
+				.addSelect('game.clocks')
+				.where('game.id = :id', { id })
+				.getOne();
+		} catch (error) {
+			// A database not yet migrated to the clocks column still serves the plain PTN.
+			console.warn(`Could not read clocks for game ${id}:`, error);
+			return this.repository.findOne({
+				where: { id }
+			});
 		}
 	}
 }
