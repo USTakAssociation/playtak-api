@@ -1,8 +1,8 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { RatingService } from './ratings.service';
 import { DefaultExceptionDto } from '../dto/error.dto';
 import { Rating, RatingList, RatingQuery } from '../dto/rating/ratings.dto';
+import { RatingService } from './ratings.service';
 
 @ApiTags('Ratings')
 @Controller({

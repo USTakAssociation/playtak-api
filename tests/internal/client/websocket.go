@@ -4,9 +4,10 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
-	"sync/atomic"
+
 	"github.com/gorilla/websocket"
 )
 

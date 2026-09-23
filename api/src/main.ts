@@ -1,12 +1,13 @@
 /* istanbul ignore file */
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
-import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+
 import { fastifyHelmet } from '@fastify/helmet';
 import { HttpException, VersioningType } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
+import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import * as path from 'path';
 import { writeFileSync } from 'fs';
+import * as path from 'path';
+import { AppModule } from './app.module';
 
 const port = process.env.PORT || 3000;
 

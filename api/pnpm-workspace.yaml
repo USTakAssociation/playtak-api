@@ -1,0 +1,6 @@
+allowBuilds:
+  '@scarf/scarf': true
+  '@swc/core': true
+  better-sqlite3: true
+minimumReleaseAgeExclude:
+  - '@types/node@26.3.0'

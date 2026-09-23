@@ -3,12 +3,12 @@ import { CacheModule, CacheInterceptor } from '@nestjs/cache-manager';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { Games } from '../games-history/entities/games.entity';
+import { Players } from './entities/players.entity';
+import { Ratings } from './entities/ratings.entity';
 import { RatingsController } from './ratings.controller';
 import { RatingService } from './ratings.service';
-import { Ratings } from './entities/ratings.entity';
 import { RatingTask } from './tasks/rating.task';
-import { Players } from './entities/players.entity';
-import { Games } from '../games-history/entities/games.entity';
 
 @Module({
 	controllers: [RatingsController],

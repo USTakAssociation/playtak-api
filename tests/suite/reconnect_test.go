@@ -157,7 +157,8 @@ func TestReconnectSeeksRemovedOnDisconnect(t *testing.T) {
 
 	// c2 should receive Seek remove
 	msg := c2.DrainUntil("Seek remove ")
-	if !strings.Contains(msg, fmt.Sprintf("%d", seekID)) {
-		t.Errorf("Seek remove should reference seek ID %d, got %q", seekID, msg)
+	gotID := parseLeadingID(t, msg, "Seek remove ", "seek remove")
+	if gotID != seekID {
+		t.Errorf("Seek remove should reference seek ID %d, got %d in %q", seekID, gotID, msg)
 	}
 }

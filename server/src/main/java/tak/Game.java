@@ -26,7 +26,7 @@ import java.util.logging.Logger;
  *
  * @author chaitu
  */
-public class Game implements Publisher<GameUpdate> {
+public class Game implements Publisher<GameUpdate>, GameSettings {
 
 	Player white;
 	Player black;
@@ -405,10 +405,17 @@ public class Game implements Publisher<GameUpdate> {
 		}
 	}
 
+	private static int protocolVersionFor(Player p) {
+		if (p == null || p.client == null) {
+			return 0;
+		}
+		return p.client.protocolVersion;
+	}
+
 	void newSpectator(Player p) {
 		gameLock.lock();
 		try {
-			p.send("Observe " + stringForm(p.client.protocolVersion >= 4));
+			p.sendWithoutLogging("Observe " + stringForm(protocolVersionFor(p) >= 4));
 			sendMoveListTo(p);
 			spectators.add(p);
 			updateTime(p);
@@ -466,8 +473,8 @@ public class Game implements Publisher<GameUpdate> {
 				undoRequestedBy = null;
 				undoPosition();
 				updateOutOfTime();
-				white.send("Game#" + no + " Undo");
-				black.send("Game#" + no + " Undo");
+				white.sendWithoutLogging("Game#" + no + " Undo");
+				black.sendWithoutLogging("Game#" + no + " Undo");
 				sendToSpectators("Game#" + no + " Undo");
 			}
 		} finally {
@@ -564,9 +571,24 @@ public class Game implements Publisher<GameUpdate> {
 		}
 	}
 
+	@Override
+	public int opening() {
+		return opening;
+	}
+
+	@Override
+	public boolean incrementScales() {
+		return incrementScales;
+	}
+
 	static void sendGameListTo(Player p) {
+		final int protocolVersion = protocolVersionFor(p);
 		for (Integer no : Game.games.keySet()) {
-			p.sendWithoutLogging("GameList Add " + Game.games.get(no).stringForm(p.client.protocolVersion >= 4));
+			Game g = Game.games.get(no);
+			// Withhold games this player's protocol can't describe faithfully, so they
+			// can't observe a position their client would render wrong.
+			if (!ProtocolFeature.isCompatible(protocolVersion, g)) continue;
+			p.sendWithoutLogging("GameList Add " + g.stringForm(protocolVersion >= 4));
 		}
 	}
 
@@ -649,11 +671,20 @@ public class Game implements Publisher<GameUpdate> {
 		gameListeners.remove(p);
 	}
 
+	/**
+	 * Broadcast a game-list "Add"/"Remove" to every listener whose protocol can describe
+	 * the game. A listener filtered out of the "Add" is filtered out of the "Remove" too —
+	 * neither the protocol version nor the game's settings can change in between — so no
+	 * listener is left holding a game it never saw start.
+	 */
 	static void updateGameListListeners(final Game g, final String action) {
 		String withScale = "GameList " + action + " " + g.stringForm(true);
 		String withoutScale = "GameList " + action + " " + g.stringForm(false);
+		final int requiredVersion = ProtocolFeature.requiredProtocolVersion(g);
 		for (Player p : gameListeners) {
-			p.sendWithoutLogging(p.client.protocolVersion >= 4 ? withScale : withoutScale);
+			final int protocolVersion = protocolVersionFor(p);
+			if (protocolVersion < requiredVersion) continue;
+			p.sendWithoutLogging(protocolVersion >= 4 ? withScale : withoutScale);
 		}
 	}
 

@@ -1,0 +1,86 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.5.8/schema.json",
+	"vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+	"files": { "includes": ["**", "!!**/dist", "!test/bruno/**"] },
+	"formatter": {
+		"enabled": true,
+		"formatWithErrors": false,
+		"indentStyle": "tab",
+		"indentWidth": 4,
+		"lineEnding": "lf",
+		"lineWidth": 120,
+		"attributePosition": "auto",
+		"bracketSameLine": false,
+		"bracketSpacing": true,
+		"expand": "auto",
+		"useEditorconfig": true
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"preset": "none",
+			"complexity": { "noArguments": "error", "noUselessTypeConstraint": "error" },
+			"correctness": {
+				"noConstAssign": "off",
+				"noGlobalObjectCalls": "off",
+				"noInvalidBuiltinInstantiation": "off",
+				"noInvalidConstructorSuper": "off",
+				"noSetterReturn": "off",
+				"noUndeclaredVariables": "off",
+				"noUnreachable": "off",
+				"noUnreachableSuper": "off",
+				"noUnusedVariables": "error"
+			},
+			"style": {
+				"noCommonJs": "error",
+				"noNamespace": "error",
+				"useArrayLiterals": "error",
+				"useAsConstAssertion": "error",
+				"useBlockStatements": "off",
+				"useConsistentArrowReturn": "off",
+				"useConst": "error",
+				"useSpreadOverApply": "error"
+			},
+			"suspicious": {
+				"noClassAssign": "off",
+				"noDuplicateClassMembers": "off",
+				"noDuplicateEnumValues": "error",
+				"noDuplicateObjectKeys": "off",
+				"noDuplicateParameters": "off",
+				"noExplicitAny": "warn",
+				"noExtraNonNullAssertion": "error",
+				"noFunctionAssign": "off",
+				"noImportAssign": "off",
+				"noMisleadingInstantiator": "error",
+				"noNonNullAssertedOptionalChain": "error",
+				"noRedeclare": "off",
+				"noUnsafeDeclarationMerging": "error",
+				"noUnsafeNegation": "off",
+				"noUnusedExpressions": "off",
+				"noVar": "error",
+				"noWith": "off",
+				"useGetterReturn": "off",
+				"useNamespaceKeyword": "error"
+			}
+		}
+	},
+	"javascript": {
+		"parser": {
+			"unsafeParameterDecoratorsEnabled": true
+		},
+		"formatter": {
+			"jsxQuoteStyle": "double",
+			"quoteProperties": "asNeeded",
+			"trailingCommas": "none",
+			"semicolons": "always",
+			"arrowParentheses": "always",
+			"bracketSameLine": false,
+			"quoteStyle": "single",
+			"attributePosition": "auto",
+			"bracketSpacing": true
+		},
+		"globals": ["exports"]
+	},
+	"html": { "formatter": { "indentScriptAndStyle": false, "selfCloseVoidElements": "always" } },
+	"assist": { "enabled": true, "actions": { "source": { "organizeImports": "on" } } }
+}

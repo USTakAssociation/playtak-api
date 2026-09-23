@@ -72,9 +72,12 @@ func TestSeekV4WithScaleIncrement(t *testing.T) {
 	// V4: size time incr scale_increment color komi pieces capstones unrated tournament extra_trigger extra_amount opening opponent
 	c.Send("Seek 5 600 30 1 A 0 21 1 0 0 0 0 0 ")
 	msg := c.DrainUntil("Seek new ")
-	// scale_increment=1 should appear in the message
-	if !strings.Contains(msg, " 1 ") {
-		t.Errorf("seek message should contain scale_increment: %q", msg)
+	parts := strings.Fields(msg)
+	if len(parts) != 19 {
+		t.Fatalf("protocol 4 Seek new should have 19 fields, got %d: %q", len(parts), msg)
+	}
+	if got, want := parts[7], "1"; got != want {
+		t.Errorf("scale_increment at index 7 should be %q, got %q in %q", want, got, msg)
 	}
 }
 
@@ -83,8 +86,12 @@ func TestSeekUnrated(t *testing.T) {
 	client.LoginGuest(t, c)
 	c.Send("Seek 5 600 30 A 0 21 1 1 0 ")
 	msg := c.DrainUntil("Seek new ")
-	if !strings.Contains(msg, " 1 ") {
-		t.Errorf("unrated seek should contain flag 1: %q", msg)
+	parts := strings.Fields(msg)
+	if len(parts) != 15 {
+		t.Fatalf("protocol 0-1 Seek new should have 15 fields, got %d: %q", len(parts), msg)
+	}
+	if got, want := parts[11], "1"; got != want {
+		t.Errorf("unrated flag at index 11 should be %q, got %q in %q", want, got, msg)
 	}
 }
 
@@ -162,7 +169,7 @@ func TestSeekAccept(t *testing.T) {
 	gs1 := c1.DrainUntil("Game Start ")
 	gameID := parseGameID(t, gs1)
 	c2.DrainUntil("Game Start ")
-	
+
 	// clean up
 	client.CleanupActiveGames(t, c1, gameID)
 }
@@ -179,9 +186,7 @@ func TestSeekAcceptRemovesAllSeeks(t *testing.T) {
 	c1.DrainUntil("Seek remove ")
 	gs1 := c1.DrainUntil("Game Start ")
 	gameID := parseGameID(t, gs1)
-	// Both players should receive Seek remove messages
-	//c2.DrainUntil("Seek remove ")
-	
+
 	// clean up
 	client.CleanupActiveGames(t, c1, gameID)
 }

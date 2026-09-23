@@ -2,6 +2,7 @@ package suite_test
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -39,8 +40,12 @@ func TestGameStartContainsCorrectSize(t *testing.T) {
 			c2.Send(fmt.Sprintf("Accept %d", seekID))
 
 			gs := c1.DrainUntil("Game Start ")
-			if !strings.Contains(gs, fmt.Sprintf(" %d ", size)) {
-				t.Errorf("Game Start missing board size %d: %q", size, gs)
+			parts := strings.Fields(gs)
+			if len(parts) != 14 {
+				t.Fatalf("protocol 0-1 Game Start should have 14 fields, got %d: %q", len(parts), gs)
+			}
+			if got, want := parts[3], strconv.Itoa(size); got != want {
+				t.Errorf("Game Start board size at index 3 should be %q, got %q in %q", want, got, gs)
 			}
 			// clean up active games so the test doesn't leave a dangling game
 			client.CleanupActiveGames(t, c1, parseGameID(t, gs))
@@ -128,7 +133,7 @@ func TestGamePlaceOnOccupiedSquareFails(t *testing.T) {
 	c1, c2, gameID := startGame(t)
 	makeOpeningMoves(t, c1, c2, gameID)
 
-	// c1 places on A1
+	// c1 places on A5
 	c1.Send(fmt.Sprintf("Game#%d P A5", gameID))
 	c1.Expect("NOK")
 	// clean up active games so the test doesn't leave a dangling game

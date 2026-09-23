@@ -71,7 +71,6 @@ func TestObserverReceivesTimeUpdates(t *testing.T) {
 	client.SetProtocol(t, obs, 1)
 	client.LoginGuestAfterProtocol(t, obs)
 	obs.Send(fmt.Sprintf("Observe %d", gameID))
-	// obs.DrainUntil(fmt.Sprintf("Observe %d ", gameID))
 
 	makeOpeningMoves(t, c1, c2, gameID)
 	c1.Send(fmt.Sprintf("Game#%d P A1", gameID))

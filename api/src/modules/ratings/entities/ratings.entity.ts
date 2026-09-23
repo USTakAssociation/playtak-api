@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import { Entity, Column, PrimaryGeneratedColumn, Index } from 'typeorm';
+=======
+import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+>>>>>>> origin/dev
 @Entity({
 	name: 'players'
 })

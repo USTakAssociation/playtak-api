@@ -54,7 +54,12 @@ func startGameWithProtocol(t *testing.T, version int) (white, black *client.Clie
 	client.SetProtocol(t, c2, version)
 	client.LoginGuestAfterProtocol(t, c2)
 
-	seekID := postSeek(t, c1, 5, 600, 30)
+	var seekID int
+	if version >= 4 {
+		seekID, _ = postSeekV4(t, c1, 5, 600, 30, 1, 1)
+	} else {
+		seekID = postSeek(t, c1, 5, 600, 30)
+	}
 
 	c2.Send(fmt.Sprintf("Accept %d", seekID))
 	gs1 := c1.DrainUntil("Game Start ")
@@ -78,6 +83,25 @@ func postSeek(t *testing.T, c *client.Client, size, timeSecs, incr int) int {
 	return parseSeekID(t, msg)
 }
 
+// postSeekV4 posts a V4 seek with explicit scale_increment and opening values.
+func postSeekV4(t *testing.T, c *client.Client, size, timeSecs, incr, scaleIncrement, opening int) (int, string) {
+	t.Helper()
+	pieces, caps := defaultPieces(size)
+	c.Send(fmt.Sprintf("Seek %d %d %d %d A 0 %d %d 0 0 0 0 %d ", size, timeSecs, incr, scaleIncrement, pieces, caps, opening))
+	msg := c.DrainUntil("Seek new ")
+	parts := strings.Fields(msg)
+	if len(parts) != 19 {
+		t.Fatalf("protocol 4 Seek new should have 19 fields, got %d: %q", len(parts), msg)
+	}
+	if got, want := parts[7], strconv.Itoa(scaleIncrement); got != want {
+		t.Fatalf("protocol 4 Seek new scale_increment at index 7 should be %q, got %q in %q", want, got, msg)
+	}
+	if got, want := parts[18], strconv.Itoa(opening); got != want {
+		t.Fatalf("protocol 4 Seek new opening at index 18 should be %q, got %q in %q", want, got, msg)
+	}
+	return parseSeekID(t, msg), msg
+}
+
 // makeOpeningMoves plays the mandatory swap opening for a 5x5 game.
 // white and black MUST be the correct players (white moves first).
 // Use startGame / startGameWithProtocol which guarantee first return = white.
@@ -96,50 +120,40 @@ func makeOpeningMoves(t *testing.T, white, black *client.Client, gameID int) {
 	white.DrainUntil(fmt.Sprintf("Game#%d P A5", gameID))
 }
 
-// parseSeekID extracts the integer seek ID from a "Seek new <id> ..." message.
-func parseSeekID(t *testing.T, msg string) int {
+// parseLeadingID trims prefix from msg and parses the first remaining field
+// as an integer ID, using label to identify the ID kind in error messages.
+func parseLeadingID(t *testing.T, msg, prefix, label string) int {
 	t.Helper()
-	trimmed := strings.TrimPrefix(msg, "Seek new ")
+	trimmed := strings.TrimPrefix(msg, prefix)
 	parts := strings.Fields(trimmed)
 	if len(parts) == 0 {
-		t.Fatalf("helpers: could not parse seek ID from %q", msg)
+		t.Fatalf("helpers: could not parse %s ID from %q", label, msg)
 	}
 	id, err := strconv.Atoi(parts[0])
 	if err != nil {
-		t.Fatalf("helpers: seek ID is not an integer in %q: %v", msg, err)
+		t.Fatalf("helpers: %s ID is not an integer in %q: %v", label, msg, err)
 	}
 	return id
+}
+
+// parseSeekID extracts the integer seek ID from a "Seek new <id> ..." message.
+func parseSeekID(t *testing.T, msg string) int {
+	t.Helper()
+	return parseLeadingID(t, msg, "Seek new ", "seek")
 }
 
 // parseGameID extracts the integer game ID from a "Game Start <id> ..." message.
 func parseGameID(t *testing.T, msg string) int {
 	t.Helper()
-	trimmed := strings.TrimPrefix(msg, "Game Start ")
-	parts := strings.Fields(trimmed)
-	if len(parts) == 0 {
-		t.Fatalf("helpers: could not parse game ID from %q", msg)
-	}
-	id, err := strconv.Atoi(parts[0])
-	if err != nil {
-		t.Fatalf("helpers: game ID is not an integer in %q: %v", msg, err)
-	}
-	return id
+	return parseLeadingID(t, msg, "Game Start ", "game")
 }
 
 // parse rematch seek ID from Accept Rematch <id> message
 func parseRematchSeekID(t *testing.T, msg string) int {
 	t.Helper()
-	trimmed := strings.TrimPrefix(msg, "Accept Rematch ")
-	parts := strings.Fields(trimmed)
-	if len(parts) == 0 {
-		t.Fatalf("helpers: could not parse rematch seek ID from %q", msg)
-	}
-	id, err := strconv.Atoi(parts[0])
-	if err != nil {
-		t.Fatalf("helpers: rematch seek ID is not an integer in %q: %v", msg, err)
-	}
-	return id
+	return parseLeadingID(t, msg, "Accept Rematch ", "rematch seek")
 }
+
 // colorFromGameStart parses the YOUR_color field from a "Game Start ..." message.
 // Works for both protocol 0/1 and 2+ formats by finding "vs" and reading 2 fields ahead.
 //

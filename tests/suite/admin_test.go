@@ -93,7 +93,7 @@ func TestSudoListAdmin(t *testing.T) {
 	c.DrainUntil("sudoReply >")
 	reply := c.DrainUntil("sudoReply ")
 	if !strings.Contains(reply, "[") {
-		t.Errorf("sudo list mod should return a list, got %q", reply)
+		t.Errorf("sudo list admin should return a list, got %q", reply)
 	}
 }
 
@@ -131,7 +131,7 @@ func TestSudoGagAndUngag(t *testing.T) {
 
 	// Gagged user's shouts should not be broadcast to others
 	target.Send("Shout this should be silenced")
-	admin.ExpectNoMessage(client.NoMessageWindow)
+	admin.ExpectNoMessageWithPrefix("Shout", client.NoMessageWindow)
 
 	// Ungag
 	admin.Send(fmt.Sprintf("sudo ungag %s", u))
@@ -230,8 +230,6 @@ func TestSudoBroadcastRejectedForMod(t *testing.T) {
 	// Broadcast is admin-only; a mod who is not an admin should be denied
 	// This test only runs if there is a dedicated mod account configured.
 	// If no mod credentials are set we skip rather than use the admin account.
-	modU := fmt.Sprintf("%s_mod_only", "testuser1") // placeholder, likely not a real mod
-	_ = modU
 	t.Skip("requires a dedicated mod-only (non-admin) account; skipping")
 }
 
