@@ -378,25 +378,12 @@ public class Websocket {
 				case 15:
 					reason = "exception in send";
 					break;
-<<<<<<< HEAD
-=======
-				case 201:
-					reason = "client quit";
-					break;
-				case 202:
-					reason = "admin disconnect";
-					break;
->>>>>>> origin/dev
 				default:
 					reason = "code " + String.valueOf(pos);
 					break;
 			}
 
-<<<<<<< HEAD
-			TakServer.Log("Stream dead " + String.valueOf(pos) + " (" + reason + ") remote=" + remote + " headerended=" + headerended + " readbufferused=" + readbufferused);
-=======
 			TakServer.Log(clientNo + ":" + playerName + ":Stream dead " + String.valueOf(pos) + " (" + reason + ") remote=" + remote + " headerended=" + headerended + " readbufferused=" + readbufferused);
->>>>>>> origin/dev
 		} catch (Throwable t) {
 			try {
 				TakServer.Log("Error in kill: " + t.getMessage());

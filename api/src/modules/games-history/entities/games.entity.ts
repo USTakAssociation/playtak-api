@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 import { Entity, Column, PrimaryGeneratedColumn, Index } from 'typeorm';
-=======
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
->>>>>>> origin/dev
 @Entity()
 @Index(['player_white', 'player_black', 'date'])
 @Index(['player_white'])
