@@ -11,6 +11,7 @@ import (
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/auth"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
 )
 
 const maxBodyBytes = 64 * 1024
@@ -18,11 +19,14 @@ const maxBodyBytes = 64 * 1024
 type Server struct {
 	auth    *auth.Service
 	players *player.Registry
-	log     *slog.Logger
+	seeks   *seek.Manager
+	// serviceKey authorizes service-to-service calls. Empty disables them.
+	serviceKey string
+	log        *slog.Logger
 }
 
-func NewServer(authSvc *auth.Service, players *player.Registry, log *slog.Logger) *Server {
-	return &Server{auth: authSvc, players: players, log: log}
+func NewServer(authSvc *auth.Service, players *player.Registry, seeks *seek.Manager, serviceKey string, log *slog.Logger) *Server {
+	return &Server{auth: authSvc, players: players, seeks: seeks, serviceKey: serviceKey, log: log}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -32,6 +36,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/auth/refresh", s.refresh)
 	mux.HandleFunc("POST /api/auth/guest", s.guest)
 	mux.HandleFunc("POST /api/auth/logout", s.logout)
+	mux.HandleFunc("GET /api/v1/seeks", s.listSeeks)
+	mux.HandleFunc("PUT /api/v1/seeks", s.createSeek)
 	return mux
 }
 

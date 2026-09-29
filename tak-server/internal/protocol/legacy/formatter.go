@@ -62,6 +62,14 @@ func Format(ev protocol.Event, version int) ([]string, error) {
 		return line("Password changed")
 	case protocol.WrongPassword:
 		return line("Wrong password")
+	case protocol.SeekAdded:
+		return line("Seek new " + formatSeek(ev.Seek, version))
+	case protocol.SeekRemoved:
+		return line("Seek remove " + formatSeek(ev.Seek, version))
+	case protocol.AcceptRematch:
+		return line("Accept Rematch " + strconv.Itoa(ev.SeekID))
+	case protocol.RematchSeekCreated:
+		return line("Rematch seek created with ID: " + strconv.Itoa(ev.SeekID))
 	}
 	return nil, fmt.Errorf("legacy: no format for %T", ev)
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/auth"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/protocol"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/transport"
 )
 
@@ -31,6 +32,7 @@ type Manager struct {
 	ctx     context.Context
 	auth    *auth.Service
 	players *player.Registry
+	seeks   *seek.Manager
 	cfg     Config
 	log     *slog.Logger
 
@@ -45,11 +47,12 @@ type Manager struct {
 }
 
 // NewManager returns a Manager whose sessions stop their work when ctx ends.
-func NewManager(ctx context.Context, authSvc *auth.Service, players *player.Registry, cfg Config, log *slog.Logger) *Manager {
+func NewManager(ctx context.Context, authSvc *auth.Service, players *player.Registry, seeks *seek.Manager, cfg Config, log *slog.Logger) *Manager {
 	return &Manager{
 		ctx:      ctx,
 		auth:     authSvc,
 		players:  players,
+		seeks:    seeks,
 		cfg:      cfg,
 		log:      log,
 		sessions: make(map[*Session]struct{}),

@@ -21,6 +21,7 @@ import (
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/email"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/session"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/transport"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/transport/telnet"
@@ -80,8 +81,12 @@ func run(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
 
 	authSvc := auth.NewService(players.NewStore(playersDB), players.NewTokenStore(playersDB), mailer, &filter, log)
 	registry := player.NewRegistry()
-	sessions := session.NewManager(ctx, authSvc, registry,
+	seeks := seek.NewManager()
+	sessions := session.NewManager(ctx, authSvc, registry, seeks,
 		session.Config{AllowMultipleSessions: cfg.AllowMultipleSessions}, log)
+	if cfg.ServiceAPIKey == "" {
+		log.Warn("TAK_SERVICE_API_KEY not set; service endpoints such as PUT /api/v1/seeks are disabled")
+	}
 
 	telnetLn, err := net.Listen("tcp", cfg.TelnetAddr)
 	if err != nil {
@@ -94,7 +99,7 @@ func run(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
 	}
 	apiSrv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           api.NewServer(authSvc, registry, log).Handler(),
+		Handler:           api.NewServer(authSvc, registry, seeks, cfg.ServiceAPIKey, log).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

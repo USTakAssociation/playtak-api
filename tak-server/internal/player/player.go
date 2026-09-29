@@ -4,6 +4,7 @@
 package player
 
 import (
+	"slices"
 	"sync"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 // Client is one logged-in connection a player can be reached through.
 type Client interface {
 	Send(ev protocol.Event)
+	ProtocolVersion() int
 	// Disconnect flushes queued events and closes the connection.
 	Disconnect()
 	// Done is closed once the connection has been fully cleaned up.
@@ -31,12 +33,12 @@ type Player struct {
 	bot        bool
 	gagged     bool
 	banned     bool
-	clients    map[Client]struct{}
+	clients    []Client // in the order they logged in
 	lastActive time.Time
 }
 
 func newPlayer(rec players.Record) *Player {
-	p := &Player{ID: rec.ID, Name: rec.Name, clients: make(map[Client]struct{})}
+	p := &Player{ID: rec.ID, Name: rec.Name}
 	p.update(rec)
 	return p
 }
@@ -54,15 +56,11 @@ func (p *Player) IsBot() bool    { p.mu.Lock(); defer p.mu.Unlock(); return p.bo
 func (p *Player) IsGagged() bool { p.mu.Lock(); defer p.mu.Unlock(); return p.gagged }
 func (p *Player) IsBanned() bool { p.mu.Lock(); defer p.mu.Unlock(); return p.banned }
 
-// Clients returns the player's current connections.
+// Clients returns the player's current connections, oldest first.
 func (p *Player) Clients() []Client {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	out := make([]Client, 0, len(p.clients))
-	for c := range p.clients {
-		out = append(out, c)
-	}
-	return out
+	return slices.Clone(p.clients)
 }
 
 // Online reports whether the player has at least one connection.

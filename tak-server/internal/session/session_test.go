@@ -14,6 +14,7 @@ import (
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/email"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/transport"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/wordfilter"
 )
@@ -59,7 +60,7 @@ func newHarness(t *testing.T, cfg Config) *harness {
 	store := players.NewStore(conn)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	authSvc := auth.NewService(store, players.NewTokenStore(conn), email.Log{Logger: log}, &wordfilter.Filter{}, log)
-	m := NewManager(context.Background(), authSvc, player.NewRegistry(), cfg, log)
+	m := NewManager(context.Background(), authSvc, player.NewRegistry(), seek.NewManager(), cfg, log)
 	return &harness{t: t, m: m, store: store}
 }
 

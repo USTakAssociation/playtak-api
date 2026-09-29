@@ -11,6 +11,7 @@ import (
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/protocol"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/protocol/legacy"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/transport"
 )
 
@@ -33,7 +34,7 @@ type Session struct {
 
 // Send renders ev in the client's protocol and queues it.
 func (s *Session) Send(ev protocol.Event) {
-	lines, err := legacy.Format(ev, int(s.protocolVersion.Load()))
+	lines, err := legacy.Format(ev, s.ProtocolVersion())
 	if err != nil {
 		s.log.Error("format event", "err", err)
 		return
@@ -42,6 +43,9 @@ func (s *Session) Send(ev protocol.Event) {
 		s.conn.Send(l)
 	}
 }
+
+// ProtocolVersion is the version the client declared with "Protocol", or 0.
+func (s *Session) ProtocolVersion() int { return int(s.protocolVersion.Load()) }
 
 // Disconnect closes the connection after delivering queued events.
 func (s *Session) Disconnect() { s.conn.Close(transport.CloseKicked) }
@@ -53,6 +57,8 @@ func (s *Session) Done() <-chan struct{} { return s.done }
 func (s *Session) Closed() {
 	s.m.remove(s)
 	if p := s.player.Load(); p != nil {
+		s.m.seeks.Unsubscribe(s)
+		s.m.seeks.Cancel(s)
 		s.m.players.Detach(p, s)
 		s.m.broadcastPresence()
 	}
@@ -98,6 +104,17 @@ func (s *Session) HandleLine(line string) {
 		s.resetPassword(ctx, cmd)
 	case protocol.ChangePassword:
 		s.changePassword(ctx, p, cmd)
+	case protocol.ListSeeks:
+		s.m.seeks.SendList(s)
+	case protocol.PostSeek:
+		s.postSeek(p, cmd)
+	case protocol.CancelSeek:
+		s.m.seeks.Cancel(s)
+	case protocol.Rematch:
+		s.rematch(p, cmd)
+	case protocol.AcceptSeek:
+		// Accepting starts a game, which isn't implemented yet.
+		s.Send(protocol.NOK{})
 	default:
 		s.Send(protocol.NOK{})
 	}
@@ -123,6 +140,7 @@ func (s *Session) loginGuest(cmd protocol.LoginGuest) {
 	s.m.bind(s, p)
 	s.log.Info("guest logged in", "player", p.Name)
 	s.Send(protocol.LoggedIn{Name: p.Name})
+	s.m.seeks.Subscribe(s)
 	s.m.broadcastPresence()
 }
 
@@ -143,6 +161,7 @@ func (s *Session) login(ctx context.Context, cmd protocol.Login) {
 	if p.IsAdmin() || p.IsMod() {
 		s.Send(protocol.IsMod{})
 	}
+	s.m.seeks.Subscribe(s)
 	s.m.broadcastPresence()
 }
 
@@ -207,6 +226,25 @@ func (s *Session) changePassword(ctx context.Context, p *player.Player, cmd prot
 		s.Send(protocol.WrongPassword{})
 	default:
 		s.fail("change password", err)
+	}
+}
+
+func (s *Session) postSeek(p *player.Player, cmd protocol.PostSeek) {
+	_, err := s.m.seeks.Post(s, seek.Request{Creator: p.Name, Bot: p.IsBot(), Opponent: cmd.Opponent, Settings: cmd.Settings})
+	if err != nil {
+		s.Send(protocol.NOK{})
+	}
+}
+
+func (s *Session) rematch(p *player.Player, cmd protocol.Rematch) {
+	res, err := s.m.seeks.Rematch(s, cmd.GameID, seek.Request{Creator: p.Name, Bot: p.IsBot(), Opponent: cmd.Opponent, Settings: cmd.Settings})
+	switch {
+	case err != nil:
+		s.Send(protocol.NOK{})
+	case res.AcceptID != 0:
+		s.Send(protocol.AcceptRematch{SeekID: res.AcceptID})
+	default:
+		s.Send(protocol.RematchSeekCreated{SeekID: res.Created.ID})
 	}
 }
 

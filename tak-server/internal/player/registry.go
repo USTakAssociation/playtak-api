@@ -2,6 +2,7 @@ package player
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -67,7 +68,9 @@ func (r *Registry) Attach(p *Player, c Client) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	p.mu.Lock()
-	p.clients[c] = struct{}{}
+	if !slices.Contains(p.clients, c) {
+		p.clients = append(p.clients, c)
+	}
 	p.lastActive = time.Now()
 	p.mu.Unlock()
 	r.byName[p.Name] = p
@@ -80,7 +83,7 @@ func (r *Registry) Detach(p *Player, c Client) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	p.mu.Lock()
-	delete(p.clients, c)
+	p.clients = slices.DeleteFunc(p.clients, func(x Client) bool { return x == c })
 	remaining := len(p.clients)
 	p.lastActive = time.Now()
 	p.mu.Unlock()

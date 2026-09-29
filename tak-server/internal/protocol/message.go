@@ -21,6 +21,22 @@ type (
 	SendResetToken    struct{ Name, Email string }
 	ResetPassword     struct{ Name, Token, Password string }
 	ChangePassword    struct{ Old, New string }
+
+	// PostSeek replaces the session's seek with a new one.
+	PostSeek struct {
+		Settings GameSettings
+		Opponent string
+	}
+	CancelSeek struct{}
+	ListSeeks  struct{}
+	AcceptSeek struct{ ID int }
+	// Rematch offers a new game to the opponent of a finished game. If they
+	// have already offered one, the client is told to accept theirs instead.
+	Rematch struct {
+		GameID   int
+		Settings GameSettings
+		Opponent string
+	}
 )
 
 func (Quit) command()              {}
@@ -34,6 +50,11 @@ func (RegisterMalformed) command() {}
 func (SendResetToken) command()    {}
 func (ResetPassword) command()     {}
 func (ChangePassword) command()    {}
+func (PostSeek) command()          {}
+func (CancelSeek) command()        {}
+func (ListSeeks) command()         {}
+func (AcceptSeek) command()        {}
+func (Rematch) command()           {}
 
 // Event is a message to a client.
 type Event interface{ event() }
@@ -61,6 +82,12 @@ type (
 	PasswordResetFailed struct{ Reason ResetPasswordError }
 	PasswordChanged     struct{}
 	WrongPassword       struct{}
+	SeekAdded           struct{ Seek Seek }
+	SeekRemoved         struct{ Seek Seek }
+	// AcceptRematch tells a client its opponent already offered a rematch,
+	// as seek SeekID, which the client should accept.
+	AcceptRematch      struct{ SeekID int }
+	RematchSeekCreated struct{ SeekID int }
 )
 
 func (Greeting) event()            {}
@@ -81,6 +108,10 @@ func (PasswordReset) event()       {}
 func (PasswordResetFailed) event() {}
 func (PasswordChanged) event()     {}
 func (WrongPassword) event()       {}
+func (SeekAdded) event()           {}
+func (SeekRemoved) event()         {}
+func (AcceptRematch) event()       {}
+func (RematchSeekCreated) event()  {}
 
 type RegistrationError int
 

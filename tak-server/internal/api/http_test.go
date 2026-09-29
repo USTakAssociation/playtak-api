@@ -16,31 +16,47 @@ import (
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/email"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/wordfilter"
 )
 
 // bcrypt hash of "password"
 const passwordHash = "$2a$10$JpGWa00gDsDtJK0Ttq/dD.F2zTj9kCkdcHwO5pIZFfWbT3CfDY/C6"
 
+const serviceKey = "test-service-key"
+
 func newTestServer(t *testing.T) (*httptest.Server, *players.Store, *player.Registry) {
+	srv, store, reg, _ := newTestServerWithSeeks(t)
+	return srv, store, reg
+}
+
+func newTestServerWithSeeks(t *testing.T) (*httptest.Server, *players.Store, *player.Registry, *seek.Manager) {
 	t.Helper()
 	conn := dbtest.NewPlayersDB(t)
 	store := players.NewStore(conn)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	authSvc := auth.NewService(store, players.NewTokenStore(conn), email.Log{Logger: log}, &wordfilter.Filter{}, log)
 	reg := player.NewRegistry()
-	srv := httptest.NewServer(NewServer(authSvc, reg, log).Handler())
+	seeks := seek.NewManager()
+	srv := httptest.NewServer(NewServer(authSvc, reg, seeks, serviceKey, log).Handler())
 	t.Cleanup(srv.Close)
-	return srv, store, reg
+	return srv, store, reg, seeks
 }
 
 func post(t *testing.T, srv *httptest.Server, path string, body any, header ...string) (int, map[string]any) {
+	t.Helper()
+	return do(t, srv, http.MethodPost, path, body, header...)
+}
+
+// do sends body as JSON, with an optional header name and value, and decodes
+// a JSON object response.
+func do(t *testing.T, srv *httptest.Server, method, path string, body any, header ...string) (int, map[string]any) {
 	t.Helper()
 	var buf bytes.Buffer
 	if body != nil {
 		json.NewEncoder(&buf).Encode(body)
 	}
-	req, _ := http.NewRequest(http.MethodPost, srv.URL+path, &buf)
+	req, _ := http.NewRequest(method, srv.URL+path, &buf)
 	if len(header) == 2 {
 		req.Header.Set(header[0], header[1])
 	}

@@ -13,6 +13,7 @@ type fakeClient struct{ sent []protocol.Event }
 func (c *fakeClient) Send(ev protocol.Event) { c.sent = append(c.sent, ev) }
 func (c *fakeClient) Disconnect()            {}
 func (c *fakeClient) Done() <-chan struct{}  { return nil }
+func (c *fakeClient) ProtocolVersion() int   { return 0 }
 
 func TestAcquireSharesOnlinePlayer(t *testing.T) {
 	r := NewRegistry()
@@ -41,6 +42,9 @@ func TestDetachDropsRegisteredPlayerWhenLastClientLeaves(t *testing.T) {
 	r.Attach(p, c1)
 	r.Attach(p, c2)
 
+	if got := p.Clients(); len(got) != 2 || got[0] != c1 || got[1] != c2 {
+		t.Fatalf("Clients should be in login order: %v", got)
+	}
 	r.Detach(p, c1)
 	if r.Lookup("alice") != p || len(p.Clients()) != 1 {
 		t.Fatal("alice should stay online with one client")

@@ -38,6 +38,10 @@ type Config struct {
 
 	LogLevel slog.Level // TAK_LOG_LEVEL: debug, info, warn or error
 
+	// ServiceAPIKey authorizes service-to-service HTTP calls, such as the
+	// tournament service creating seeks. Empty disables those endpoints.
+	ServiceAPIKey string // TAK_SERVICE_API_KEY
+
 	SMTP SMTP
 }
 
@@ -93,6 +97,7 @@ func FromEnv(getenv func(string) string) (*Config, error) {
 		BadWordsURL:           get("TAK_BADWORDS_URL", defaultBadWordsURL),
 		AllowMultipleSessions: multi,
 		LogLevel:              level,
+		ServiceAPIKey:         getenv("TAK_SERVICE_API_KEY"),
 		SMTP: SMTP{
 			Host:     getenv("TAK_SMTP_HOST"),
 			User:     getenv("TAK_SMTP_USER"),
