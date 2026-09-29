@@ -24,10 +24,11 @@ fi
 
 # create db, tables
 
-# CAVEAT 1 (players): `id INT PRIMARY_KEY` matches prod but is actually is a
-# bug. `PRIMARY_KEY` (with underscore) is not a keyword, so `id` is a plain
-# nullable INT column, not primary key and not rowid alias. Kept as-is to match
-# prod. See CAVEAT 2 for how this doesn't affect production checks for the PK.
+# CAVEAT 1 (players): `id INT PRIMARY_KEY` matches the original prod schema but
+# is a bug. `PRIMARY_KEY` (with underscore) is not a keyword, so `id` is a plain
+# nullable INT column, not primary key and not rowid alias. The table is created
+# as-is and then fixed by 2026-09-players-id-primary-key.sh below, exactly as
+# prod is migrated.
 
 # CAVEAT 2 (players) : missing prod player indexes Confirmed that there are
 # additional prod indexes: - idx_players_id (to compensate for CAVEAT 1) -
@@ -42,3 +43,5 @@ echo "CREATE TABLE games (id INTEGER PRIMARY KEY, date INT, size INT, player_whi
 migrations="$scriptpath/../migrations"
 bash "$migrations/2026-05-add-increment-scales.sh" "$gamesdb"
 bash "$migrations/2026-08-add-nocase-player-indexes.sh" "$gamesdb"
+bash "$migrations/2026-09-players-id-primary-key.sh" "$playersdb"
+bash "$migrations/2026-09-add-auth-tokens.sh" "$playersdb"

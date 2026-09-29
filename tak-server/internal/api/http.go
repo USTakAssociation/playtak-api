@@ -1,0 +1,180 @@
+// Package api serves the HTTP REST API.
+package api
+
+import (
+	"encoding/json"
+	"errors"
+	"log/slog"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/auth"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
+)
+
+const maxBodyBytes = 64 * 1024
+
+type Server struct {
+	auth    *auth.Service
+	players *player.Registry
+	log     *slog.Logger
+}
+
+func NewServer(authSvc *auth.Service, players *player.Registry, log *slog.Logger) *Server {
+	return &Server{auth: authSvc, players: players, log: log}
+}
+
+func (s *Server) Handler() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/auth/login", s.login)
+	mux.HandleFunc("POST /api/auth/register", s.register)
+	mux.HandleFunc("POST /api/auth/refresh", s.refresh)
+	mux.HandleFunc("POST /api/auth/guest", s.guest)
+	mux.HandleFunc("POST /api/auth/logout", s.logout)
+	return mux
+}
+
+type tokenResponse struct {
+	Name                  string    `json:"name"`
+	AccessToken           string    `json:"accessToken"`
+	AccessTokenExpiresAt  time.Time `json:"accessTokenExpiresAt"`
+	RefreshToken          string    `json:"refreshToken"`
+	RefreshTokenExpiresAt time.Time `json:"refreshTokenExpiresAt"`
+}
+
+func newTokenResponse(name string, pair auth.TokenPair) tokenResponse {
+	return tokenResponse{
+		Name:                  name,
+		AccessToken:           pair.AccessToken,
+		AccessTokenExpiresAt:  pair.AccessExpiresAt,
+		RefreshToken:          pair.RefreshToken,
+		RefreshTokenExpiresAt: pair.RefreshExpiresAt,
+	}
+}
+
+func (s *Server) login(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	rec, err := s.auth.Login(r.Context(), req.Username, req.Password)
+	if errors.Is(err, auth.ErrAuthFailed) {
+		writeError(w, http.StatusUnauthorized, "invalid_credentials")
+		return
+	}
+	if err != nil {
+		s.internalError(w, "login", err)
+		return
+	}
+	pair, err := s.auth.IssueTokens(r.Context(), rec.ID)
+	if err != nil {
+		s.internalError(w, "issue tokens", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, newTokenResponse(rec.Name, pair))
+}
+
+func (s *Server) register(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Username string `json:"username"`
+		Email    string `json:"email"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	rec, err := s.auth.Register(r.Context(), req.Username, req.Email)
+	switch {
+	case err == nil:
+		writeJSON(w, http.StatusCreated, map[string]string{"name": rec.Name})
+	case errors.Is(err, auth.ErrInvalidUsername):
+		writeError(w, http.StatusBadRequest, "invalid_username")
+	case errors.Is(err, auth.ErrInvalidEmail):
+		writeError(w, http.StatusBadRequest, "invalid_email")
+	case errors.Is(err, auth.ErrGuestName):
+		writeError(w, http.StatusBadRequest, "guest_name")
+	case errors.Is(err, auth.ErrProfanity):
+		writeError(w, http.StatusBadRequest, "profanity")
+	case errors.Is(err, auth.ErrNameTaken):
+		writeError(w, http.StatusConflict, "name_taken")
+	default:
+		s.internalError(w, "register", err)
+	}
+}
+
+func (s *Server) refresh(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		RefreshToken string `json:"refreshToken"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	pair, err := s.auth.Refresh(r.Context(), req.RefreshToken)
+	if errors.Is(err, auth.ErrAuthFailed) {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	if err != nil {
+		s.internalError(w, "refresh", err)
+		return
+	}
+	rec, err := s.auth.Authenticate(r.Context(), pair.AccessToken)
+	if err != nil {
+		s.internalError(w, "load refreshed player", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, newTokenResponse(rec.Name, pair))
+}
+
+// guest reserves a guest identity. Guests have no account, so instead of API
+// tokens they get a guest token to log in with over telnet or WebSocket.
+func (s *Server) guest(w http.ResponseWriter, r *http.Request) {
+	token := auth.NewGuestToken()
+	p := s.players.Guest(token)
+	writeJSON(w, http.StatusOK, map[string]string{"name": p.Name, "guestToken": token})
+}
+
+func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		RefreshToken string `json:"refreshToken"`
+	}
+	if r.ContentLength != 0 && !decode(w, r, &req) {
+		return
+	}
+	if err := s.auth.Logout(r.Context(), bearerToken(r), req.RefreshToken); err != nil {
+		s.internalError(w, "logout", err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func bearerToken(r *http.Request) string {
+	token, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	return token
+}
+
+func decode(w http.ResponseWriter, r *http.Request, v any) bool {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(v); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return false
+	}
+	return true
+}
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(v)
+}
+
+func writeError(w http.ResponseWriter, status int, code string) {
+	writeJSON(w, status, map[string]string{"error": code})
+}
+
+func (s *Server) internalError(w http.ResponseWriter, op string, err error) {
+	s.log.Error(op, "err", err)
+	writeError(w, http.StatusInternalServerError, "internal_error")
+}
