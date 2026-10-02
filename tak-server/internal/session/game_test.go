@@ -227,3 +227,107 @@ func waitForResult(t *testing.T, h *harness, id int, want string) {
 		time.Sleep(10 * time.Millisecond)
 	}
 }
+
+func TestDrawThroughProtocol(t *testing.T) {
+	h := newHarness(t, Config{})
+	w, b := startGame(h)
+	w.send("Game#9 OfferDraw") // not their game
+	w.expect("NOK")
+	w.send("Game#1 OfferDraw")
+	w.expect("OK")
+	b.expect("Game#1 OfferDraw")
+	w.send("Game#1 RemoveDraw")
+	w.expect("OK")
+	b.expect("Game#1 RemoveDraw")
+	w.send("Game#1 OfferDraw")
+	w.expect("OK")
+	b.expect("Game#1 OfferDraw")
+
+	// Agreeing ends the game; the OK comes after the result, as in Java.
+	b.send("Game#1 OfferDraw")
+	b.expect("Game#1 Over 1/2-1/2")
+	b.expect("GameList Remove 1 Guest1 Guest2 5 600 30 0 21 1 0 0 0 0")
+	b.expect("OK")
+	w.expect("Game#1 Over 1/2-1/2")
+	w.expect("GameList Remove 1 Guest1 Guest2 5 600 30 0 21 1 0 0 0 0")
+	w.expectNothing()
+	waitForResult(t, h, 1, "1/2-1/2")
+}
+
+func TestUndoThroughProtocol(t *testing.T) {
+	h := newHarness(t, Config{})
+	w, b := startGame(h)
+	w.send("Game#1 RequestUndo")
+	w.expect("NOK") // nothing to undo, and no OK after it
+	w.expectNothing()
+
+	w.send("Game#1 P A1")
+	w.drainUntil("OK")
+	b.drainUntil("Game#1 P A1")
+	w.send("Game#1 RequestUndo")
+	w.expect("OK")
+	b.expect("Game#1 RequestUndo")
+	w.send("Game#1 RemoveUndo")
+	w.expect("OK")
+	b.expect("Game#1 RemoveUndo")
+	b.send("Game#1 RequestUndo")
+	b.expect("OK")
+	w.expect("Game#1 RequestUndo")
+
+	w.send("Game#1 RequestUndo")
+	w.expect("Game#1 Time 600 600")
+	w.expect("Game#1 Undo")
+	w.expect("OK")
+	b.expect("Game#1 Time 600 600")
+	b.expect("Game#1 Undo")
+	w.send("Game#1 Show")
+	w.expect("Game#1 Show x5/x5/x5/x5/x5 1 1")
+}
+
+func TestGiveTimeThroughProtocol(t *testing.T) {
+	h := newHarness(t, Config{})
+	w, b := startGame(h)
+	w.send("Game#1 GiveTime")
+	w.expect("NOK")
+	w.expect("Error:The clock has not started")
+
+	w.send("Game#1 P A1")
+	w.drainUntil("OK")
+	b.drainUntil("Game#1 P A1")
+	w.send("Game#1 GiveTime")
+	w.expect("Game#1 GivenTime black 15000")
+	w.drainUntil("Game#1 Time 630 615")
+	w.expect("OK")
+	b.expect("Game#1 GivenTime black 15000")
+	b.drainUntil("Game#1 Time 630 6")
+
+	w.send("Game#1 GiveTime")
+	w.expect("Message You can give time again in 15 seconds")
+	w.expect("NOK")
+	b.expectNothing()
+}
+
+func TestRejoinResendsDrawOffer(t *testing.T) {
+	h := newHarness(t, Config{})
+	w, b := h.connect(), h.connect()
+	w.send("Login Guest abcdefghijklmnopqrst")
+	w.drainUntil("OnlinePlayers")
+	b.send("Login Guest")
+	b.drainUntil("OnlinePlayers")
+	w.send("Seek 5 600 30 W 0 21 1 0 0 ")
+	b.drainUntil("Seek new")
+	b.send("Accept 1")
+	w.drainUntil("Game Start")
+	b.drainUntil("Game Start")
+	b.send("Game#1 OfferDraw")
+	b.expect("OK")
+	w.expect("Game#1 OfferDraw")
+
+	w.send("quit")
+	w.expectClosed(transport.CloseNormal)
+	w2 := h.connect()
+	w2.send("Login Guest abcdefghijklmnopqrst")
+	w2.drainUntil("Message Your game is resumed")
+	w2.expect("Game#1 OfferDraw")
+	w2.expect("Welcome Guest1!")
+}

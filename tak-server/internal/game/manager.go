@@ -41,6 +41,9 @@ type ResultSaver interface {
 	Save(r games.Result) error
 }
 
+// timer is a pending call scheduled by afterFunc.
+type timer interface{ Stop() bool }
+
 // Listener is a session that receives game list updates.
 type Listener interface {
 	Send(ev protocol.Event)
@@ -58,6 +61,8 @@ type Manager struct {
 	players *player.Registry
 	log     *slog.Logger
 	now     func() time.Time
+	// afterFunc runs f on its own goroutine after d; tests replace it.
+	afterFunc func(d time.Duration, f func()) timer
 
 	mu        sync.Mutex
 	games     map[int]*Game
@@ -69,6 +74,7 @@ func NewManager(cfg Config, store Store, ratings Ratings, results ResultSaver, s
 	return &Manager{
 		cfg: cfg, store: store, ratings: ratings, results: results, seeks: seeks, players: players, log: log,
 		now:       time.Now,
+		afterFunc: func(d time.Duration, f func()) timer { return time.AfterFunc(d, f) },
 		games:     make(map[int]*Game),
 		byPlayer:  make(map[string]*Game),
 		listeners: make(map[Listener]struct{}),
@@ -167,6 +173,7 @@ func (m *Manager) Accept(ctx context.Context, acceptor *player.Player, from List
 
 	g.send(tak.White, protocol.GameStarted{Game: g.info, Color: protocol.White})
 	g.send(tak.Black, protocol.GameStarted{Game: g.info, Color: protocol.Black})
+	g.start()
 	go g.run()
 	return g, nil
 }

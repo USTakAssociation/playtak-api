@@ -90,6 +90,22 @@ func Format(ev protocol.Event, version int) ([]string, error) {
 		return line(fmt.Sprintf("Game#%d Show %s", ev.GameID, ev.TPS))
 	case protocol.SquareShown:
 		return line(fmt.Sprintf("Game#%d Show Sq %s", ev.GameID, ev.Stack))
+	case protocol.UndoRequested:
+		return line(fmt.Sprintf("Game#%d RequestUndo", ev.GameID))
+	case protocol.UndoRemoved:
+		return line(fmt.Sprintf("Game#%d RemoveUndo", ev.GameID))
+	case protocol.Undone:
+		return line(fmt.Sprintf("Game#%d Undo", ev.GameID))
+	case protocol.DrawOffered:
+		return line(fmt.Sprintf("Game#%d OfferDraw", ev.GameID))
+	case protocol.DrawRemoved:
+		return line(fmt.Sprintf("Game#%d RemoveDraw", ev.GameID))
+	case protocol.TimeGiven:
+		color := "white"
+		if ev.To == protocol.Black {
+			color = "black"
+		}
+		return line(fmt.Sprintf("Game#%d GivenTime %s %d", ev.GameID, color, ev.Millis))
 	}
 	return nil, fmt.Errorf("legacy: no format for %T", ev)
 }

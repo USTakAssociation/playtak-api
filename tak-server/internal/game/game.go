@@ -17,7 +17,32 @@ var (
 	ErrNotPlaying = errors.New("not playing this game")
 	// ErrTimeout means the game didn't answer in time.
 	ErrTimeout = errors.New("game did not respond")
+	// ErrNothingToUndo means no ply has been played.
+	ErrNothingToUndo = errors.New("nothing to undo")
+	// ErrClockNotStarted means time can't be given before the first ply.
+	ErrClockNotStarted = errors.New("The clock has not started")
 )
+
+const (
+	giveTimeAmount   = 15 * time.Second
+	giveTimeCooldown = 15 * time.Second
+	// botFirstMoveLimit is the most a human playing white against a bot may
+	// take over their first move before the bot is awarded the game, so bots
+	// aren't held up. A game with less starting time uses that instead.
+	botFirstMoveLimit = 5 * time.Minute
+)
+
+// CooldownError means the player gave time too recently.
+type CooldownError struct{ Left time.Duration }
+
+func (e *CooldownError) Error() string {
+	return fmt.Sprintf("You can give time again in %d seconds", e.Seconds())
+}
+
+// Seconds is the time left, rounded up.
+func (e *CooldownError) Seconds() int64 {
+	return int64((e.Left + time.Second - 1) / time.Second)
+}
 
 // Recipient is a connection a game can send to directly, e.g. to replay a
 // game to a player who has just reconnected.
@@ -47,6 +72,14 @@ type Game struct {
 	clock  *clock
 	seats  [2]*seat
 	over   bool
+
+	timeout    timer // fires when the player to move runs out of time
+	timeoutGen int   // bumped whenever the timeout is reset, so a stale one can tell
+	botTimer   timer // see botFirstMoveLimit; nil when it doesn't apply
+
+	undoAsked   [2]bool      // by color; at most one is set
+	drawOffered [2]bool      // by color; at most one is set
+	lastGift    [2]time.Time // when each color last gave time
 }
 
 func newGame(m *Manager, info protocol.GameInfo, white, black *player.Player) *Game {
@@ -62,6 +95,25 @@ func newGame(m *Manager, info protocol.GameInfo, white, black *player.Player) *G
 			{name: black.Name, player: black, connected: true},
 		},
 	}
+}
+
+// start arms the timer that frees a bot playing black whose opponent never
+// makes the first move. It runs before the goroutine starts.
+func (g *Game) start() {
+	if !g.seats[tak.Black].player.IsBot() {
+		return
+	}
+	limit := botFirstMoveLimit
+	if t := time.Duration(g.info.Time) * time.Second; t > 0 && t < limit {
+		limit = t
+	}
+	g.botTimer = g.m.afterFunc(limit, func() {
+		g.post(func() {
+			if g.engine.Ply() == 0 {
+				g.end(tak.Win(tak.Black), "")
+			}
+		})
+	})
 }
 
 // ID is the game's number, shared with the games DB.
@@ -142,25 +194,131 @@ func (g *Game) Move(ctx context.Context, name, from, to string, drops []int) err
 }
 
 func (g *Game) play(ctx context.Context, name string, apply func(tak.Color) error) error {
-	var result error
-	err := g.do(ctx, func() {
-		color, ok := g.colorOf(name)
-		if !ok {
-			result = ErrNotPlaying
-			return
-		}
-		firstPly := g.engine.Ply() == 0
+	return g.act(ctx, name, func(color tak.Color) error {
 		if err := apply(color); err != nil {
-			result = err
-			return
+			return err
 		}
-		g.clock.moved(color, firstPly, g.m.now())
+		if g.botTimer != nil {
+			g.botTimer.Stop()
+			g.botTimer = nil
+		}
+		g.undoAsked = [2]bool{} // a move withdraws any undo request, silently
+		g.clock.moved(color, g.m.now())
 		g.sendBoth(g.clock.event(g.info.ID))
 		moves := g.engine.Moves()
 		g.send(color.Opponent(), protocol.MovePlayed{GameID: g.info.ID, Move: moves[len(moves)-1]})
 		if r := g.engine.Result(); r != tak.None {
 			g.end(r, "")
+			return nil
 		}
+		g.resetTimeout()
+		return nil
+	})
+}
+
+// Resign ends the game as a loss for the named player.
+func (g *Game) Resign(ctx context.Context, name string) error {
+	return g.act(ctx, name, func(color tak.Color) error {
+		g.end(tak.Win(color.Opponent()), "")
+		return nil
+	})
+}
+
+// RequestUndo asks to take back the last ply, or agrees if the opponent has
+// already asked. Asking twice does nothing.
+func (g *Game) RequestUndo(ctx context.Context, name string) error {
+	return g.act(ctx, name, func(color tak.Color) error {
+		if g.engine.Ply() == 0 {
+			return ErrNothingToUndo
+		}
+		switch opp := color.Opponent(); {
+		case g.undoAsked[opp]:
+			g.undoAsked = [2]bool{}
+			g.engine.Undo()
+			g.clock.undo(g.m.now())
+			g.sendBoth(g.clock.event(g.info.ID))
+			g.sendBoth(protocol.Undone{GameID: g.info.ID})
+			g.resetTimeout()
+		case !g.undoAsked[color]:
+			g.undoAsked[color] = true
+			g.send(opp, protocol.UndoRequested{GameID: g.info.ID})
+		}
+		return nil
+	})
+}
+
+// RemoveUndo withdraws the named player's undo request, if they made one.
+func (g *Game) RemoveUndo(ctx context.Context, name string) error {
+	return g.act(ctx, name, func(color tak.Color) error {
+		if g.undoAsked[color] {
+			g.undoAsked[color] = false
+			g.send(color.Opponent(), protocol.UndoRemoved{GameID: g.info.ID})
+		}
+		return nil
+	})
+}
+
+// OfferDraw offers a draw, or agrees to one if the opponent has already
+// offered. Offering twice does nothing. Unlike undo requests, offers stay
+// open when a move is played.
+func (g *Game) OfferDraw(ctx context.Context, name string) error {
+	return g.act(ctx, name, func(color tak.Color) error {
+		switch opp := color.Opponent(); {
+		case g.drawOffered[opp]:
+			g.end(tak.Draw, "")
+		case !g.drawOffered[color]:
+			g.drawOffered[color] = true
+			g.send(opp, protocol.DrawOffered{GameID: g.info.ID})
+		}
+		return nil
+	})
+}
+
+// RemoveDraw withdraws the named player's draw offer, if they made one.
+func (g *Game) RemoveDraw(ctx context.Context, name string) error {
+	return g.act(ctx, name, func(color tak.Color) error {
+		if g.drawOffered[color] {
+			g.drawOffered[color] = false
+			g.send(color.Opponent(), protocol.DrawRemoved{GameID: g.info.ID})
+		}
+		return nil
+	})
+}
+
+// GiveTime adds giveTimeAmount to the opponent's clock. A player can give
+// once per giveTimeCooldown; too soon returns a *CooldownError.
+func (g *Game) GiveTime(ctx context.Context, name string) error {
+	return g.act(ctx, name, func(color tak.Color) error {
+		if !g.clock.started {
+			return ErrClockNotStarted
+		}
+		now := g.m.now()
+		if last := g.lastGift[color]; !last.IsZero() {
+			if left := giveTimeCooldown - now.Sub(last); left > 0 {
+				return &CooldownError{Left: left}
+			}
+		}
+		g.lastGift[color] = now
+		opp := color.Opponent()
+		g.clock.give(opp, giveTimeAmount.Milliseconds())
+		g.sendBoth(protocol.TimeGiven{GameID: g.info.ID, To: protocolColor(opp), Millis: giveTimeAmount.Milliseconds()})
+		g.sendBoth(g.clock.event(g.info.ID))
+		g.resetTimeout()
+		return nil
+	})
+}
+
+// act runs f on the game's goroutine for the named player, first ending the
+// game if the player to move has run out of time.
+func (g *Game) act(ctx context.Context, name string, f func(tak.Color) error) error {
+	var result error
+	err := g.do(ctx, func() {
+		color, ok := g.colorOf(name)
+		if !ok || g.timeUp() {
+			result = ErrNotPlaying
+			return
+		}
+		result = f(color)
 	})
 	if err != nil {
 		return err
@@ -168,21 +326,42 @@ func (g *Game) play(ctx context.Context, name string, apply func(tak.Color) erro
 	return result
 }
 
-// Resign ends the game as a loss for the named player.
-func (g *Game) Resign(ctx context.Context, name string) error {
-	var result error
-	err := g.do(ctx, func() {
-		color, ok := g.colorOf(name)
-		if !ok {
-			result = ErrNotPlaying
-			return
-		}
-		g.end(tak.Win(color.Opponent()), "")
-	})
-	if err != nil {
-		return err
+// timeUp ends the game if the player to move has run out of time.
+func (g *Game) timeUp() bool {
+	if !g.clock.started {
+		return false
 	}
-	return result
+	turn := g.engine.Turn()
+	g.clock.sync(turn, g.m.now())
+	if g.clock.remaining[turn] > 0 {
+		return false
+	}
+	g.sendBoth(g.clock.event(g.info.ID))
+	g.end(tak.Win(turn.Opponent()), "")
+	return true
+}
+
+// resetTimeout sets the out-of-time timer for the player to move, replacing any
+// earlier one. A timer that fires early sets itself again.
+func (g *Game) resetTimeout() {
+	if g.timeout != nil {
+		g.timeout.Stop()
+	}
+	g.timeoutGen++
+	if g.over || !g.clock.started {
+		return
+	}
+	gen := g.timeoutGen
+	turn := g.engine.Turn()
+	g.clock.sync(turn, g.m.now())
+	d := time.Duration(max(g.clock.remaining[turn], 0)) * time.Millisecond
+	g.timeout = g.m.afterFunc(d, func() {
+		g.post(func() {
+			if gen == g.timeoutGen && !g.timeUp() {
+				g.resetTimeout()
+			}
+		})
+	})
 }
 
 // TPS returns the position for a player in the game.
@@ -250,7 +429,7 @@ func (g *Game) Disconnected(ctx context.Context, name string) error {
 			Text: fmt.Sprintf("%s has disconnected. They have %d seconds to reconnect", name, seconds),
 		})
 
-		time.AfterFunc(window, func() {
+		g.m.afterFunc(window, func() {
 			g.post(func() {
 				if !s.connected && s.away == away {
 					g.end(tak.Win(color.Opponent()), name)
@@ -280,13 +459,26 @@ func (g *Game) Reconnected(ctx context.Context, p *player.Player, to Recipient) 
 		g.clock.sync(g.engine.Turn(), g.m.now())
 		to.Send(g.clock.event(g.info.ID))
 		to.Send(protocol.ServerMessage{Text: "Your game is resumed"})
-		g.send(color.Opponent(), protocol.ServerMessage{Text: p.Name + " has reconnected."})
+		// Requests still waiting for this player's answer.
+		opp := color.Opponent()
+		if g.drawOffered[opp] {
+			to.Send(protocol.DrawOffered{GameID: g.info.ID})
+		}
+		if g.undoAsked[opp] {
+			to.Send(protocol.UndoRequested{GameID: g.info.ID})
+		}
+		g.send(opp, protocol.ServerMessage{Text: p.Name + " has reconnected."})
 	})
 }
 
 // end finishes the game. quitter names a player who abandoned it, else "".
 func (g *Game) end(r tak.Result, quitter string) {
 	g.over = true
+	for _, t := range []timer{g.timeout, g.botTimer} {
+		if t != nil {
+			t.Stop()
+		}
+	}
 	if quitter != "" {
 		// Only the player who stayed is told.
 		for c, s := range g.seats {

@@ -90,7 +90,24 @@ type env struct {
 	players *player.Registry
 	results *savedResults
 	now     time.Time
+	timers  []*fakeTimer
 	mu      sync.Mutex
+}
+
+// fakeTimer fires when the env's clock is advanced past it.
+type fakeTimer struct {
+	e    *env
+	at   time.Time
+	f    func()
+	done bool // fired or stopped
+}
+
+func (t *fakeTimer) Stop() bool {
+	t.e.mu.Lock()
+	defer t.e.mu.Unlock()
+	was := !t.done
+	t.done = true
+	return was
 }
 
 func newEnv(t *testing.T, cfg Config) *env {
@@ -106,10 +123,51 @@ func newEnv(t *testing.T, cfg Config) *env {
 	e.m = NewManager(cfg, games.NewStore(dbtest.NewGamesDB(t)), players.NewStore(dbtest.NewPlayersDB(t)),
 		e.results, e.seeks, e.players, log)
 	e.m.now = func() time.Time { e.mu.Lock(); defer e.mu.Unlock(); return e.now }
+	e.m.afterFunc = func(d time.Duration, f func()) timer {
+		e.mu.Lock()
+		defer e.mu.Unlock()
+		t := &fakeTimer{e: e, at: e.now.Add(d), f: f}
+		e.timers = append(e.timers, t)
+		return t
+	}
 	return e
 }
 
-func (e *env) advance(d time.Duration) { e.mu.Lock(); e.now = e.now.Add(d); e.mu.Unlock() }
+// advance moves the clock on and fires, in order, the timers that are due.
+// Their callbacks run before advance returns, so work they post to a game
+// is queued ahead of anything the test does next.
+func (e *env) advance(d time.Duration) {
+	e.mu.Lock()
+	e.now = e.now.Add(d)
+	var due []*fakeTimer
+	for _, t := range e.timers {
+		if !t.done && !t.at.After(e.now) {
+			t.done = true
+			due = append(due, t)
+		}
+	}
+	e.mu.Unlock()
+	slices.SortStableFunc(due, func(a, b *fakeTimer) int { return a.at.Compare(b.at) })
+	for _, t := range due {
+		t.f()
+	}
+}
+
+// pending counts timers that are neither fired nor stopped.
+func (e *env) pending() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	n := 0
+	for _, t := range e.timers {
+		if !t.done {
+			n++
+		}
+	}
+	return n
+}
+
+// settle waits until g has handled everything queued so far.
+func settle(g *Game) { g.do(context.Background(), func() {}) }
 
 // login brings a guest online with one connection.
 func (e *env) login(version int) (*player.Player, *client) {
@@ -375,14 +433,23 @@ func TestResign(t *testing.T) {
 }
 
 func TestDisconnectAndAbandon(t *testing.T) {
-	e := newEnv(t, Config{ReconnectTimeout: 100 * time.Millisecond})
+	e := newEnv(t, Config{ReconnectTimeout: 1500 * time.Millisecond})
 	g, _, ac, b, bc := e.start()
 	g.Disconnected(context.Background(), b.Name)
-	msg := ac.waitFor(t, func(ev protocol.Event) bool { _, ok := ev.(protocol.ServerMessage); return ok })
-	if want := (protocol.ServerMessage{Text: b.Name + " has disconnected. They have 0 seconds to reconnect"}); msg != want {
+	msg := ac.take()
+	if want := (protocol.ServerMessage{Text: b.Name + " has disconnected. They have 1 seconds to reconnect"}); len(msg) != 1 || msg[0] != want {
 		t.Errorf("got %v, want %v (the window rounds down to whole seconds)", msg, want)
 	}
-	ac.waitFor(t, func(ev protocol.Event) bool { return ev == protocol.GameAbandoned{GameID: 1, Quitter: b.Name} })
+	e.advance(1499 * time.Millisecond)
+	settle(g)
+	if len(e.results.get()) != 0 {
+		t.Fatal("abandoned before the window closed")
+	}
+	e.advance(time.Millisecond)
+	settle(g)
+	if got := ac.take(); len(got) != 1 || got[0] != (protocol.GameAbandoned{GameID: 1, Quitter: b.Name}) {
+		t.Errorf("stayer got %v", got)
+	}
 	if got := e.results.get(); len(got) != 1 || got[0].Result != "1-0" {
 		t.Errorf("saved %+v", got)
 	}
@@ -454,7 +521,7 @@ func TestDisconnectedPlayerIsSentNothing(t *testing.T) {
 }
 
 func TestReconnectCancelsAbandon(t *testing.T) {
-	e := newEnv(t, Config{ReconnectTimeout: 150 * time.Millisecond})
+	e := newEnv(t, Config{ReconnectTimeout: time.Minute})
 	g, a, ac, b, _ := e.start()
 	ctx := context.Background()
 	g.Place(ctx, a.Name, "A1", tak.Flat)
@@ -476,7 +543,8 @@ func TestReconnectCancelsAbandon(t *testing.T) {
 		t.Errorf("rejoin sent\n got %v\nwant %v", got, want)
 	}
 	ac.waitFor(t, func(ev protocol.Event) bool { return ev == protocol.ServerMessage{Text: b.Name + " has reconnected."} })
-	time.Sleep(300 * time.Millisecond)
+	e.advance(2 * time.Minute)
+	settle(g)
 	if len(e.results.get()) != 0 || e.m.ForPlayer(a.Name) != g {
 		t.Error("the game must continue after reconnecting")
 	}

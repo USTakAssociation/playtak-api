@@ -146,6 +146,16 @@ func (s *Session) HandleLine(line string) {
 		if g := s.gameFor(p, cmd.GameID); g == nil || g.Resign(ctx, p.Name) != nil {
 			s.Send(protocol.NOK{})
 		}
+	case protocol.RequestUndo:
+		s.inGame(p, cmd.GameID, func(g *game.Game) error { return g.RequestUndo(ctx, p.Name) })
+	case protocol.RemoveUndo:
+		s.inGame(p, cmd.GameID, func(g *game.Game) error { return g.RemoveUndo(ctx, p.Name) })
+	case protocol.OfferDraw:
+		s.inGame(p, cmd.GameID, func(g *game.Game) error { return g.OfferDraw(ctx, p.Name) })
+	case protocol.RemoveDraw:
+		s.inGame(p, cmd.GameID, func(g *game.Game) error { return g.RemoveDraw(ctx, p.Name) })
+	case protocol.GiveTime:
+		s.inGame(p, cmd.GameID, func(g *game.Game) error { return g.GiveTime(ctx, p.Name) })
 	case protocol.ShowGame:
 		g := s.gameFor(p, cmd.GameID)
 		if g == nil {
@@ -247,18 +257,23 @@ func (s *Session) gameFor(p *player.Player, id int) *game.Game {
 	return g
 }
 
-// inGame plays a move in p's game id, answering OK, or NOK with the reason
-// for an illegal move.
-func (s *Session) inGame(p *player.Player, id int, move func(*game.Game) error) {
+// inGame runs an action in p's game id, answering OK, or NOK with the
+// reason if the game refused it.
+func (s *Session) inGame(p *player.Player, id int, action func(*game.Game) error) {
 	g := s.gameFor(p, id)
 	if g == nil {
 		s.Send(protocol.NOK{})
 		return
 	}
-	switch err := move(g); {
+	var cooldown *game.CooldownError
+	switch err := action(g); {
 	case err == nil:
 		s.Send(protocol.OK{})
-	case errors.Is(err, game.ErrNotPlaying), errors.Is(err, game.ErrTimeout), errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+	case errors.As(err, &cooldown):
+		s.Send(protocol.ServerMessage{Text: cooldown.Error()})
+		s.Send(protocol.NOK{})
+	case errors.Is(err, game.ErrNotPlaying), errors.Is(err, game.ErrTimeout), errors.Is(err, game.ErrNothingToUndo),
+		errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
 		s.Send(protocol.NOK{})
 	default:
 		s.Send(protocol.MoveRejected{Reason: err.Error()})

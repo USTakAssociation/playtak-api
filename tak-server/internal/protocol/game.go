@@ -20,14 +20,27 @@ type (
 		Square string
 	}
 	ListGames struct{}
+
+	// Undo and draw: the second player to ask agrees to the first's request.
+	RequestUndo struct{ GameID int }
+	RemoveUndo  struct{ GameID int }
+	OfferDraw   struct{ GameID int }
+	RemoveDraw  struct{ GameID int }
+	// GiveTime adds a fixed amount to the opponent's clock.
+	GiveTime struct{ GameID int }
 )
 
-func (PlaceStone) command() {}
-func (MoveStack) command()  {}
-func (Resign) command()     {}
-func (ShowGame) command()   {}
-func (ShowSquare) command() {}
-func (ListGames) command()  {}
+func (PlaceStone) command()  {}
+func (MoveStack) command()   {}
+func (Resign) command()      {}
+func (ShowGame) command()    {}
+func (ShowSquare) command()  {}
+func (ListGames) command()   {}
+func (RequestUndo) command() {}
+func (RemoveUndo) command()  {}
+func (OfferDraw) command()   {}
+func (RemoveDraw) command()  {}
+func (GiveTime) command()    {}
 
 // GameInfo describes a game in progress, as shown in the game list and at
 // the start of a game.
@@ -80,6 +93,20 @@ type (
 		GameID int
 		Stack  string
 	}
+	// UndoRequested and DrawOffered tell a player their opponent asked;
+	// UndoRemoved and DrawRemoved that the request was withdrawn.
+	UndoRequested struct{ GameID int }
+	UndoRemoved   struct{ GameID int }
+	DrawOffered   struct{ GameID int }
+	DrawRemoved   struct{ GameID int }
+	// Undone means both players agreed and the last ply was taken back.
+	Undone struct{ GameID int }
+	// TimeGiven means To was given Millis of extra time by their opponent.
+	TimeGiven struct {
+		GameID int
+		To     Color
+		Millis int64
+	}
 )
 
 func (GameStarted) event()     {}
@@ -92,3 +119,9 @@ func (GameListAdded) event()   {}
 func (GameListRemoved) event() {}
 func (PositionShown) event()   {}
 func (SquareShown) event()     {}
+func (UndoRequested) event()   {}
+func (UndoRemoved) event()     {}
+func (DrawOffered) event()     {}
+func (DrawRemoved) event()     {}
+func (Undone) event()          {}
+func (TimeGiven) event()       {}

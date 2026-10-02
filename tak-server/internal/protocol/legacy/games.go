@@ -16,7 +16,27 @@ var (
 	reShow       = regexp.MustCompile(`^Game#(\d+) Show$`)
 	reShowSquare = regexp.MustCompile(`^Game#(\d+) Show ([A-Z])(\d)`)
 	reGameList   = regexp.MustCompile(`^GameList`)
+
+	reRequestUndo = regexp.MustCompile(`^Game#(\d+) RequestUndo`)
+	reRemoveUndo  = regexp.MustCompile(`^Game#(\d+) RemoveUndo`)
+	reOfferDraw   = regexp.MustCompile(`^Game#(\d+) OfferDraw`)
+	reRemoveDraw  = regexp.MustCompile(`^Game#(\d+) RemoveDraw`)
+	reGiveTime    = regexp.MustCompile(`^Game#(\d+) GiveTime$`)
 )
+
+// gameOnly maps commands that carry nothing but a game number.
+var gameOnly = []struct {
+	re   *regexp.Regexp
+	make func(id int) protocol.Command
+}{
+	{reResign, func(id int) protocol.Command { return protocol.Resign{GameID: id} }},
+	{reShow, func(id int) protocol.Command { return protocol.ShowGame{GameID: id} }},
+	{reRequestUndo, func(id int) protocol.Command { return protocol.RequestUndo{GameID: id} }},
+	{reRemoveUndo, func(id int) protocol.Command { return protocol.RemoveUndo{GameID: id} }},
+	{reOfferDraw, func(id int) protocol.Command { return protocol.OfferDraw{GameID: id} }},
+	{reRemoveDraw, func(id int) protocol.Command { return protocol.RemoveDraw{GameID: id} }},
+	{reGiveTime, func(id int) protocol.Command { return protocol.GiveTime{GameID: id} }},
+}
 
 // parseGameCommand parses in-game commands and GameList. It returns nil if
 // line isn't one of them or holds a game number too large to represent.
@@ -41,17 +61,13 @@ func parseGameCommand(line string) protocol.Command {
 		}
 		return protocol.MoveStack{GameID: id, From: m[2] + m[3], To: m[4] + m[5], Drops: drops}
 	}
-	if m := reResign.FindStringSubmatch(line); m != nil {
-		if id, err := strconv.Atoi(m[1]); err == nil {
-			return protocol.Resign{GameID: id}
+	for _, c := range gameOnly {
+		if m := c.re.FindStringSubmatch(line); m != nil {
+			if id, err := strconv.Atoi(m[1]); err == nil {
+				return c.make(id)
+			}
+			return nil
 		}
-		return nil
-	}
-	if m := reShow.FindStringSubmatch(line); m != nil {
-		if id, err := strconv.Atoi(m[1]); err == nil {
-			return protocol.ShowGame{GameID: id}
-		}
-		return nil
 	}
 	if m := reShowSquare.FindStringSubmatch(line); m != nil {
 		if id, err := strconv.Atoi(m[1]); err == nil {
