@@ -103,6 +103,17 @@ func (m *Manager) Cancel(owner Listener) {
 	m.removeOwnerLocked(owner)
 }
 
+// Remove takes seek id off the list, reporting whether it was there.
+func (m *Manager) Remove(id int) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s, ok := m.seeks[id]
+	if ok {
+		m.removeOwnerLocked(s.Owner)
+	}
+	return ok
+}
+
 // RematchResult is the outcome of Rematch: either the opponent had already
 // offered a rematch (AcceptID is their seek), or a new rematch seek was
 // posted (Created).

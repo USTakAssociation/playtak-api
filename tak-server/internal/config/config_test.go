@@ -27,6 +27,12 @@ func TestFromEnvDefaults(t *testing.T) {
 	if cfg.AllowMultipleSessions {
 		t.Error("multiple sessions should be off by default")
 	}
+	if cfg.TournamentReconnectTimeout != 15*time.Minute || cfg.GameCommandTimeout != 10*time.Second {
+		t.Errorf("timeouts %v %v", cfg.TournamentReconnectTimeout, cfg.GameCommandTimeout)
+	}
+	if cfg.PendingResultsFile != "/playtakdb/pending-game-results.jsonl" {
+		t.Errorf("PendingResultsFile = %q", cfg.PendingResultsFile)
+	}
 	if cfg.LogLevel != slog.LevelInfo {
 		t.Errorf("LogLevel = %v", cfg.LogLevel)
 	}
@@ -63,6 +69,7 @@ func TestFromEnvInvalidValues(t *testing.T) {
 		"TAK_RECONNECT_TIMEOUT":       "120", // no unit
 		"TAK_ALLOW_MULTIPLE_SESSIONS": "maybe",
 		"TAK_LOG_LEVEL":               "loud",
+		"TAK_GAME_COMMAND_TIMEOUT":    "soon",
 	} {
 		if _, err := FromEnv(env(map[string]string{k: v})); err == nil {
 			t.Errorf("%s=%q: expected error", k, v)

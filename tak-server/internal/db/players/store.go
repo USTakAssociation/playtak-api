@@ -6,7 +6,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
+	"time"
 )
 
 var (
@@ -134,6 +136,57 @@ func (s *Store) SetFlag(ctx context.Context, name string, flag Flag, on bool) er
 		return fmt.Errorf("set %s for player %s: %w", flag, name, err)
 	}
 	return nil
+}
+
+// ratingDecay is the period over which an inactive high rating decays.
+const ratingDecay = 240 * 24 * time.Hour
+
+// Rating returns the rating recorded for player id when a game starts at
+// time at, matching the Java server: 0 for unrated players and players
+// without a row (guests), and for ratings of 1500 or more a decay that
+// lowers ratings that haven't been played for. A player whose ratingbase is
+// set uses that player's rating instead.
+func (s *Store) Rating(ctx context.Context, id int, at time.Time) (int, error) {
+	type ratingRow struct {
+		rating, age float64
+		base        int
+		unrated     bool
+	}
+	// load reads id's rating fields into r, leaving r unchanged if there's
+	// no such player.
+	load := func(id int, r *ratingRow) error {
+		err := s.db.QueryRowContext(ctx,
+			`SELECT COALESCE(rating, 0), COALESCE(ratingage, 0), COALESCE(ratingbase, 0), COALESCE(unrated, 0) FROM players WHERE id = ?`,
+			id).Scan(&r.rating, &r.age, &r.base, &r.unrated)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return err
+	}
+	r := ratingRow{unrated: true}
+	if err := load(id, &r); err != nil {
+		return 0, fmt.Errorf("load rating for player %d: %w", id, err)
+	}
+	if r.base != 0 {
+		if err := load(r.base, &r); err != nil {
+			return 0, fmt.Errorf("load base rating for player %d: %w", id, err)
+		}
+	}
+	if r.unrated {
+		return 0, nil
+	}
+	if r.rating < 1500 {
+		return int(r.rating), nil
+	}
+	decay := (float64(at.UnixMilli()) - r.age) / float64(ratingDecay.Milliseconds())
+	if decay < 1 {
+		return int(r.rating), nil
+	}
+	retention := math.Pow(0.5, decay) * 2
+	if r.rating < 1700 {
+		return int(math.Min(r.rating, 1500+retention*200)), nil
+	}
+	return int(r.rating - 200*(1-retention)), nil
 }
 
 // CheckSchema verifies the database has had the migrations this package

@@ -70,6 +70,26 @@ func Format(ev protocol.Event, version int) ([]string, error) {
 		return line("Accept Rematch " + strconv.Itoa(ev.SeekID))
 	case protocol.RematchSeekCreated:
 		return line("Rematch seek created with ID: " + strconv.Itoa(ev.SeekID))
+	case protocol.GameStarted:
+		return line(formatGameStart(ev, version))
+	case protocol.MovePlayed:
+		return line(fmt.Sprintf("Game#%d %s", ev.GameID, ev.Move))
+	case protocol.GameTime:
+		return line(formatTime(ev, version))
+	case protocol.GameOver:
+		return line(fmt.Sprintf("Game#%d Over %s", ev.GameID, ev.Result))
+	case protocol.GameAbandoned:
+		return line(fmt.Sprintf("Game#%d Abandoned. %s quit", ev.GameID, ev.Quitter))
+	case protocol.MoveRejected:
+		return []string{"NOK", "Error:" + ev.Reason}, nil
+	case protocol.GameListAdded:
+		return line("GameList Add " + formatGameListEntry(ev.Game, version))
+	case protocol.GameListRemoved:
+		return line("GameList Remove " + formatGameListEntry(ev.Game, version))
+	case protocol.PositionShown:
+		return line(fmt.Sprintf("Game#%d Show %s", ev.GameID, ev.TPS))
+	case protocol.SquareShown:
+		return line(fmt.Sprintf("Game#%d Show Sq %s", ev.GameID, ev.Stack))
 	}
 	return nil, fmt.Errorf("legacy: no format for %T", ev)
 }

@@ -77,6 +77,9 @@ func parseLoggedIn(line string) protocol.Command {
 	if cmd := parseSeekCommand(line); cmd != nil {
 		return cmd
 	}
+	if cmd := parseGameCommand(line); cmd != nil {
+		return cmd
+	}
 	if m := reChangePassword.FindStringSubmatch(line); m != nil {
 		return protocol.ChangePassword{Old: m[1], New: m[2]}
 	}

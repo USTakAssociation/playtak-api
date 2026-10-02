@@ -103,7 +103,7 @@ func TestSeekOpeningNeedsProtocol4(t *testing.T) {
 	old.expectNothing()
 }
 
-func TestAcceptNotYetSupported(t *testing.T) {
+func TestAcceptMissingSeek(t *testing.T) {
 	h := newHarness(t, Config{})
 	c := h.connect()
 	c.send("Login Guest")

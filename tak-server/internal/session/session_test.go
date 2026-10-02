@@ -2,8 +2,10 @@ package session
 
 import (
 	"context"
+	"database/sql"
 	"io"
 	"log/slog"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -11,8 +13,10 @@ import (
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/auth"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/dbtest"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/games"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/email"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/game"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/transport"
@@ -49,19 +53,35 @@ func (c *fakeConn) Close(reason transport.CloseReason) {
 func (c *fakeConn) RemoteAddr() string { return "test" }
 
 type harness struct {
-	t     *testing.T
-	m     *Manager
-	store *players.Store
+	t       *testing.T
+	m       *Manager
+	store   *players.Store
+	gamesDB *sql.DB
 }
 
 func newHarness(t *testing.T, cfg Config) *harness {
+	return newHarnessWithGames(t, cfg, game.Config{ReconnectTimeout: time.Minute, CommandTimeout: 5 * time.Second})
+}
+
+func newHarnessWithGames(t *testing.T, cfg Config, gameCfg game.Config) *harness {
 	t.Helper()
 	conn := dbtest.NewPlayersDB(t)
 	store := players.NewStore(conn)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	authSvc := auth.NewService(store, players.NewTokenStore(conn), email.Log{Logger: log}, &wordfilter.Filter{}, log)
-	m := NewManager(context.Background(), authSvc, player.NewRegistry(), seek.NewManager(), cfg, log)
-	return &harness{t: t, m: m, store: store}
+	registry := player.NewRegistry()
+	seeks := seek.NewManager()
+
+	gamesDB := dbtest.NewGamesDB(t)
+	gameStore := games.NewStore(gamesDB)
+	results := games.NewResults(gameStore, filepath.Join(t.TempDir(), "pending.jsonl"), log)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go results.Run(ctx)
+	gm := game.NewManager(gameCfg, gameStore, store, results, seeks, registry, log)
+
+	m := NewManager(context.Background(), authSvc, registry, seeks, gm, cfg, log)
+	return &harness{t: t, m: m, store: store, gamesDB: gamesDB}
 }
 
 // addPlayer creates a registered player whose password is "password".

@@ -4,13 +4,54 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/dbtest"
 )
 
 func newTestDB(t *testing.T) *sql.DB { return dbtest.NewPlayersDB(t) }
+
+func TestRating(t *testing.T) {
+	ctx := context.Background()
+	conn := newTestDB(t)
+	day := int64(24 * 60 * 60 * 1000)
+	now := time.UnixMilli(1000 * 240 * day) // far enough from 0 for ages below
+	nowMs := now.UnixMilli()
+	for _, r := range []struct {
+		id      int
+		rating  float64
+		age     int64
+		base    int
+		unrated int
+	}{
+		{1, 1200, 0, 0, 0},                // below 1500: no decay
+		{2, 1800, nowMs - 100*day, 0, 0},  // played recently: no decay
+		{3, 1800, nowMs - 480*day, 0, 0},  // two decay periods: 1800 - 200*(1-0.5)
+		{4, 1600, nowMs - 480*day, 0, 0},  // 1500-1700: capped at 1500 + 0.5*200
+		{5, 1600, nowMs - 2400*day, 0, 0}, // long gone: falls to just above 1500
+		{6, 1900, 0, 0, 1},                // unrated
+		{7, 0, 0, 1, 0},                   // uses player 1's rating
+		{8, 1750, 0, 999, 0},              // base missing: keeps its own values (and decays)
+	} {
+		if _, err := conn.Exec(`INSERT INTO players (id, name, rating, ratingage, ratingbase, unrated) VALUES (?, ?, ?, ?, ?, ?)`,
+			r.id, fmt.Sprint("p", r.id), r.rating, r.age, r.base, r.unrated); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s := NewStore(conn)
+	for id, want := range map[int]int{1: 1200, 2: 1800, 3: 1700, 4: 1600, 5: 1500, 6: 0, 7: 1200, 8: 1550, 42: 0} {
+		got, err := s.Rating(ctx, id, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != want {
+			t.Errorf("Rating(%d) = %d, want %d", id, got, want)
+		}
+	}
+}
 
 func TestCheckSchema(t *testing.T) {
 	ctx := context.Background()

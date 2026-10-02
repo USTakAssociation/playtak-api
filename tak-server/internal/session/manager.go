@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/auth"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/game"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/protocol"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
@@ -33,6 +34,7 @@ type Manager struct {
 	auth    *auth.Service
 	players *player.Registry
 	seeks   *seek.Manager
+	games   *game.Manager
 	cfg     Config
 	log     *slog.Logger
 
@@ -47,12 +49,13 @@ type Manager struct {
 }
 
 // NewManager returns a Manager whose sessions stop their work when ctx ends.
-func NewManager(ctx context.Context, authSvc *auth.Service, players *player.Registry, seeks *seek.Manager, cfg Config, log *slog.Logger) *Manager {
+func NewManager(ctx context.Context, authSvc *auth.Service, players *player.Registry, seeks *seek.Manager, games *game.Manager, cfg Config, log *slog.Logger) *Manager {
 	return &Manager{
 		ctx:      ctx,
 		auth:     authSvc,
 		players:  players,
 		seeks:    seeks,
+		games:    games,
 		cfg:      cfg,
 		log:      log,
 		sessions: make(map[*Session]struct{}),
@@ -139,7 +142,7 @@ func (m *Manager) broadcastPresence() {
 
 	var targets []*Session
 	for _, s := range m.snapshot() {
-		if s.player.Load() != nil {
+		if s.ready.Load() {
 			targets = append(targets, s)
 		}
 	}

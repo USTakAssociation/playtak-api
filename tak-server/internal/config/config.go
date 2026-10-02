@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -25,6 +26,13 @@ type Config struct {
 
 	// ReconnectTimeout is how long a disconnected player's game is held open.
 	ReconnectTimeout time.Duration // TAK_RECONNECT_TIMEOUT
+	// TournamentReconnectTimeout is the same for tournament games.
+	TournamentReconnectTimeout time.Duration // TAK_TOURNAMENT_RECONNECT_TIMEOUT
+	// GameCommandTimeout bounds how long a command waits for its game.
+	GameCommandTimeout time.Duration // TAK_GAME_COMMAND_TIMEOUT
+	// PendingResultsFile holds finished games until they're written to the
+	// games DB. Defaults to pending-game-results.jsonl beside the games DB.
+	PendingResultsFile string // TAK_PENDING_RESULTS_FILE
 
 	// EventSubscriberURL receives game update webhooks. Empty disables them.
 	EventSubscriberURL string // TAK_EVENT_SUBSCRIBER_URL
@@ -71,10 +79,21 @@ func FromEnv(getenv func(string) string) (*Config, error) {
 		return def
 	}
 
-	reconnect, err := time.ParseDuration(get("TAK_RECONNECT_TIMEOUT", "2m"))
-	if err != nil {
-		return nil, fmt.Errorf("TAK_RECONNECT_TIMEOUT: %w", err)
+	var durationErr error
+	duration := func(key, def string) time.Duration {
+		d, err := time.ParseDuration(get(key, def))
+		if err != nil && durationErr == nil {
+			durationErr = fmt.Errorf("%s: %w", key, err)
+		}
+		return d
 	}
+	reconnect := duration("TAK_RECONNECT_TIMEOUT", "2m")
+	tournamentReconnect := duration("TAK_TOURNAMENT_RECONNECT_TIMEOUT", "15m")
+	commandTimeout := duration("TAK_GAME_COMMAND_TIMEOUT", "10s")
+	if durationErr != nil {
+		return nil, durationErr
+	}
+	gamesDB := get("TAK_GAMES_DB", "/playtakdb/games.db")
 
 	multi, err := strconv.ParseBool(get("TAK_ALLOW_MULTIPLE_SESSIONS", "false"))
 	if err != nil {
@@ -87,17 +106,20 @@ func FromEnv(getenv func(string) string) (*Config, error) {
 	}
 
 	return &Config{
-		TelnetAddr:            get("TAK_TELNET_ADDR", ":10000"),
-		WSAddr:                get("TAK_WS_ADDR", ":9999"),
-		HTTPAddr:              get("TAK_HTTP_ADDR", ":9998"),
-		PlayersDB:             get("TAK_PLAYERS_DB", "/playtakdb/players.db"),
-		GamesDB:               get("TAK_GAMES_DB", "/playtakdb/games.db"),
-		ReconnectTimeout:      reconnect,
-		EventSubscriberURL:    getenv("TAK_EVENT_SUBSCRIBER_URL"),
-		BadWordsURL:           get("TAK_BADWORDS_URL", defaultBadWordsURL),
-		AllowMultipleSessions: multi,
-		LogLevel:              level,
-		ServiceAPIKey:         getenv("TAK_SERVICE_API_KEY"),
+		TelnetAddr:                 get("TAK_TELNET_ADDR", ":10000"),
+		WSAddr:                     get("TAK_WS_ADDR", ":9999"),
+		HTTPAddr:                   get("TAK_HTTP_ADDR", ":9998"),
+		PlayersDB:                  get("TAK_PLAYERS_DB", "/playtakdb/players.db"),
+		GamesDB:                    gamesDB,
+		ReconnectTimeout:           reconnect,
+		TournamentReconnectTimeout: tournamentReconnect,
+		GameCommandTimeout:         commandTimeout,
+		PendingResultsFile:         get("TAK_PENDING_RESULTS_FILE", filepath.Join(filepath.Dir(gamesDB), "pending-game-results.jsonl")),
+		EventSubscriberURL:         getenv("TAK_EVENT_SUBSCRIBER_URL"),
+		BadWordsURL:                get("TAK_BADWORDS_URL", defaultBadWordsURL),
+		AllowMultipleSessions:      multi,
+		LogLevel:                   level,
+		ServiceAPIKey:              getenv("TAK_SERVICE_API_KEY"),
 		SMTP: SMTP{
 			Host:     getenv("TAK_SMTP_HOST"),
 			User:     getenv("TAK_SMTP_USER"),

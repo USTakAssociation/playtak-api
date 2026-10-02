@@ -18,8 +18,10 @@ import (
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/auth"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/config"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/games"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/email"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/game"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/session"
@@ -62,6 +64,11 @@ func run(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
 	if err := players.CheckSchema(ctx, playersDB); err != nil {
 		return err
 	}
+	gamesDB, err := db.Open(ctx, cfg.GamesDB)
+	if err != nil {
+		return err
+	}
+	defer gamesDB.Close()
 
 	var filter wordfilter.Filter
 	loadCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -79,10 +86,24 @@ func run(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
 		log.Warn("no SMTP server configured; emails will be logged instead of sent")
 	}
 
-	authSvc := auth.NewService(players.NewStore(playersDB), players.NewTokenStore(playersDB), mailer, &filter, log)
+	playerStore := players.NewStore(playersDB)
+	authSvc := auth.NewService(playerStore, players.NewTokenStore(playersDB), mailer, &filter, log)
 	registry := player.NewRegistry()
 	seeks := seek.NewManager()
-	sessions := session.NewManager(ctx, authSvc, registry, seeks,
+
+	gameStore := games.NewStore(gamesDB)
+	results := games.NewResults(gameStore, cfg.PendingResultsFile, log)
+	resultsDone := make(chan struct{})
+	resultsCtx, stopResults := context.WithCancel(context.Background())
+	go func() { results.Run(resultsCtx); close(resultsDone) }()
+	defer func() { stopResults(); <-resultsDone }()
+
+	gameManager := game.NewManager(game.Config{
+		ReconnectTimeout:           cfg.ReconnectTimeout,
+		TournamentReconnectTimeout: cfg.TournamentReconnectTimeout,
+		CommandTimeout:             cfg.GameCommandTimeout,
+	}, gameStore, playerStore, results, seeks, registry, log)
+	sessions := session.NewManager(ctx, authSvc, registry, seeks, gameManager,
 		session.Config{AllowMultipleSessions: cfg.AllowMultipleSessions}, log)
 	if cfg.ServiceAPIKey == "" {
 		log.Warn("TAK_SERVICE_API_KEY not set; service endpoints such as PUT /api/v1/seeks are disabled")
