@@ -60,7 +60,7 @@ type harness struct {
 }
 
 func newHarness(t *testing.T, cfg Config) *harness {
-	return newHarnessWithGames(t, cfg, game.Config{ReconnectTimeout: time.Minute, CommandTimeout: 5 * time.Second})
+	return newHarnessWithGames(t, cfg, game.Config{ReconnectTimeout: time.Minute, CommandTimeout: 5 * time.Second, AllowMultipleSessions: cfg.AllowMultipleSessions})
 }
 
 func newHarnessWithGames(t *testing.T, cfg Config, gameCfg game.Config) *harness {

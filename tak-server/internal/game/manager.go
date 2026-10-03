@@ -27,6 +27,9 @@ type Config struct {
 	TournamentReconnectTimeout time.Duration
 	// CommandTimeout bounds how long a session waits for a game to answer.
 	CommandTimeout time.Duration
+	// AllowMultipleSessions relaxes the rules that keep a player's single
+	// connection either playing or observing, never both.
+	AllowMultipleSessions bool
 }
 
 type Store interface {
@@ -68,6 +71,7 @@ type Manager struct {
 	games     map[int]*Game
 	byPlayer  map[string]*Game // by name; a nil value reserves the player while a game is created
 	listeners map[Listener]struct{}
+	observing map[Listener]map[*Game]struct{} // the games each session observes
 }
 
 func NewManager(cfg Config, store Store, ratings Ratings, results ResultSaver, seeks *seek.Manager, players *player.Registry, log *slog.Logger) *Manager {
@@ -78,6 +82,7 @@ func NewManager(cfg Config, store Store, ratings Ratings, results ResultSaver, s
 		games:     make(map[int]*Game),
 		byPlayer:  make(map[string]*Game),
 		listeners: make(map[Listener]struct{}),
+		observing: make(map[Listener]map[*Game]struct{}),
 	}
 }
 
@@ -147,13 +152,22 @@ func (m *Manager) Accept(ctx context.Context, acceptor *player.Player, from List
 		return nil, ErrCantAccept
 	}
 	m.seeks.Remove(seekID)
+	var stopObserving []Listener
 	for _, p := range []*player.Player{acceptor, creator} {
 		for _, c := range p.Clients() {
 			m.seeks.Cancel(c)
+			// single-session: a player's only connection stops observing
+			// when they start playing; the client shows a single board.
+			if l, ok := c.(Listener); ok && !m.cfg.AllowMultipleSessions {
+				stopObserving = append(stopObserving, l)
+			}
 		}
 		m.byPlayer[p.Name] = nil
 	}
 	m.mu.Unlock()
+	for _, l := range stopObserving {
+		m.UnobserveAll(l)
+	}
 
 	g, err := m.create(ctx, sk, acceptor, creator)
 	if err != nil {
@@ -225,11 +239,100 @@ func (m *Manager) finished(g *Game, notation string, r tak.Result) {
 		}
 	}
 	m.broadcastLocked(protocol.GameListRemoved{Game: g.info})
+	for o := range g.observers {
+		m.dropObservingLocked(o, g)
+	}
 	m.mu.Unlock()
 
 	m.log.Info("game over", "game", g.ID(), "result", r.String())
 	if err := m.results.Save(games.Result{ID: g.ID(), Notation: notation, Result: r.String()}); err != nil {
 		m.log.Error("could not save game result", "game", g.ID(), "notation", notation, "result", r.String(), "err", err)
+	}
+}
+
+// Observe starts sending game id's events to session l, after the game so
+// far. The named player logged in on l can't observe their own game, a game
+// their client can't display, or (single-session) any game while playing.
+func (m *Manager) Observe(ctx context.Context, name string, l Listener, id int) error {
+	m.mu.Lock()
+	g := m.games[id]
+	m.mu.Unlock()
+	if g == nil {
+		return ErrCantObserve
+	}
+	if err := g.observe(ctx, name, l); err != nil {
+		if errors.Is(err, ErrNotPlaying) {
+			return ErrCantObserve // it ended meanwhile
+		}
+		return err
+	}
+	return nil
+}
+
+// Unobserve stops sending game id's events to l. Like the Java server it
+// succeeds for any game in progress, observed or not.
+func (m *Manager) Unobserve(ctx context.Context, l Listener, id int) error {
+	m.mu.Lock()
+	g := m.games[id]
+	m.mu.Unlock()
+	if g == nil {
+		return ErrNotPlaying
+	}
+	return g.do(ctx, func() { g.unobserve(l) })
+}
+
+// UnobserveAll stops every observation by l, e.g. when it disconnects.
+func (m *Manager) UnobserveAll(l Listener) {
+	m.mu.Lock()
+	gs := m.observing[l]
+	delete(m.observing, l)
+	m.mu.Unlock()
+	// Without the lock: a game's goroutine may be waiting for it.
+	for g := range gs {
+		g.post(func() { g.unobserve(l) })
+	}
+}
+
+// ObservedGames returns the IDs of the games l observes, in order.
+func (m *Manager) ObservedGames(l Listener) []int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	ids := make([]int, 0, len(m.observing[l]))
+	for g := range m.observing[l] {
+		ids = append(ids, g.ID())
+	}
+	sort.Ints(ids)
+	return ids
+}
+
+// addObserver records that l observes g, unless the named player is
+// barred because they're in a game. It runs on g's goroutine.
+func (m *Manager) addObserver(l Listener, g *Game, name string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	// single-session: a player's only connection can't observe while they
+	// play. Checked under the lock so it can't race a game starting.
+	if _, playing := m.byPlayer[name]; playing && !m.cfg.AllowMultipleSessions {
+		return false
+	}
+	if m.observing[l] == nil {
+		m.observing[l] = make(map[*Game]struct{})
+	}
+	m.observing[l][g] = struct{}{}
+	return true
+}
+
+// removeObserver forgets that l observes g. It runs on g's goroutine.
+func (m *Manager) removeObserver(l Listener, g *Game) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.dropObservingLocked(l, g)
+}
+
+func (m *Manager) dropObservingLocked(l Listener, g *Game) {
+	delete(m.observing[l], g)
+	if len(m.observing[l]) == 0 {
+		delete(m.observing, l)
 	}
 }
 

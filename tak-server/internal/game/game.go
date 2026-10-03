@@ -19,6 +19,9 @@ var (
 	ErrTimeout = errors.New("game did not respond")
 	// ErrNothingToUndo means no ply has been played.
 	ErrNothingToUndo = errors.New("nothing to undo")
+	// ErrCantObserve means the game can't be observed: it's gone, it's the
+	// observer's own, or their client can't display it.
+	ErrCantObserve = errors.New("game can't be observed")
 	// ErrClockNotStarted means time can't be given before the first ply.
 	ErrClockNotStarted = errors.New("The clock has not started")
 )
@@ -80,16 +83,19 @@ type Game struct {
 	undoAsked   [2]bool      // by color; at most one is set
 	drawOffered [2]bool      // by color; at most one is set
 	lastGift    [2]time.Time // when each color last gave time
+
+	observers map[Listener]struct{}
 }
 
 func newGame(m *Manager, info protocol.GameInfo, white, black *player.Player) *Game {
 	return &Game{
-		info:   info,
-		m:      m,
-		inbox:  make(chan func(), 16),
-		done:   make(chan struct{}),
-		engine: tak.New(tak.Settings{Size: info.Size, Pieces: info.Pieces, Capstones: info.Capstones, Komi: info.Komi, Opening: info.Opening}),
-		clock:  newClock(info.GameSettings),
+		info:      info,
+		m:         m,
+		inbox:     make(chan func(), 16),
+		done:      make(chan struct{}),
+		engine:    tak.New(tak.Settings{Size: info.Size, Pieces: info.Pieces, Capstones: info.Capstones, Komi: info.Komi, Opening: info.Opening}),
+		clock:     newClock(info.GameSettings),
+		observers: make(map[Listener]struct{}),
 		seats: [2]*seat{
 			{name: white.Name, player: white, connected: true},
 			{name: black.Name, player: black, connected: true},
@@ -204,9 +210,11 @@ func (g *Game) play(ctx context.Context, name string, apply func(tak.Color) erro
 		}
 		g.undoAsked = [2]bool{} // a move withdraws any undo request, silently
 		g.clock.moved(color, g.m.now())
-		g.sendBoth(g.clock.event(g.info.ID))
+		g.sendAll(g.clock.event(g.info.ID))
 		moves := g.engine.Moves()
-		g.send(color.Opponent(), protocol.MovePlayed{GameID: g.info.ID, Move: moves[len(moves)-1]})
+		move := protocol.MovePlayed{GameID: g.info.ID, Move: moves[len(moves)-1]}
+		g.send(color.Opponent(), move)
+		g.sendObservers(move)
 		if r := g.engine.Result(); r != tak.None {
 			g.end(r, "")
 			return nil
@@ -236,8 +244,8 @@ func (g *Game) RequestUndo(ctx context.Context, name string) error {
 			g.undoAsked = [2]bool{}
 			g.engine.Undo()
 			g.clock.undo(g.m.now())
-			g.sendBoth(g.clock.event(g.info.ID))
-			g.sendBoth(protocol.Undone{GameID: g.info.ID})
+			g.sendAll(g.clock.event(g.info.ID))
+			g.sendAll(protocol.Undone{GameID: g.info.ID})
 			g.resetTimeout()
 		case !g.undoAsked[color]:
 			g.undoAsked[color] = true
@@ -301,8 +309,8 @@ func (g *Game) GiveTime(ctx context.Context, name string) error {
 		g.lastGift[color] = now
 		opp := color.Opponent()
 		g.clock.give(opp, giveTimeAmount.Milliseconds())
-		g.sendBoth(protocol.TimeGiven{GameID: g.info.ID, To: protocolColor(opp), Millis: giveTimeAmount.Milliseconds()})
-		g.sendBoth(g.clock.event(g.info.ID))
+		g.sendAll(protocol.TimeGiven{GameID: g.info.ID, To: protocolColor(opp), Millis: giveTimeAmount.Milliseconds()})
+		g.sendAll(g.clock.event(g.info.ID))
 		g.resetTimeout()
 		return nil
 	})
@@ -336,7 +344,7 @@ func (g *Game) timeUp() bool {
 	if g.clock.remaining[turn] > 0 {
 		return false
 	}
-	g.sendBoth(g.clock.event(g.info.ID))
+	g.sendAll(g.clock.event(g.info.ID))
 	g.end(tak.Win(turn.Opponent()), "")
 	return true
 }
@@ -425,9 +433,9 @@ func (g *Game) Disconnected(ctx context.Context, name string) error {
 			left := (max(g.clock.remaining[color], 0) + 999) / 1000
 			seconds = min(seconds, left)
 		}
-		g.send(color.Opponent(), protocol.ServerMessage{
-			Text: fmt.Sprintf("%s has disconnected. They have %d seconds to reconnect", name, seconds),
-		})
+		msg := protocol.ServerMessage{Text: fmt.Sprintf("%s has disconnected. They have %d seconds to reconnect", name, seconds)}
+		g.send(color.Opponent(), msg)
+		g.sendObservers(msg)
 
 		g.m.afterFunc(window, func() {
 			g.post(func() {
@@ -467,7 +475,9 @@ func (g *Game) Reconnected(ctx context.Context, p *player.Player, to Recipient) 
 		if g.undoAsked[opp] {
 			to.Send(protocol.UndoRequested{GameID: g.info.ID})
 		}
-		g.send(opp, protocol.ServerMessage{Text: p.Name + " has reconnected."})
+		msg := protocol.ServerMessage{Text: p.Name + " has reconnected."}
+		g.send(opp, msg)
+		g.sendObservers(msg)
 	})
 }
 
@@ -480,14 +490,16 @@ func (g *Game) end(r tak.Result, quitter string) {
 		}
 	}
 	if quitter != "" {
-		// Only the player who stayed is told.
+		// The player who stayed and the observers are told.
+		ev := protocol.GameAbandoned{GameID: g.info.ID, Quitter: quitter}
 		for c, s := range g.seats {
 			if s.name != quitter {
-				g.send(tak.Color(c), protocol.GameAbandoned{GameID: g.info.ID, Quitter: quitter})
+				g.send(tak.Color(c), ev)
 			}
 		}
+		g.sendObservers(ev)
 	} else {
-		g.sendBoth(protocol.GameOver{GameID: g.info.ID, Result: r.String()})
+		g.sendAll(protocol.GameOver{GameID: g.info.ID, Result: r.String()})
 	}
 	g.m.finished(g, strings.Join(g.engine.Moves(), ","), r)
 }
@@ -509,9 +521,51 @@ func (g *Game) send(c tak.Color, ev protocol.Event) {
 	}
 }
 
-func (g *Game) sendBoth(ev protocol.Event) {
+// sendAll delivers ev to both players and every observer.
+func (g *Game) sendAll(ev protocol.Event) {
 	g.send(tak.White, ev)
 	g.send(tak.Black, ev)
+	g.sendObservers(ev)
+}
+
+func (g *Game) sendObservers(ev protocol.Event) {
+	for o := range g.observers {
+		o.Send(ev)
+	}
+}
+
+// observe adds o, watching for the named player, and sends them the game so
+// far: the header, every move and the clock. Running on the game's
+// goroutine, no move can slip in between.
+func (g *Game) observe(ctx context.Context, name string, o Listener) error {
+	var result error
+	err := g.do(ctx, func() {
+		if _, seated := g.colorOf(name); seated || o.ProtocolVersion() < g.info.RequiredProtocolVersion() {
+			result = ErrCantObserve
+			return
+		}
+		if !g.m.addObserver(o, g, name) {
+			result = ErrCantObserve
+			return
+		}
+		g.observers[o] = struct{}{}
+		o.Send(protocol.GameObserved{Game: g.info})
+		for _, m := range g.engine.Moves() {
+			o.Send(protocol.MovePlayed{GameID: g.info.ID, Move: m})
+		}
+		g.clock.sync(g.engine.Turn(), g.m.now())
+		o.Send(g.clock.event(g.info.ID))
+	})
+	if err != nil {
+		return err
+	}
+	return result
+}
+
+// unobserve stops sending events to o.
+func (g *Game) unobserve(o Listener) {
+	delete(g.observers, o)
+	g.m.removeObserver(o, g)
 }
 
 func protocolColor(c tak.Color) protocol.Color {

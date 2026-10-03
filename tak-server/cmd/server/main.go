@@ -102,6 +102,7 @@ func run(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
 		ReconnectTimeout:           cfg.ReconnectTimeout,
 		TournamentReconnectTimeout: cfg.TournamentReconnectTimeout,
 		CommandTimeout:             cfg.GameCommandTimeout,
+		AllowMultipleSessions:      cfg.AllowMultipleSessions,
 	}, gameStore, playerStore, results, seeks, registry, log)
 	sessions := session.NewManager(ctx, authSvc, registry, seeks, gameManager,
 		session.Config{AllowMultipleSessions: cfg.AllowMultipleSessions}, log)

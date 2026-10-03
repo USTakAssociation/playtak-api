@@ -110,6 +110,7 @@ func (m *Manager) bind(s *Session, p *player.Player) {
 	m.loginMu.Lock()
 	defer m.loginMu.Unlock()
 
+	// single-session: a new login replaces the old connection.
 	if !m.cfg.AllowMultipleSessions {
 		old := p.Clients()
 		for _, c := range old {

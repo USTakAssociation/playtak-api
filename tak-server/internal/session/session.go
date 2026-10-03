@@ -65,6 +65,7 @@ func (s *Session) Closed() {
 		s.m.seeks.Unsubscribe(s)
 		s.m.seeks.Cancel(s)
 		s.m.games.Unsubscribe(s)
+		s.m.games.UnobserveAll(s)
 		s.m.players.Detach(p, s)
 		if g := s.m.games.ForPlayer(p.Name); g != nil && !p.Online() {
 			// Wait so the opponent hears about it before the presence update.
@@ -156,6 +157,17 @@ func (s *Session) HandleLine(line string) {
 		s.inGame(p, cmd.GameID, func(g *game.Game) error { return g.RemoveDraw(ctx, p.Name) })
 	case protocol.GiveTime:
 		s.inGame(p, cmd.GameID, func(g *game.Game) error { return g.GiveTime(ctx, p.Name) })
+	case protocol.Observe:
+		// The game answers with what it has so far; there's no OK.
+		if err := s.m.games.Observe(ctx, p.Name, s, cmd.GameID); err != nil {
+			s.Send(protocol.NOK{})
+		}
+	case protocol.Unobserve:
+		if err := s.m.games.Unobserve(ctx, s, cmd.GameID); err != nil {
+			s.Send(protocol.NOK{})
+		} else {
+			s.Send(protocol.OK{})
+		}
 	case protocol.ShowGame:
 		g := s.gameFor(p, cmd.GameID)
 		if g == nil {

@@ -100,6 +100,8 @@ func Format(ev protocol.Event, version int) ([]string, error) {
 		return line(fmt.Sprintf("Game#%d OfferDraw", ev.GameID))
 	case protocol.DrawRemoved:
 		return line(fmt.Sprintf("Game#%d RemoveDraw", ev.GameID))
+	case protocol.GameObserved:
+		return line("Observe " + formatGameListEntry(ev.Game, version))
 	case protocol.TimeGiven:
 		color := "white"
 		if ev.To == protocol.Black {

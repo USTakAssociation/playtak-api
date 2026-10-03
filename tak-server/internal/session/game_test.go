@@ -331,3 +331,104 @@ func TestRejoinResendsDrawOffer(t *testing.T) {
 	w2.expect("Game#1 OfferDraw")
 	w2.expect("Welcome Guest1!")
 }
+
+// login connects a guest with the given protocol and drains the login.
+func loginGuestWith(h *harness, version string) *client {
+	c := h.connect()
+	if version != "" {
+		c.send("Protocol " + version)
+		c.expect("OK")
+	}
+	c.send("Login Guest")
+	c.drainUntil("OnlinePlayers")
+	return c
+}
+
+func TestObserveThroughProtocol(t *testing.T) {
+	h := newHarness(t, Config{})
+	w, b := startGame(h)
+	w.send("Game#1 P A1")
+	w.drainUntil("OK")
+	b.drainUntil("Game#1 P A1")
+
+	// Each observer gets the game in its own protocol.
+	old, modern := loginGuestWith(h, ""), loginGuestWith(h, "4")
+	old.drainUntil("OnlinePlayers") // modern's login
+	old.send("Observe 1")
+	old.expect("Observe 1 Guest1 Guest2 5 600 30 0 21 1 0 0 0 0")
+	old.expect("Game#1 P A1")
+	old.drainUntil("Game#1 Time 630 6")
+	modern.send("Observe 1")
+	modern.expect("Observe 1 Guest1 Guest2 5 600 30 0 0 21 1 0 0 0 0 0")
+	modern.expect("Game#1 P A1")
+	modern.drainUntil("Game#1 Timems 630000 ")
+
+	b.send("Game#1 P E5")
+	b.drainUntil("OK")
+	old.drainUntil("Game#1 Time ")
+	old.expect("Game#1 P E5")
+	modern.drainUntil("Game#1 Timems ")
+	modern.expect("Game#1 P E5")
+
+	modern.send("Unobserve 1")
+	modern.expect("OK")
+	w.send("Game#1 Resign")
+	w.drainUntil("Game#1 Over 0-1")
+	old.expect("Game#1 Over 0-1")
+	modern.drainUntil("GameList Remove 1")
+	modern.expectNothing()
+
+	old.send("Unobserve 1") // the game has ended
+	old.drainUntil("NOK")
+	old.send("Observe 1")
+	old.expect("NOK")
+}
+
+func TestObserveRefusedThroughProtocol(t *testing.T) {
+	h := newHarness(t, Config{})
+	w, _ := startGame(h)
+	w.send("Observe 1") // own game
+	w.expect("NOK")
+	w.send("Observe 99")
+	w.expect("NOK")
+	w.send("Unobserve 99")
+	w.expect("NOK")
+}
+
+func TestStartingGameStopsObservingThroughProtocol(t *testing.T) {
+	h := newHarness(t, Config{})
+	w, b := startGame(h)
+	p, q := loginGuestWith(h, ""), loginGuestWith(h, "")
+	p.send("Observe 1")
+	p.drainUntil("Game#1 Time")
+	p.send("Seek 5 600 30")
+	q.drainUntil("Seek new")
+	q.send("Accept 2")
+	p.drainUntil("Game Start 2")
+	q.drainUntil("Game Start 2")
+
+	p.send("Observe 1")
+	p.expect("NOK") // can't observe while playing
+	w.send("Game#1 P A1")
+	w.drainUntil("OK")
+	b.drainUntil("Game#1 P A1")
+	p.expectNothing()
+}
+
+func TestDisconnectStopsObserving(t *testing.T) {
+	h := newHarness(t, Config{})
+	startGame(h)
+	o := loginGuestWith(h, "")
+	o.send("Observe 1")
+	o.drainUntil("Game#1 Time")
+	s := o.conn.peer.(*Session)
+	if got := h.m.games.ObservedGames(s); len(got) != 1 {
+		t.Fatalf("observing %v", got)
+	}
+	o.send("quit")
+	o.expectClosed(transport.CloseNormal)
+	<-s.Done()
+	if got := h.m.games.ObservedGames(s); len(got) != 0 {
+		t.Errorf("closed session still observing %v", got)
+	}
+}

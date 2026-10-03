@@ -22,6 +22,8 @@ var (
 	reOfferDraw   = regexp.MustCompile(`^Game#(\d+) OfferDraw`)
 	reRemoveDraw  = regexp.MustCompile(`^Game#(\d+) RemoveDraw`)
 	reGiveTime    = regexp.MustCompile(`^Game#(\d+) GiveTime$`)
+	reObserve     = regexp.MustCompile(`^Observe (\d+)`)
+	reUnobserve   = regexp.MustCompile(`^Unobserve (\d+)`)
 )
 
 // gameOnly maps commands that carry nothing but a game number.
@@ -36,9 +38,11 @@ var gameOnly = []struct {
 	{reOfferDraw, func(id int) protocol.Command { return protocol.OfferDraw{GameID: id} }},
 	{reRemoveDraw, func(id int) protocol.Command { return protocol.RemoveDraw{GameID: id} }},
 	{reGiveTime, func(id int) protocol.Command { return protocol.GiveTime{GameID: id} }},
+	{reObserve, func(id int) protocol.Command { return protocol.Observe{GameID: id} }},
+	{reUnobserve, func(id int) protocol.Command { return protocol.Unobserve{GameID: id} }},
 }
 
-// parseGameCommand parses in-game commands and GameList. It returns nil if
+// parseGameCommand parses in-game commands, GameList and observing. It returns nil if
 // line isn't one of them or holds a game number too large to represent.
 func parseGameCommand(line string) protocol.Command {
 	if m := rePlace.FindStringSubmatch(line); m != nil {

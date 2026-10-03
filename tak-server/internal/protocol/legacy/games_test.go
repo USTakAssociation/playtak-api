@@ -35,6 +35,10 @@ func TestParseGameCommands(t *testing.T) {
 		{"Game#12 OfferDraw please", protocol.OfferDraw{GameID: 12}},
 		{"Game#99999999999999999999 OfferDraw", nil},
 		{"Game# OfferDraw", nil},
+		{"Observe 12", protocol.Observe{GameID: 12}},
+		{"Unobserve 12", protocol.Unobserve{GameID: 12}},
+		{"Observe x", nil},
+		{"Observe 99999999999999999999", nil},
 		{"Game#99999999999999999999 P A1", nil},
 	} {
 		if got := Parse(tc.line, true); !reflect.DeepEqual(got, tc.want) {
@@ -74,6 +78,8 @@ func TestFormatGameEvents(t *testing.T) {
 		{protocol.GameListRemoved{Game: info}, 4, []string{"GameList Remove 12 alice bobby 5 600 30 1 4 21 1 0 1 20 60 1"}},
 		{protocol.PositionShown{GameID: 12, TPS: "x5/x5/x5/x5/x5 1 1"}, 0, []string{"Game#12 Show x5/x5/x5/x5/x5 1 1"}},
 		{protocol.SquareShown{GameID: 12, Stack: "[F, f]"}, 0, []string{"Game#12 Show Sq [F, f]"}},
+		{protocol.GameObserved{Game: info}, 3, []string{"Observe 12 alice bobby 5 600 30 4 21 1 0 1 20 60"}},
+		{protocol.GameObserved{Game: info}, 4, []string{"Observe 12 alice bobby 5 600 30 1 4 21 1 0 1 20 60 1"}},
 		{protocol.UndoRequested{GameID: 12}, 0, []string{"Game#12 RequestUndo"}},
 		{protocol.UndoRemoved{GameID: 12}, 0, []string{"Game#12 RemoveUndo"}},
 		{protocol.Undone{GameID: 12}, 0, []string{"Game#12 Undo"}},

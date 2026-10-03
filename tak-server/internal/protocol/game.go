@@ -28,6 +28,10 @@ type (
 	RemoveDraw  struct{ GameID int }
 	// GiveTime adds a fixed amount to the opponent's clock.
 	GiveTime struct{ GameID int }
+
+	// Observe and Unobserve start and stop watching another game.
+	Observe   struct{ GameID int }
+	Unobserve struct{ GameID int }
 )
 
 func (PlaceStone) command()  {}
@@ -41,6 +45,8 @@ func (RemoveUndo) command()  {}
 func (OfferDraw) command()   {}
 func (RemoveDraw) command()  {}
 func (GiveTime) command()    {}
+func (Observe) command()     {}
+func (Unobserve) command()   {}
 
 // GameInfo describes a game in progress, as shown in the game list and at
 // the start of a game.
@@ -101,6 +107,9 @@ type (
 	DrawRemoved   struct{ GameID int }
 	// Undone means both players agreed and the last ply was taken back.
 	Undone struct{ GameID int }
+	// GameObserved starts an observer's view of a game; the moves so far
+	// and the clock follow.
+	GameObserved struct{ Game GameInfo }
 	// TimeGiven means To was given Millis of extra time by their opponent.
 	TimeGiven struct {
 		GameID int
@@ -125,3 +134,4 @@ func (DrawOffered) event()     {}
 func (DrawRemoved) event()     {}
 func (Undone) event()          {}
 func (TimeGiven) event()       {}
+func (GameObserved) event()    {}
