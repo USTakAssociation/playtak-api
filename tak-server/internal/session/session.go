@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/auth"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/chat"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/game"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/protocol"
@@ -66,6 +67,7 @@ func (s *Session) Closed() {
 		s.m.seeks.Cancel(s)
 		s.m.games.Unsubscribe(s)
 		s.m.games.UnobserveAll(s)
+		s.m.chat.LeaveAll(s)
 		s.m.players.Detach(p, s)
 		if g := s.m.games.ForPlayer(p.Name); g != nil && !p.Online() {
 			// Wait so the opponent hears about it before the presence update.
@@ -168,6 +170,31 @@ func (s *Session) HandleLine(line string) {
 		} else {
 			s.Send(protocol.OK{})
 		}
+	case protocol.PostShout:
+		var everyone []chat.Member
+		for _, o := range s.m.readySessions() {
+			everyone = append(everyone, o)
+		}
+		s.m.chat.Shout(s.chatSender(p), everyone, cmd.Text)
+	case protocol.PostRoomShout:
+		if err := s.m.chat.ShoutRoom(s.chatSender(p), cmd.Room, cmd.Text); err != nil {
+			s.Send(protocol.CommandFailed{Reason: err.Error()})
+		}
+	case protocol.JoinRoom:
+		s.m.chat.Join(cmd.Room, s)
+	case protocol.LeaveRoom:
+		s.m.chat.Leave(cmd.Room, s)
+		s.Send(protocol.OK{})
+	case protocol.SendTell:
+		var err error
+		if target := s.m.players.FindOnline(cmd.To); target != nil {
+			err = s.m.chat.Tell(s.chatSender(p), target.Name, target, cmd.Text)
+		} else {
+			err = s.m.chat.Tell(s.chatSender(p), cmd.To, nil, cmd.Text)
+		}
+		if err != nil {
+			s.Send(protocol.CommandFailed{Reason: err.Error()})
+		}
 	case protocol.ShowGame:
 		g := s.gameFor(p, cmd.GameID)
 		if g == nil {
@@ -258,6 +285,10 @@ func (s *Session) resumeGame(ctx context.Context, p *player.Player) {
 			s.log.Error("resume game", "player", p.Name, "game", g.ID(), "err", err)
 		}
 	}
+}
+
+func (s *Session) chatSender(p *player.Player) chat.Sender {
+	return chat.Sender{Name: p.Name, Gagged: p.IsGagged(), Session: s}
 }
 
 // gameFor returns the game with id if p is playing in it, else nil.

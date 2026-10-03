@@ -72,8 +72,16 @@ type (
 	OnlineCount   struct{ Count int }
 	OnlinePlayers struct{ Names []string }
 	// ServerMessage is a notice shown to the user.
-	ServerMessage       struct{ Text string }
-	Shout               struct{ From, Text string }
+	ServerMessage struct{ Text string }
+	Shout         struct{ From, Text string }
+	// RoomJoined confirms JoinRoom.
+	RoomJoined struct{ Room string }
+	RoomShout  struct{ Room, From, Text string }
+	// TellReceived is a private message; Told is the sender's copy.
+	TellReceived struct{ From, Text string }
+	Told         struct{ To, Text string }
+	// CommandFailed says why a command was refused, without a NOK.
+	CommandFailed       struct{ Reason string }
 	Registered          struct{ Name string }
 	RegistrationFailed  struct{ Reason RegistrationError }
 	ResetTokenSent      struct{}
@@ -100,6 +108,11 @@ func (OnlineCount) event()         {}
 func (OnlinePlayers) event()       {}
 func (ServerMessage) event()       {}
 func (Shout) event()               {}
+func (RoomJoined) event()          {}
+func (RoomShout) event()           {}
+func (TellReceived) event()        {}
+func (Told) event()                {}
+func (CommandFailed) event()       {}
 func (Registered) event()          {}
 func (RegistrationFailed) event()  {}
 func (ResetTokenSent) event()      {}

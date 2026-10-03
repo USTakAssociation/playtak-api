@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/auth"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/chat"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/dbtest"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/games"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
@@ -80,8 +81,21 @@ func newHarnessWithGames(t *testing.T, cfg Config, gameCfg game.Config) *harness
 	go results.Run(ctx)
 	gm := game.NewManager(gameCfg, gameStore, store, results, seeks, registry, log)
 
-	m := NewManager(context.Background(), authSvc, registry, seeks, gm, cfg, log)
+	m := NewManager(context.Background(), authSvc, registry, seeks, gm, chat.NewService(maskWord{"darn"}, log), cfg, log)
 	return &harness{t: t, m: m, store: store, gamesDB: gamesDB}
+}
+
+// maskWord masks one word, standing in for the profanity filter.
+type maskWord struct{ word string }
+
+func (w maskWord) Mask(s string) string {
+	parts := strings.Split(s, " ")
+	for i, p := range parts {
+		if p == w.word {
+			parts[i] = "****"
+		}
+	}
+	return strings.Join(parts, " ")
 }
 
 // addPlayer creates a registered player whose password is "password".
@@ -138,6 +152,18 @@ func (c *client) drainUntil(prefix string) string {
 	for {
 		if l := c.recv(); strings.HasPrefix(l, prefix) {
 			return l
+		}
+	}
+}
+
+// settle discards messages until none arrives for a moment, e.g. presence
+// updates from other logins.
+func (c *client) settle() {
+	for {
+		select {
+		case <-c.conn.lines:
+		case <-time.After(50 * time.Millisecond):
+			return
 		}
 	}
 }

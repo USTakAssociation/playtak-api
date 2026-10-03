@@ -32,6 +32,16 @@ func Format(ev protocol.Event, version int) ([]string, error) {
 		return line("Message " + ev.Text)
 	case protocol.Shout:
 		return line("Shout <" + ev.From + "> " + ev.Text)
+	case protocol.RoomJoined:
+		return line("Joined room " + ev.Room)
+	case protocol.RoomShout:
+		return line("ShoutRoom " + ev.Room + " <" + ev.From + "> " + ev.Text)
+	case protocol.TellReceived:
+		return line("Tell <" + ev.From + "> " + ev.Text)
+	case protocol.Told:
+		return line("Told <" + ev.To + "> " + ev.Text)
+	case protocol.CommandFailed:
+		return line("Error:" + ev.Reason)
 	case protocol.Registered:
 		return line("Registered " + ev.Name + ". Check your email for password")
 	case protocol.RegistrationFailed:

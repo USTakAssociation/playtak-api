@@ -121,3 +121,37 @@ func TestPruneGuests(t *testing.T) {
 		t.Error("pruned a guest that should be kept")
 	}
 }
+
+func TestFindOnline(t *testing.T) {
+	r := NewRegistry()
+	alice := r.Acquire(players.Record{ID: 1, Name: "Alice"})
+	if r.FindOnline("Alice") != nil {
+		t.Error("not online until a client attaches")
+	}
+	c := &fakeClient{}
+	r.Attach(alice, c)
+	for _, name := range []string{"Alice", "alice", "ALICE"} {
+		if r.FindOnline(name) != alice {
+			t.Errorf("FindOnline(%q) should find Alice", name)
+		}
+	}
+	if r.FindOnline("Alic") != nil || r.FindOnline("") != nil {
+		t.Error("only whole names match")
+	}
+
+	// A guest who disconnected is kept for rejoining but isn't online.
+	g := r.Guest("token")
+	gc := &fakeClient{}
+	r.Attach(g, gc)
+	if r.FindOnline(g.Name) != g {
+		t.Error("online guest")
+	}
+	r.Detach(g, gc)
+	if r.FindOnline(g.Name) != nil || r.FindOnline("guest1") != nil {
+		t.Error("an offline guest isn't online")
+	}
+	r.Detach(alice, c)
+	if r.FindOnline("alice") != nil {
+		t.Error("offline player")
+	}
+}

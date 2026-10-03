@@ -16,6 +16,7 @@ import (
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/api"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/auth"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/chat"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/config"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/games"
@@ -104,7 +105,7 @@ func run(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
 		CommandTimeout:             cfg.GameCommandTimeout,
 		AllowMultipleSessions:      cfg.AllowMultipleSessions,
 	}, gameStore, playerStore, results, seeks, registry, log)
-	sessions := session.NewManager(ctx, authSvc, registry, seeks, gameManager,
+	sessions := session.NewManager(ctx, authSvc, registry, seeks, gameManager, chat.NewService(&filter, log),
 		session.Config{AllowMultipleSessions: cfg.AllowMultipleSessions}, log)
 	if cfg.ServiceAPIKey == "" {
 		log.Warn("TAK_SERVICE_API_KEY not set; service endpoints such as PUT /api/v1/seeks are disabled")

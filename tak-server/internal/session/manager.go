@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/auth"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/chat"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/game"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/protocol"
@@ -35,6 +36,7 @@ type Manager struct {
 	players *player.Registry
 	seeks   *seek.Manager
 	games   *game.Manager
+	chat    *chat.Service
 	cfg     Config
 	log     *slog.Logger
 
@@ -49,8 +51,9 @@ type Manager struct {
 }
 
 // NewManager returns a Manager whose sessions stop their work when ctx ends.
-func NewManager(ctx context.Context, authSvc *auth.Service, players *player.Registry, seeks *seek.Manager, games *game.Manager, cfg Config, log *slog.Logger) *Manager {
+func NewManager(ctx context.Context, authSvc *auth.Service, players *player.Registry, seeks *seek.Manager, games *game.Manager, chatSvc *chat.Service, cfg Config, log *slog.Logger) *Manager {
 	return &Manager{
+		chat:     chatSvc,
 		ctx:      ctx,
 		auth:     authSvc,
 		players:  players,
@@ -129,6 +132,17 @@ func (m *Manager) bind(s *Session, p *player.Player) {
 	s.player.Store(p)
 }
 
+// readySessions returns the sessions that have finished logging in.
+func (m *Manager) readySessions() []*Session {
+	var out []*Session
+	for _, s := range m.snapshot() {
+		if s.ready.Load() {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 // broadcastPresence tells every logged-in session how many players are
 // online and who they are (bots excluded from the list).
 func (m *Manager) broadcastPresence() {
@@ -141,12 +155,7 @@ func (m *Manager) broadcastPresence() {
 	}
 	slices.Sort(names)
 
-	var targets []*Session
-	for _, s := range m.snapshot() {
-		if s.ready.Load() {
-			targets = append(targets, s)
-		}
-	}
+	targets := m.readySessions()
 	for _, s := range targets {
 		s.Send(protocol.OnlineCount{Count: len(online)})
 	}

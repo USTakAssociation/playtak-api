@@ -3,6 +3,7 @@ package player
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,6 +31,22 @@ func (r *Registry) Lookup(name string) *Player {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.byName[name]
+}
+
+// FindOnline returns the player named name, ignoring case, if they have at
+// least one connection. Names are unique ignoring case.
+func (r *Registry) FindOnline(name string) *Player {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if p := r.byName[name]; p != nil && p.Online() {
+		return p
+	}
+	for n, p := range r.byName {
+		if strings.EqualFold(n, name) && p.Online() {
+			return p
+		}
+	}
+	return nil
 }
 
 // Acquire returns the in-memory player for rec, creating it if the player is

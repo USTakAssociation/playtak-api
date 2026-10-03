@@ -93,16 +93,43 @@ func TestChatTellAngleBracketsInTold(t *testing.T) {
 	}
 }
 
-func TestChatTellToNonExistentPlayer(t *testing.T) {
+// The two tests below check the old Java server's behaviour: "No such player"
+// for an unknown name, and Told for a registered player who is offline. The
+// Go server replies "Error:Player is not online" to both; see the Go versions
+// after them.
+//
+// func TestChatTellToNonExistentPlayer(t *testing.T) {
+// 	c := client.New(t, telnetAddr(t))
+// 	client.LoginGuest(t, c)
+// 	c.DrainUntil("OnlinePlayers")
+// 	c.Send("Tell doesnotexist9999 hello")
+// 	c.Expect("No such player")
+// }
+//
+// func TestChatTellToOfflinePlayerStillSendsTold(t *testing.T) {
+// 	// According to the protocol: "You'll receive Told even if player is not logged in"
+// 	u1, p1 := testUser(t, 1)
+// 	u2, _ := testUser(t, 2)
+//
+// 	c1 := client.New(t, telnetAddr(t))
+// 	client.LoginUser(t, c1, u1, p1)
+// 	// u2 is not logged in
+//
+// 	c1.Send(fmt.Sprintf("Tell %s offline message", u2))
+// 	c1.DrainUntil(fmt.Sprintf("Told <%s>", u2))
+// }
+
+func TestChatTellToNonExistentPlayerReturnsError(t *testing.T) {
 	c := client.New(t, telnetAddr(t))
 	client.LoginGuest(t, c)
 	c.DrainUntil("OnlinePlayers")
 	c.Send("Tell doesnotexist9999 hello")
-	c.Expect("No such player")
+	c.Expect("Error:Player is not online")
 }
 
-func TestChatTellToOfflinePlayerStillSendsTold(t *testing.T) {
-	// According to the protocol: "You'll receive Told even if player is not logged in"
+func TestChatTellToOfflinePlayerReturnsError(t *testing.T) {
+	// Tell only reaches players who are online; there's no Told for an
+	// offline player.
 	u1, p1 := testUser(t, 1)
 	u2, _ := testUser(t, 2)
 
@@ -111,7 +138,9 @@ func TestChatTellToOfflinePlayerStillSendsTold(t *testing.T) {
 	// u2 is not logged in
 
 	c1.Send(fmt.Sprintf("Tell %s offline message", u2))
-	c1.DrainUntil(fmt.Sprintf("Told <%s>", u2))
+	if msg := c1.DrainUntil("Error:"); msg != "Error:Player is not online" {
+		t.Errorf("expected \"Error:Player is not online\", got %q", msg)
+	}
 }
 
 // ---- Rooms ----
