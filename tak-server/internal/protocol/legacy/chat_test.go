@@ -63,6 +63,7 @@ func TestFormatChatEvents(t *testing.T) {
 		{protocol.TellReceived{From: "alice", Text: "psst"}, []string{"Tell <alice> psst"}},
 		{protocol.Told{To: "bobby", Text: "psst"}, []string{"Told <bobby> psst"}},
 		{protocol.CommandFailed{Reason: "Player is not online"}, []string{"Error:Player is not online"}},
+		{protocol.RawLine{Text: "Error: anything at all"}, []string{"Error: anything at all"}},
 	} {
 		got, err := Format(tc.ev, 0)
 		if err != nil || !slices.Equal(got, tc.want) {

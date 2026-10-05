@@ -10,6 +10,7 @@ import (
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/auth"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/chat"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/game"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/moderation"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/protocol"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/protocol/legacy"
@@ -195,6 +196,8 @@ func (s *Session) HandleLine(line string) {
 		if err != nil {
 			s.Send(protocol.CommandFailed{Reason: err.Error()})
 		}
+	case protocol.Sudo:
+		s.sudo(ctx, p, cmd)
 	case protocol.ShowGame:
 		g := s.gameFor(p, cmd.GameID)
 		if g == nil {
@@ -283,6 +286,25 @@ func (s *Session) resumeGame(ctx context.Context, p *player.Player) {
 	if g := s.m.games.ForPlayer(p.Name); g != nil {
 		if err := g.Reconnected(ctx, p, s); err != nil {
 			s.log.Error("resume game", "player", p.Name, "game", g.ID(), "err", err)
+		}
+	}
+}
+
+// sudo runs a moderator or admin command. Anyone else gets NOK; otherwise
+// the command is echoed, then its result.
+func (s *Session) sudo(ctx context.Context, p *player.Player, cmd protocol.Sudo) {
+	if !moderation.Allowed(p) {
+		s.Send(protocol.NOK{})
+		return
+	}
+	s.Send(protocol.SudoReply{Text: "> " + cmd.Text})
+	r := s.m.mod.Run(ctx, p, cmd)
+	for _, line := range r.Replies {
+		s.Send(protocol.SudoReply{Text: line})
+	}
+	if r.Broadcast != "" {
+		for _, o := range s.m.readySessions() {
+			o.Send(protocol.RawLine{Text: r.Broadcast})
 		}
 	}
 }

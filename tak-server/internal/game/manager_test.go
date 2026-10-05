@@ -606,3 +606,23 @@ func TestBotFlag(t *testing.T) {
 		t.Error("a game with a bot in either seat is a bot game")
 	}
 }
+
+func TestForfeit(t *testing.T) {
+	e := newEnv(t, Config{})
+	_, a, ac, b, bc := e.start()
+	ctx := context.Background()
+	if had, err := e.m.Forfeit(ctx, "nobody"); had || err != nil {
+		t.Errorf("no game: %v %v", had, err)
+	}
+	if had, err := e.m.Forfeit(ctx, b.Name); !had || err != nil {
+		t.Fatalf("%v %v", had, err)
+	}
+	for _, c := range []*client{ac, bc} {
+		if got := c.take(); !slices.Equal(got, []protocol.Event{protocol.GameOver{GameID: 1, Result: "1-0"}}) {
+			t.Errorf("got %v", got)
+		}
+	}
+	if e.m.ForPlayer(a.Name) != nil {
+		t.Error("game should be over")
+	}
+}

@@ -192,3 +192,39 @@ func TestNormalizeNameMatchesSQL(t *testing.T) {
 		}
 	}
 }
+
+func TestByNameFold(t *testing.T) {
+	ctx := context.Background()
+	s := NewStore(newTestDB(t))
+	p, _ := s.Create(ctx, "Alice_1", "", "h")
+	for _, name := range []string{"Alice_1", "alice_1", "ALICE_1"} {
+		if got, err := s.ByNameFold(ctx, name); err != nil || got.ID != p.ID || got.Name != "Alice_1" {
+			t.Errorf("ByNameFold(%q) = %+v, %v", name, got, err)
+		}
+	}
+	if _, err := s.ByNameFold(ctx, "Alice"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("partial name: %v", err)
+	}
+}
+
+func TestFlagged(t *testing.T) {
+	ctx := context.Background()
+	s := NewStore(newTestDB(t))
+	for _, n := range []string{"carol", "Bob", "alice", "dave"} {
+		s.Create(ctx, n, "", "h")
+	}
+	s.SetFlag(ctx, "carol", FlagMod, true)
+	s.SetFlag(ctx, "alice", FlagMod, true)
+	s.SetFlag(ctx, "Bob", FlagMod, true)
+	s.SetFlag(ctx, "dave", FlagGagged, true)
+	got, err := s.Flagged(ctx, FlagMod)
+	if err != nil || fmt.Sprint(got) != "[alice Bob carol]" {
+		t.Errorf("mods %v, %v", got, err)
+	}
+	if got, _ := s.Flagged(ctx, FlagBanned); len(got) != 0 {
+		t.Errorf("banned %v", got)
+	}
+	if _, err := s.Flagged(ctx, Flag("password")); err == nil {
+		t.Error("Flagged must reject unknown columns")
+	}
+}

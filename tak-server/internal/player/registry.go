@@ -61,6 +61,16 @@ func (r *Registry) Acquire(rec players.Record) *Player {
 	return newPlayer(rec)
 }
 
+// Refresh updates an online registered player's flags from rec, after a
+// change to their record. It does nothing if they aren't in memory.
+func (r *Registry) Refresh(rec players.Record) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if p, ok := r.byName[rec.Name]; ok && !p.Guest {
+		p.update(rec)
+	}
+}
+
 // Guest returns the guest for token, creating one if needed. An empty token
 // always creates a new guest, which cannot be rejoined later.
 func (r *Registry) Guest(token string) *Player {

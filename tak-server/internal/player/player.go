@@ -56,6 +56,10 @@ func (p *Player) IsBot() bool    { p.mu.Lock(); defer p.mu.Unlock(); return p.bo
 func (p *Player) IsGagged() bool { p.mu.Lock(); defer p.mu.Unlock(); return p.gagged }
 func (p *Player) IsBanned() bool { p.mu.Lock(); defer p.mu.Unlock(); return p.banned }
 
+// SetGagged gags or ungags the player in memory only. It's for guests, who
+// have no database record; registered players are refreshed with Refresh.
+func (p *Player) SetGagged(on bool) { p.mu.Lock(); defer p.mu.Unlock(); p.gagged = on }
+
 // Clients returns the player's current connections, oldest first.
 func (p *Player) Clients() []Client {
 	p.mu.Lock()

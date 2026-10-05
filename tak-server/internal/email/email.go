@@ -75,13 +75,14 @@ func (s *SMTP) Send(ctx context.Context, to, subject, body string) error {
 }
 
 // Log is used when no SMTP server is configured. It logs each message
-// instead of sending it, which makes emailed passwords visible in local
-// development.
+// instead of sending it. Bodies can hold passwords and reset tokens, so they
+// are logged only at debug level, for local development.
 type Log struct {
 	Logger *slog.Logger
 }
 
-func (l Log) Send(_ context.Context, to, subject, body string) error {
-	l.Logger.Info("email not sent (no SMTP server configured)", "to", to, "subject", subject, "body", body)
+func (l Log) Send(ctx context.Context, to, subject, body string) error {
+	l.Logger.Info("email not sent (no SMTP server configured)", "to", to, "subject", subject)
+	l.Logger.DebugContext(ctx, "unsent email body", "to", to, "body", body)
 	return nil
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/email"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/game"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/moderation"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/session"
@@ -105,8 +106,15 @@ func run(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
 		CommandTimeout:             cfg.GameCommandTimeout,
 		AllowMultipleSessions:      cfg.AllowMultipleSessions,
 	}, gameStore, playerStore, results, seeks, registry, log)
-	sessions := session.NewManager(ctx, authSvc, registry, seeks, gameManager, chat.NewService(&filter, log),
-		session.Config{AllowMultipleSessions: cfg.AllowMultipleSessions}, log)
+	reloadWords := func(ctx context.Context) (int, error) { return filter.Load(ctx, cfg.BadWordsURL) }
+	sessions := session.NewManager(ctx, session.Services{
+		Auth:       authSvc,
+		Players:    registry,
+		Seeks:      seeks,
+		Games:      gameManager,
+		Chat:       chat.NewService(&filter, log),
+		Moderation: moderation.NewService(playerStore, authSvc, gameManager, registry, mailer, reloadWords, log),
+	}, session.Config{AllowMultipleSessions: cfg.AllowMultipleSessions}, log)
 	if cfg.ServiceAPIKey == "" {
 		log.Warn("TAK_SERVICE_API_KEY not set; service endpoints such as PUT /api/v1/seeks are disabled")
 	}

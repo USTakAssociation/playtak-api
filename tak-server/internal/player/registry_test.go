@@ -155,3 +155,28 @@ func TestFindOnline(t *testing.T) {
 		t.Error("offline player")
 	}
 }
+
+func TestRefresh(t *testing.T) {
+	r := NewRegistry()
+	rec := players.Record{ID: 1, Name: "alice"}
+	alice := r.Acquire(rec)
+	r.Attach(alice, &fakeClient{})
+	rec.IsGagged, rec.IsMod = true, true
+	r.Refresh(rec)
+	if !alice.IsGagged() || !alice.IsMod() {
+		t.Error("online player should pick up the new flags")
+	}
+	r.Refresh(players.Record{ID: 2, Name: "nobody", IsAdmin: true}) // not in memory: no-op
+
+	// A guest is never refreshed from a record, even with the same name.
+	g := r.Guest("")
+	r.Attach(g, &fakeClient{})
+	r.Refresh(players.Record{Name: g.Name, IsAdmin: true})
+	if g.IsAdmin() {
+		t.Error("guests must not take flags from a record")
+	}
+	g.SetGagged(true)
+	if !g.IsGagged() {
+		t.Error("SetGagged")
+	}
+}

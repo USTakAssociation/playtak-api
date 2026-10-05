@@ -64,6 +64,12 @@ func (s *Store) ByName(ctx context.Context, name string) (Record, error) {
 	return s.one(ctx, selectRecord+` WHERE name = ?`, name)
 }
 
+// ByNameFold returns the player with this name, ignoring case. Names are
+// unique ignoring case.
+func (s *Store) ByNameFold(ctx context.Context, name string) (Record, error) {
+	return s.one(ctx, selectRecord+` WHERE name = ? COLLATE NOCASE`, name)
+}
+
 func (s *Store) ByID(ctx context.Context, id int) (Record, error) {
 	return s.one(ctx, selectRecord+` WHERE id = ?`, id)
 }
@@ -136,6 +142,32 @@ func (s *Store) SetFlag(ctx context.Context, name string, flag Flag, on bool) er
 		return fmt.Errorf("set %s for player %s: %w", flag, name, err)
 	}
 	return nil
+}
+
+// Flagged returns the names of players with flag set, sorted ignoring case.
+func (s *Store) Flagged(ctx context.Context, flag Flag) ([]string, error) {
+	switch flag {
+	case FlagBot, FlagAdmin, FlagMod, FlagGagged, FlagBanned:
+	default:
+		return nil, fmt.Errorf("unknown player flag %q", flag)
+	}
+	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(`SELECT name FROM players WHERE %s = 1 ORDER BY name COLLATE NOCASE`, flag))
+	if err != nil {
+		return nil, fmt.Errorf("list %s players: %w", flag, err)
+	}
+	defer rows.Close()
+	var names []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, fmt.Errorf("list %s players: %w", flag, err)
+		}
+		names = append(names, name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list %s players: %w", flag, err)
+	}
+	return names, nil
 }
 
 // ratingDecay is the period over which an inactive high rating decays.

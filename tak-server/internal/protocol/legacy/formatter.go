@@ -40,6 +40,10 @@ func Format(ev protocol.Event, version int) ([]string, error) {
 		return line("Tell <" + ev.From + "> " + ev.Text)
 	case protocol.Told:
 		return line("Told <" + ev.To + "> " + ev.Text)
+	case protocol.RawLine:
+		return line(ev.Text)
+	case protocol.SudoReply:
+		return line("sudoReply " + ev.Text)
 	case protocol.CommandFailed:
 		return line("Error:" + ev.Reason)
 	case protocol.Registered:

@@ -16,8 +16,8 @@ import (
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/dbtest"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/games"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
-	"github.com/USTakAssociation/playtak-api/tak-server/internal/email"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/game"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/moderation"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/transport"
@@ -58,6 +58,26 @@ type harness struct {
 	m       *Manager
 	store   *players.Store
 	gamesDB *sql.DB
+	mail    *sentMail
+}
+
+// sentMail records emails instead of sending them.
+type sentMail struct {
+	mu   sync.Mutex
+	sent []string // "to|subject|body"
+}
+
+func (m *sentMail) Send(_ context.Context, to, subject, body string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.sent = append(m.sent, to+"|"+subject+"|"+body)
+	return nil
+}
+
+func (m *sentMail) all() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]string(nil), m.sent...)
 }
 
 func newHarness(t *testing.T, cfg Config) *harness {
@@ -69,7 +89,8 @@ func newHarnessWithGames(t *testing.T, cfg Config, gameCfg game.Config) *harness
 	conn := dbtest.NewPlayersDB(t)
 	store := players.NewStore(conn)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	authSvc := auth.NewService(store, players.NewTokenStore(conn), email.Log{Logger: log}, &wordfilter.Filter{}, log)
+	mail := &sentMail{}
+	authSvc := auth.NewService(store, players.NewTokenStore(conn), mail, &wordfilter.Filter{}, log)
 	registry := player.NewRegistry()
 	seeks := seek.NewManager()
 
@@ -81,8 +102,16 @@ func newHarnessWithGames(t *testing.T, cfg Config, gameCfg game.Config) *harness
 	go results.Run(ctx)
 	gm := game.NewManager(gameCfg, gameStore, store, results, seeks, registry, log)
 
-	m := NewManager(context.Background(), authSvc, registry, seeks, gm, chat.NewService(maskWord{"darn"}, log), cfg, log)
-	return &harness{t: t, m: m, store: store, gamesDB: gamesDB}
+	reload := func(context.Context) (int, error) { return 0, nil }
+	m := NewManager(context.Background(), Services{
+		Auth:       authSvc,
+		Players:    registry,
+		Seeks:      seeks,
+		Games:      gm,
+		Chat:       chat.NewService(maskWord{"darn"}, log),
+		Moderation: moderation.NewService(store, authSvc, gm, registry, mail, reload, log),
+	}, cfg, log)
+	return &harness{t: t, m: m, store: store, gamesDB: gamesDB, mail: mail}
 }
 
 // maskWord masks one word, standing in for the profanity filter.

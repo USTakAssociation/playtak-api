@@ -80,6 +80,9 @@ type (
 	// TellReceived is a private message; Told is the sender's copy.
 	TellReceived struct{ From, Text string }
 	Told         struct{ To, Text string }
+	// RawLine is sent to the client exactly as given. Only admins' sudo
+	// broadcast uses it.
+	RawLine struct{ Text string }
 	// CommandFailed says why a command was refused, without a NOK.
 	CommandFailed       struct{ Reason string }
 	Registered          struct{ Name string }
@@ -113,6 +116,7 @@ func (RoomShout) event()           {}
 func (TellReceived) event()        {}
 func (Told) event()                {}
 func (CommandFailed) event()       {}
+func (RawLine) event()             {}
 func (Registered) event()          {}
 func (RegistrationFailed) event()  {}
 func (ResetTokenSent) event()      {}

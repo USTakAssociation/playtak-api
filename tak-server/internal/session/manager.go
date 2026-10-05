@@ -14,6 +14,7 @@ import (
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/auth"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/chat"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/game"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/moderation"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/protocol"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
@@ -37,6 +38,7 @@ type Manager struct {
 	seeks   *seek.Manager
 	games   *game.Manager
 	chat    *chat.Service
+	mod     *moderation.Service
 	cfg     Config
 	log     *slog.Logger
 
@@ -50,15 +52,26 @@ type Manager struct {
 	loginMu sync.Mutex
 }
 
+// Services are what sessions turn client commands into calls on.
+type Services struct {
+	Auth       *auth.Service
+	Players    *player.Registry
+	Seeks      *seek.Manager
+	Games      *game.Manager
+	Chat       *chat.Service
+	Moderation *moderation.Service
+}
+
 // NewManager returns a Manager whose sessions stop their work when ctx ends.
-func NewManager(ctx context.Context, authSvc *auth.Service, players *player.Registry, seeks *seek.Manager, games *game.Manager, chatSvc *chat.Service, cfg Config, log *slog.Logger) *Manager {
+func NewManager(ctx context.Context, svc Services, cfg Config, log *slog.Logger) *Manager {
 	return &Manager{
-		chat:     chatSvc,
 		ctx:      ctx,
-		auth:     authSvc,
-		players:  players,
-		seeks:    seeks,
-		games:    games,
+		auth:     svc.Auth,
+		players:  svc.Players,
+		seeks:    svc.Seeks,
+		games:    svc.Games,
+		chat:     svc.Chat,
+		mod:      svc.Moderation,
 		cfg:      cfg,
 		log:      log,
 		sessions: make(map[*Session]struct{}),

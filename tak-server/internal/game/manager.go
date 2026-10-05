@@ -115,6 +115,19 @@ func (m *Manager) ForPlayer(name string) *Game {
 	return m.byPlayer[name]
 }
 
+// Forfeit ends the named player's game, if any, as a loss for them, e.g.
+// when they're banned. It reports whether there was a game.
+func (m *Manager) Forfeit(ctx context.Context, name string) (bool, error) {
+	g := m.ForPlayer(name)
+	if g == nil {
+		return false, nil
+	}
+	if err := g.Resign(ctx, name); err != nil && !errors.Is(err, ErrNotPlaying) {
+		return true, err
+	}
+	return true, nil
+}
+
 // IfIdle runs f, and reports true, only if the named player isn't in or
 // joining a game. f runs while games can't start, so a player can't post a
 // seek at the moment they enter a game.
