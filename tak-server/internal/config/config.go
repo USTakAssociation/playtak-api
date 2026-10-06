@@ -46,6 +46,15 @@ type Config struct {
 
 	LogLevel slog.Level // TAK_LOG_LEVEL: debug, info, warn or error
 
+	// TrustedProxies lists the reverse proxies (CIDRs, comma-separated) whose
+	// X-Real-IP / X-Forwarded-For headers are believed. Requests from
+	// anywhere else are judged by their connection address.
+	TrustedProxies string // TAK_TRUSTED_PROXIES
+
+	// LoginLimitByUsername counts failed logins per username as well as per
+	// IP. TAK_LOGIN_LIMIT: "username" (default) or "ip" for per-IP only.
+	LoginLimitByUsername bool
+
 	// ServiceAPIKey authorizes service-to-service HTTP calls, such as the
 	// tournament service creating seeks. Empty disables those endpoints.
 	ServiceAPIKey string // TAK_SERVICE_API_KEY
@@ -100,6 +109,15 @@ func FromEnv(getenv func(string) string) (*Config, error) {
 		return nil, fmt.Errorf("TAK_ALLOW_MULTIPLE_SESSIONS: %w", err)
 	}
 
+	var byUsername bool
+	switch mode := get("TAK_LOGIN_LIMIT", "username"); mode {
+	case "username":
+		byUsername = true
+	case "ip":
+	default:
+		return nil, fmt.Errorf("TAK_LOGIN_LIMIT: %q is not \"username\" or \"ip\"", mode)
+	}
+
 	var level slog.Level
 	if err := level.UnmarshalText([]byte(get("TAK_LOG_LEVEL", "info"))); err != nil {
 		return nil, fmt.Errorf("TAK_LOG_LEVEL: %w", err)
@@ -120,6 +138,8 @@ func FromEnv(getenv func(string) string) (*Config, error) {
 		AllowMultipleSessions:      multi,
 		LogLevel:                   level,
 		ServiceAPIKey:              getenv("TAK_SERVICE_API_KEY"),
+		TrustedProxies:             get("TAK_TRUSTED_PROXIES", "127.0.0.1/32,::1/128"),
+		LoginLimitByUsername:       byUsername,
 		SMTP: SMTP{
 			Host:     getenv("TAK_SMTP_HOST"),
 			User:     getenv("TAK_SMTP_USER"),

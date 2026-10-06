@@ -9,6 +9,7 @@ import (
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/auth"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/chat"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/clientip"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/game"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/moderation"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
@@ -254,8 +255,9 @@ func (s *Session) loginGuest(ctx context.Context, cmd protocol.LoginGuest) {
 }
 
 func (s *Session) login(ctx context.Context, cmd protocol.Login) {
-	rec, err := s.m.auth.Login(ctx, cmd.Name, cmd.Password)
-	if errors.Is(err, auth.ErrAuthFailed) {
+	rec, err := s.m.auth.Login(ctx, cmd.Name, cmd.Password, s.ip())
+	// A rate-limited login looks like any other failure to old clients.
+	if errors.Is(err, auth.ErrAuthFailed) || errors.Is(err, auth.ErrRateLimited) {
 		s.Send(protocol.AuthFailure{})
 		return
 	}
@@ -309,6 +311,9 @@ func (s *Session) sudo(ctx context.Context, p *player.Player, cmd protocol.Sudo)
 	}
 }
 
+// ip is the client's address, without a port.
+func (s *Session) ip() string { return clientip.Host(s.conn.RemoteAddr()) }
+
 func (s *Session) chatSender(p *player.Player) chat.Sender {
 	return chat.Sender{Name: p.Name, Gagged: p.IsGagged(), Session: s}
 }
@@ -346,7 +351,7 @@ func (s *Session) inGame(p *player.Player, id int, action func(*game.Game) error
 }
 
 func (s *Session) register(ctx context.Context, cmd protocol.Register) {
-	rec, err := s.m.auth.Register(ctx, cmd.Name, cmd.Email)
+	rec, err := s.m.auth.Register(ctx, cmd.Name, cmd.Email, s.ip())
 	var reason protocol.RegistrationError
 	switch {
 	case err == nil:
@@ -361,6 +366,8 @@ func (s *Session) register(ctx context.Context, cmd protocol.Register) {
 		reason = protocol.RegistrationProfanity
 	case errors.Is(err, auth.ErrNameTaken):
 		reason = protocol.RegistrationNameTaken
+	case errors.Is(err, auth.ErrRateLimited):
+		reason = protocol.RegistrationRateLimited
 	default:
 		s.log.Error("register", "err", err)
 		reason = protocol.RegistrationServerError
@@ -376,6 +383,8 @@ func (s *Session) sendResetToken(ctx context.Context, cmd protocol.SendResetToke
 		s.Send(protocol.ResetTokenFailed{Reason: protocol.ResetTokenNoSuchPlayer})
 	case errors.Is(err, auth.ErrEmailMismatch):
 		s.Send(protocol.ResetTokenFailed{Reason: protocol.ResetTokenEmailMismatch})
+	case errors.Is(err, auth.ErrRateLimited):
+		s.Send(protocol.ResetTokenFailed{Reason: protocol.ResetTokenRateLimited})
 	default:
 		s.fail("send reset token", err)
 	}

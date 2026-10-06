@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/auth"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/clientip"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/dbtest"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/email"
@@ -38,7 +39,7 @@ func newTestServerWithSeeks(t *testing.T) (*httptest.Server, *players.Store, *pl
 	authSvc := auth.NewService(store, players.NewTokenStore(conn), email.Log{Logger: log}, &wordfilter.Filter{}, log)
 	reg := player.NewRegistry()
 	seeks := seek.NewManager()
-	srv := httptest.NewServer(NewServer(authSvc, reg, seeks, serviceKey, log).Handler())
+	srv := httptest.NewServer(NewServer(authSvc, reg, seeks, serviceKey, &clientip.Resolver{}, log).Handler())
 	t.Cleanup(srv.Close)
 	return srv, store, reg, seeks
 }

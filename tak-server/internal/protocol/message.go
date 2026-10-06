@@ -138,6 +138,7 @@ const (
 	RegistrationProfanity
 	RegistrationNameTaken
 	RegistrationServerError
+	RegistrationRateLimited
 )
 
 type ResetTokenError int
@@ -145,6 +146,7 @@ type ResetTokenError int
 const (
 	ResetTokenNoSuchPlayer ResetTokenError = iota
 	ResetTokenEmailMismatch
+	ResetTokenRateLimited
 )
 
 type ResetPasswordError int

@@ -36,6 +36,9 @@ func TestFromEnvDefaults(t *testing.T) {
 	if cfg.LogLevel != slog.LevelInfo {
 		t.Errorf("LogLevel = %v", cfg.LogLevel)
 	}
+	if cfg.TrustedProxies != "127.0.0.1/32,::1/128" || !cfg.LoginLimitByUsername {
+		t.Errorf("TrustedProxies = %q, LoginLimitByUsername = %v", cfg.TrustedProxies, cfg.LoginLimitByUsername)
+	}
 }
 
 func TestFromEnvOverrides(t *testing.T) {
@@ -46,6 +49,8 @@ func TestFromEnvOverrides(t *testing.T) {
 		"TAK_SMTP_HOST":               "smtp.example.com",
 		"TAK_ALLOW_MULTIPLE_SESSIONS": "true",
 		"TAK_LOG_LEVEL":               "debug",
+		"TAK_TRUSTED_PROXIES":         "10.0.0.0/8",
+		"TAK_LOGIN_LIMIT":             "ip",
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -62,6 +67,9 @@ func TestFromEnvOverrides(t *testing.T) {
 	if !cfg.AllowMultipleSessions || cfg.LogLevel != slog.LevelDebug {
 		t.Errorf("AllowMultipleSessions = %v, LogLevel = %v", cfg.AllowMultipleSessions, cfg.LogLevel)
 	}
+	if cfg.TrustedProxies != "10.0.0.0/8" || cfg.LoginLimitByUsername {
+		t.Errorf("TrustedProxies = %q, LoginLimitByUsername = %v", cfg.TrustedProxies, cfg.LoginLimitByUsername)
+	}
 }
 
 func TestFromEnvInvalidValues(t *testing.T) {
@@ -70,6 +78,7 @@ func TestFromEnvInvalidValues(t *testing.T) {
 		"TAK_ALLOW_MULTIPLE_SESSIONS": "maybe",
 		"TAK_LOG_LEVEL":               "loud",
 		"TAK_GAME_COMMAND_TIMEOUT":    "soon",
+		"TAK_LOGIN_LIMIT":             "account",
 	} {
 		if _, err := FromEnv(env(map[string]string{k: v})); err == nil {
 			t.Errorf("%s=%q: expected error", k, v)

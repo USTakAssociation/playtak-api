@@ -17,6 +17,7 @@ import (
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/api"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/auth"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/chat"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/clientip"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/config"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/games"
@@ -119,18 +120,25 @@ func run(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
 		log.Warn("TAK_SERVICE_API_KEY not set; service endpoints such as PUT /api/v1/seeks are disabled")
 	}
 
+	clientIP, err := clientip.NewResolver(cfg.TrustedProxies)
+	if err != nil {
+		return fmt.Errorf("TAK_TRUSTED_PROXIES: %w", err)
+	}
+	authSvc.EnableLimits(cfg.LoginLimitByUsername)
+	apiServer := api.NewServer(authSvc, registry, seeks, cfg.ServiceAPIKey, clientIP, log)
+
 	telnetLn, err := net.Listen("tcp", cfg.TelnetAddr)
 	if err != nil {
 		return err
 	}
 	wsSrv := &http.Server{
 		Addr:              cfg.WSAddr,
-		Handler:           &websocket.Handler{Acceptor: sessions, Log: log},
+		Handler:           &websocket.Handler{Acceptor: sessions, Log: log, ClientIP: clientIP},
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	apiSrv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           api.NewServer(authSvc, registry, seeks, cfg.ServiceAPIKey, log).Handler(),
+		Handler:           apiServer.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -147,7 +155,7 @@ func run(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
 		log.Info("http api listening", "addr", cfg.HTTPAddr)
 		errc <- ignoreClosed(apiSrv.ListenAndServe())
 	}()
-	go cleanupLoop(ctx, authSvc, registry, log)
+	go cleanupLoop(ctx, authSvc, apiServer, registry, log)
 
 	select {
 	case <-ctx.Done():
@@ -164,8 +172,9 @@ func run(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
 	return err
 }
 
-// cleanupLoop forgets idle guests and deletes expired API tokens hourly.
-func cleanupLoop(ctx context.Context, authSvc *auth.Service, registry *player.Registry, log *slog.Logger) {
+// cleanupLoop hourly forgets idle guests and rate-limit counters that have
+// reset, and deletes expired API tokens.
+func cleanupLoop(ctx context.Context, authSvc *auth.Service, apiServer *api.Server, registry *player.Registry, log *slog.Logger) {
 	t := time.NewTicker(cleanupInterval)
 	defer t.Stop()
 	for {
@@ -174,6 +183,8 @@ func cleanupLoop(ctx context.Context, authSvc *auth.Service, registry *player.Re
 			return
 		case <-t.C:
 		}
+		authSvc.PruneLimits()
+		apiServer.PruneLimits()
 		if n := registry.PruneGuests(guestIdleTimeout); n > 0 {
 			log.Info("pruned idle guests", "count", n)
 		}

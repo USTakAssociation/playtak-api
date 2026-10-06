@@ -134,11 +134,13 @@ var registrationErrors = map[protocol.RegistrationError]string{
 	protocol.RegistrationProfanity:   "Username cannot contain profanity",
 	protocol.RegistrationNameTaken:   "Username is already taken",
 	protocol.RegistrationServerError: "Server error, please try again later",
+	protocol.RegistrationRateLimited: "Too many registrations, please try again later",
 }
 
 var resetTokenErrors = map[protocol.ResetTokenError]string{
 	protocol.ResetTokenNoSuchPlayer:  "No such player",
 	protocol.ResetTokenEmailMismatch: "Email address does not match",
+	protocol.ResetTokenRateLimited:   "Too many requests, please try again later",
 }
 
 // quotedList renders names the way Java prints a list of pre-quoted strings:

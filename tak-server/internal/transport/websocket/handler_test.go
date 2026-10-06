@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/clientip"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/transport/transporttest"
 )
 
@@ -124,5 +126,36 @@ func TestClientDisconnectCallsClosed(t *testing.T) {
 	case <-echo.Closed:
 	case <-time.After(5 * time.Second):
 		t.Fatal("Closed not called")
+	}
+}
+
+func TestClientIPBehindTrustedProxy(t *testing.T) {
+	resolver, err := clientip.NewResolver("127.0.0.1/32,::1/128")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := &Handler{Acceptor: transporttest.NewEcho(), Log: slog.New(slog.NewTextHandler(io.Discard, nil)), ClientIP: resolver}
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+	ws, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(srv.URL, "http"), http.Header{"X-Real-IP": {"198.51.100.9"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	expect(t, ws, "hello")
+	ws.WriteMessage(websocket.TextMessage, []byte("addr"))
+	expect(t, ws, "echo:addr")
+	expect(t, ws, "addr:198.51.100.9")
+}
+
+func TestClientIPWithoutResolver(t *testing.T) {
+	url, _ := start(t, time.Minute)
+	ws := dial(t, url)
+	expect(t, ws, "hello")
+	ws.WriteMessage(websocket.TextMessage, []byte("addr"))
+	expect(t, ws, "echo:addr")
+	_, data, err := ws.ReadMessage()
+	if err != nil || !strings.HasPrefix(string(data), "addr:127.0.0.1:") {
+		t.Errorf("got %q %v, want the connection address", data, err)
 	}
 }

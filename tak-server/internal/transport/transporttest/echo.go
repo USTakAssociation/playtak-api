@@ -9,8 +9,8 @@ import (
 
 // Echo greets each connection with "hello" and replies to every line with
 // "echo:<line>". The line "close:<normal|kicked|away|error>" then closes the
-// connection with that reason, and "flood" queues more lines than a
-// connection may have pending.
+// connection with that reason, "flood" queues more lines than a connection
+// may have pending, and "addr" replies "addr:<RemoteAddr>".
 type Echo struct {
 	Closed chan struct{} // receives once per closed connection
 }
@@ -38,6 +38,9 @@ func (p *echoPeer) HandleLine(line string) {
 	p.c.Send("echo:" + line)
 	if r, ok := strings.CutPrefix(line, "close:"); ok {
 		p.c.Close(reasons[r])
+	}
+	if line == "addr" {
+		p.c.Send("addr:" + p.c.RemoteAddr())
 	}
 	if line == "flood" {
 		for range 2 * transport.SendQueueSize {

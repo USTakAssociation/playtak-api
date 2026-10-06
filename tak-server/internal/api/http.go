@@ -6,12 +6,24 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/auth"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/clientip"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/ratelimit"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
+)
+
+// Per-IP limits on endpoints that auth.Service doesn't already limit.
+// Login and registration are limited inside auth.Service, so the text
+// protocol shares their limits.
+const (
+	tokenCallsPerIP = 30 // refresh, logout and guest, per minute
+	seekListsPerIP  = 60 // per minute
+	maxTrackedIPs   = 100_000
 )
 
 const maxBodyBytes = 64 * 1024
@@ -22,21 +34,37 @@ type Server struct {
 	seeks   *seek.Manager
 	// serviceKey authorizes service-to-service calls. Empty disables them.
 	serviceKey string
+	clientIP   *clientip.Resolver
 	log        *slog.Logger
+
+	tokenCalls *ratelimit.Keyed
+	seekLists  *ratelimit.Keyed
 }
 
-func NewServer(authSvc *auth.Service, players *player.Registry, seeks *seek.Manager, serviceKey string, log *slog.Logger) *Server {
-	return &Server{auth: authSvc, players: players, seeks: seeks, serviceKey: serviceKey, log: log}
+// NewServer returns the API. clientIP finds the client's address behind a
+// reverse proxy, for rate limits and logs.
+func NewServer(authSvc *auth.Service, players *player.Registry, seeks *seek.Manager, serviceKey string, clientIP *clientip.Resolver, log *slog.Logger) *Server {
+	return &Server{
+		auth: authSvc, players: players, seeks: seeks, serviceKey: serviceKey, clientIP: clientIP, log: log,
+		tokenCalls: ratelimit.New(tokenCallsPerIP, time.Minute, maxTrackedIPs),
+		seekLists:  ratelimit.New(seekListsPerIP, time.Minute, maxTrackedIPs),
+	}
+}
+
+// PruneLimits forgets IPs whose limits have reset.
+func (s *Server) PruneLimits() {
+	s.tokenCalls.Prune()
+	s.seekLists.Prune()
 }
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/auth/login", s.login)
 	mux.HandleFunc("POST /api/auth/register", s.register)
-	mux.HandleFunc("POST /api/auth/refresh", s.refresh)
-	mux.HandleFunc("POST /api/auth/guest", s.guest)
-	mux.HandleFunc("POST /api/auth/logout", s.logout)
-	mux.HandleFunc("GET /api/v1/seeks", s.listSeeks)
+	mux.HandleFunc("POST /api/auth/refresh", s.limited(s.tokenCalls, s.refresh))
+	mux.HandleFunc("POST /api/auth/guest", s.limited(s.tokenCalls, s.guest))
+	mux.HandleFunc("POST /api/auth/logout", s.limited(s.tokenCalls, s.logout))
+	mux.HandleFunc("GET /api/v1/seeks", s.limited(s.seekLists, s.listSeeks))
 	mux.HandleFunc("PUT /api/v1/seeks", s.createSeek)
 	return mux
 }
@@ -67,9 +95,12 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	rec, err := s.auth.Login(r.Context(), req.Username, req.Password)
+	rec, err := s.auth.Login(r.Context(), req.Username, req.Password, s.ip(r))
 	if errors.Is(err, auth.ErrAuthFailed) {
 		writeError(w, http.StatusUnauthorized, "invalid_credentials")
+		return
+	}
+	if rateLimited(w, err) {
 		return
 	}
 	if err != nil {
@@ -92,8 +123,9 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	rec, err := s.auth.Register(r.Context(), req.Username, req.Email)
+	rec, err := s.auth.Register(r.Context(), req.Username, req.Email, s.ip(r))
 	switch {
+	case rateLimited(w, err):
 	case err == nil:
 		writeJSON(w, http.StatusCreated, map[string]string{"name": rec.Name})
 	case errors.Is(err, auth.ErrInvalidUsername):
@@ -155,6 +187,36 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) ip(r *http.Request) string { return s.clientIP.IP(r) }
+
+// limited refuses requests from an IP that has used up k.
+func (s *Server) limited(k *ratelimit.Keyed, h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ip := s.ip(r)
+		if ok, wait := k.Allow(ip); !ok {
+			s.log.Warn("rate limited", "path", r.URL.Path, "ip", ip, "retry_in", wait.Round(time.Second))
+			tooManyRequests(w, wait)
+			return
+		}
+		h(w, r)
+	}
+}
+
+// rateLimited answers 429 if err is a rate limit, reporting whether it did.
+func rateLimited(w http.ResponseWriter, err error) bool {
+	var rl *auth.RateLimitError
+	if !errors.As(err, &rl) {
+		return false
+	}
+	tooManyRequests(w, rl.RetryAfter)
+	return true
+}
+
+func tooManyRequests(w http.ResponseWriter, wait time.Duration) {
+	w.Header().Set("Retry-After", strconv.Itoa(int((wait+time.Second-1)/time.Second)))
+	writeError(w, http.StatusTooManyRequests, "rate_limited")
 }
 
 func bearerToken(r *http.Request) string {

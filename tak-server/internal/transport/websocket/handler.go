@@ -12,6 +12,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/clientip"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/transport"
 )
 
@@ -19,6 +20,9 @@ type Handler struct {
 	Acceptor    transport.Acceptor
 	Log         *slog.Logger
 	IdleTimeout time.Duration // defaults to transport.IdleTimeout
+	// ClientIP finds the client's address behind a reverse proxy. Nil uses
+	// the connection's own address.
+	ClientIP *clientip.Resolver
 }
 
 var upgrader = websocket.Upgrader{
@@ -39,7 +43,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	ws.SetReadLimit(transport.MaxLineBytes)
 
-	c := &conn{ws: ws, queue: transport.NewQueue()}
+	remote := r.RemoteAddr
+	if h.ClientIP != nil {
+		remote = h.ClientIP.IP(r)
+	}
+	c := &conn{ws: ws, queue: transport.NewQueue(), remote: remote}
 	go c.writeLoop()
 
 	peer := h.Acceptor.Accept(c)
@@ -65,8 +73,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type conn struct {
-	ws    *websocket.Conn
-	queue *transport.Queue
+	ws     *websocket.Conn
+	queue  *transport.Queue
+	remote string
 }
 
 func (c *conn) Send(line string) {
@@ -76,7 +85,7 @@ func (c *conn) Send(line string) {
 }
 
 func (c *conn) Close(reason transport.CloseReason) { c.queue.Close(reason) }
-func (c *conn) RemoteAddr() string                 { return c.ws.RemoteAddr().String() }
+func (c *conn) RemoteAddr() string                 { return c.remote }
 
 var closeCodes = map[transport.CloseReason]int{
 	transport.CloseNormal:    websocket.CloseNormalClosure,

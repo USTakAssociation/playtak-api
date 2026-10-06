@@ -18,7 +18,9 @@ a JSON protocol, multiple sessions per player and async games.
 - [Configuration](#configuration)
 - [Testing](#testing)
 - [HTTP API](#http-api)
+- [Rate limits](#rate-limits)
 - [Database migrations](#database-migrations)
+- [Deploying](#deploying)
 - [Changes from the Java server](#changes-from-the-java-server)
 
 ## How it fits together
@@ -71,6 +73,8 @@ a JSON protocol, multiple sessions per player and async games.
 | `internal/moderation` | `sudo` commands for moderators and admins. |
 | `internal/wordfilter` | The profanity word list, used for usernames and chat. |
 | `internal/api` | The HTTP REST API. |
+| `internal/clientip` | Finds the client's real IP behind a reverse proxy, trusting proxy headers only from configured proxies. |
+| `internal/ratelimit` | Per-key token buckets (per IP, per username), built on `golang.org/x/time/rate`. |
 | `internal/email` | Sends mail over SMTP, or logs it when no SMTP server is set. |
 | `internal/db` | Opens SQLite. `players` and `games` hold the queries, and `dbtest` creates throwaway databases for tests. |
 
@@ -161,6 +165,8 @@ main ones:
 | `TAK_SMTP_*` | empty | Outgoing email. Empty means emails are logged instead; their bodies only at `debug` level, since they can hold passwords. |
 | `TAK_SERVICE_API_KEY` | empty | Shared secret for service-to-service calls such as `PUT /api/v1/seeks`. Empty disables them. |
 | `TAK_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`. |
+| `TAK_TRUSTED_PROXIES` | `127.0.0.1/32,::1/128` | Reverse proxies whose `X-Real-IP` / `X-Forwarded-For` headers are believed. See [Rate limits](#rate-limits). |
+| `TAK_LOGIN_LIMIT` | `username` | `username` counts failed logins per username as well as per IP; `ip` limits per IP only. |
 
 `TAK_EVENT_SUBSCRIBER_URL` is read, but the game update webhooks it
 configures aren't implemented yet.
@@ -224,6 +230,36 @@ Tokens are stored only as SHA-256 hashes in the `auth_tokens` table.
 Expired ones are purged hourly. Admins can revoke a player's tokens with
 `sudo revoke <name>`.
 
+## Rate limits
+
+Logins, registrations and password resets are limited inside
+`auth.Service`, so the same limits apply over REST, telnet and WebSocket:
+
+| What | Limit |
+| --- | --- |
+| Failed logins per username (unless `TAK_LOGIN_LIMIT=ip`) | 10 per 15 minutes; a successful login resets it |
+| Failed logins per IP | 20 per minute; successful logins don't count, so many players behind one IP can all log in |
+| Registrations per IP | 5 per hour |
+| Password reset emails per username | 3 per hour |
+| `POST /api/auth/refresh`, `/logout`, `/guest` per IP | 30 per minute, shared |
+| `GET /api/v1/seeks` per IP | 60 per minute |
+
+A limited REST request gets `429 Too Many Requests` with a `Retry-After`
+header and `{"error":"rate_limited"}`. Over the text protocol, a limited
+login gets the usual `Authentication failure`, and registration and reset
+requests get a `Registration Error:` or `Reset Token Error:` saying to try
+later, so existing clients need no changes. Every refusal is logged at warn
+level. Counters are kept in memory and reset on restart.
+
+**Client IPs behind nginx.** The server only sees the address that
+connected to it, which behind nginx is nginx itself. nginx must pass the
+real address in `X-Real-IP` (see [Deploying](#deploying)), and the server
+believes that header only on connections from `TAK_TRUSTED_PROXIES`. A
+client connecting directly, for example to port 9999, can't fake its IP by
+sending the header. Telnet doesn't go through nginx, so it always sees real
+addresses. Without the header, everyone behind nginx shares one per-IP
+limit; the per-username limit still protects accounts.
+
 ## Database migrations
 
 Schema changes are dated shell scripts in `../scripts/migrations`. They're
@@ -233,6 +269,52 @@ live database before deploying the server that needs it. At startup the
 server checks that the players database has had the migrations it relies
 on (the `id` primary key and the `auth_tokens` table), and refuses to start
 if not, naming the script to run.
+
+## Deploying
+
+What has to change when the Go server replaces the Java server. A full
+cutover plan (order of steps, testing on beta, rollback) is still to be
+written.
+
+**1. Run the migrations** against the production databases, in date order.
+Each is safe to run more than once:
+
+```sh
+bash scripts/migrations/2026-05-add-increment-scales.sh /playtakdb/games.db
+bash scripts/migrations/2026-08-add-nocase-player-indexes.sh /playtakdb/games.db
+bash scripts/migrations/2026-09-players-id-primary-key.sh /playtakdb/players.db
+bash scripts/migrations/2026-09-add-auth-tokens.sh /playtakdb/players.db
+```
+
+The server refuses to start if the players migrations are missing. The
+games migration isn't checked at startup; without it, starting a game fails
+and both players are told "Could not start the game".
+
+**2. nginx: pass the client IP** in every location that proxies to the Go
+server: `/ws` on playtak.com and beta.playtak.com, and `/api/` on
+beta.playtak.com (and the production API location once it points here).
+Add:
+
+```nginx
+proxy_set_header X-Real-IP $remote_addr;
+```
+
+nginx connects from 127.0.0.1, which the default `TAK_TRUSTED_PROXIES`
+already trusts. Keep the existing `limit_req` lines; they complement the
+server's own limits.
+
+**3. Configure the server** with environment variables (see
+[`.env.example`](.env.example)):
+
+- `TAK_PLAYERS_DB`, `TAK_GAMES_DB`: the production database paths.
+- `TAK_SMTP_*`: the mail server. Left empty, no email is sent.
+- `TAK_SERVICE_API_KEY`: set it if the tournament service creates seeks.
+- `TAK_TRUSTED_PROXIES`: only if nginx moves off this machine.
+- `TAK_PENDING_RESULTS_FILE`: on persistent storage. By default it sits
+  beside the games database.
+
+**4. Announce the changes** players will notice, listed below, including
+asking anyone who can't log in to reset their password.
 
 ## Changes from the Java server
 
@@ -263,3 +345,4 @@ The deliberate changes in client-visible behaviour, for release notes:
 
 **Accounts**
 - Java accepted some non-ASCII passwords through a legacy fallback. That fallback is gone, so those players need to reset their password.
+- Logins, registrations and password resets are rate limited (see [Rate limits](#rate-limits)). Java had no limits.

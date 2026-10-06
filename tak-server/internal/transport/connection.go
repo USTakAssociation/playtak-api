@@ -39,6 +39,8 @@ type Conn interface {
 	Send(line string)
 	// Close delivers any queued lines, then closes the connection.
 	Close(reason CloseReason)
+	// RemoteAddr is the client's address: "host:port", or for connections
+	// through a trusted proxy, the client IP the proxy reported.
 	RemoteAddr() string
 }
 

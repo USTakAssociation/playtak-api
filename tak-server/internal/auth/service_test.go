@@ -80,7 +80,7 @@ func TestLogin(t *testing.T) {
 	f := newFixture(t)
 	alice := f.addPlayer(t, "alice", "a@example.com", "secret123")
 
-	got, err := f.svc.Login(ctx, "alice", "secret123")
+	got, err := f.svc.Login(ctx, "alice", "secret123", "198.51.100.1")
 	if err != nil || got.ID != alice.ID {
 		t.Fatalf("Login = %+v, %v", got, err)
 	}
@@ -89,7 +89,7 @@ func TestLogin(t *testing.T) {
 		{"Alice", "secret123"}, // names are case-sensitive
 		{"nobody", "secret123"},
 	} {
-		if _, err := f.svc.Login(ctx, tc.name, tc.password); !errors.Is(err, ErrAuthFailed) {
+		if _, err := f.svc.Login(ctx, tc.name, tc.password, "198.51.100.1"); !errors.Is(err, ErrAuthFailed) {
 			t.Errorf("Login(%q, %q) err = %v, want ErrAuthFailed", tc.name, tc.password, err)
 		}
 	}
@@ -97,7 +97,7 @@ func TestLogin(t *testing.T) {
 	if err := f.store.SetFlag(ctx, "alice", players.FlagBanned, true); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.svc.Login(ctx, "alice", "secret123"); !errors.Is(err, ErrAuthFailed) {
+	if _, err := f.svc.Login(ctx, "alice", "secret123", "198.51.100.1"); !errors.Is(err, ErrAuthFailed) {
 		t.Errorf("banned player logged in: err = %v", err)
 	}
 }
@@ -109,7 +109,7 @@ func TestLoginAcceptsJavaHash(t *testing.T) {
 	if _, err := f.store.Create(context.Background(), "legacy", "", javaHash); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.svc.Login(context.Background(), "legacy", "password"); err != nil {
+	if _, err := f.svc.Login(context.Background(), "legacy", "password", "198.51.100.1"); err != nil {
 		t.Errorf("Java-era hash rejected: %v", err)
 	}
 }
@@ -129,7 +129,7 @@ func TestRegister(t *testing.T) {
 	ctx := context.Background()
 	f := newFixture(t)
 
-	rec, err := f.svc.Register(ctx, "newbie", "n@example.com")
+	rec, err := f.svc.Register(ctx, "newbie", "n@example.com", "198.51.100.1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func TestRegister(t *testing.T) {
 	if m == nil {
 		t.Fatalf("no password in body %q", mail.body)
 	}
-	if got, err := f.svc.Login(ctx, "newbie", m[1]); err != nil || got.ID != rec.ID {
+	if got, err := f.svc.Login(ctx, "newbie", m[1], "198.51.100.1"); err != nil || got.ID != rec.ID {
 		t.Errorf("login with emailed password: %+v, %v", got, err)
 	}
 
@@ -157,7 +157,7 @@ func TestRegister(t *testing.T) {
 		{"newbie", "x@example.com", ErrNameTaken},
 		{"NEWB1E", "x@example.com", ErrNameTaken},
 	} {
-		if _, err := f.svc.Register(ctx, tc.name, tc.email); !errors.Is(err, tc.want) {
+		if _, err := f.svc.Register(ctx, tc.name, tc.email, "198.51.100.1"); !errors.Is(err, tc.want) {
 			t.Errorf("Register(%q, %q) err = %v, want %v", tc.name, tc.email, err, tc.want)
 		}
 	}
@@ -188,7 +188,7 @@ func TestPasswordReset(t *testing.T) {
 	if err := f.svc.ResetPassword(ctx, "alice", token, "again123"); !errors.Is(err, ErrWrongToken) {
 		t.Errorf("tokens must be single use: %v", err)
 	}
-	if _, err := f.svc.Login(ctx, "alice", "newpass1"); err != nil {
+	if _, err := f.svc.Login(ctx, "alice", "newpass1", "198.51.100.1"); err != nil {
 		t.Errorf("login with reset password: %v", err)
 	}
 }
@@ -215,7 +215,7 @@ func TestLoginClearsResetToken(t *testing.T) {
 	f.svc.SendResetToken(ctx, "alice", "a@example.com")
 	token := strings.TrimPrefix(f.mail.next(t).body, "Your reset token is ")
 
-	if _, err := f.svc.Login(ctx, "alice", "oldpass1"); err != nil {
+	if _, err := f.svc.Login(ctx, "alice", "oldpass1", "198.51.100.1"); err != nil {
 		t.Fatal(err)
 	}
 	if err := f.svc.ResetPassword(ctx, "alice", token, "newpass1"); !errors.Is(err, ErrWrongToken) {
@@ -237,7 +237,7 @@ func TestChangePassword(t *testing.T) {
 	if err := f.svc.ChangePassword(ctx, "alice", "oldpass1", "newpass1"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.svc.Login(ctx, "alice", "newpass1"); err != nil {
+	if _, err := f.svc.Login(ctx, "alice", "newpass1", "198.51.100.1"); err != nil {
 		t.Errorf("login with changed password: %v", err)
 	}
 }
