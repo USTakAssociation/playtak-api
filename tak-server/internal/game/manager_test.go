@@ -321,6 +321,14 @@ func TestInsertFailureReleasesPlayers(t *testing.T) {
 	if !e.m.IfIdle(a.Name, func() {}) || !e.m.IfIdle(b.Name, func() {}) {
 		t.Error("players must be free to play again")
 	}
+	// Both are told: the seek's owner and the acceptor.
+	want := []protocol.Event{protocol.ServerMessage{Text: "Could not start the game. Please try again."}}
+	if got := ac.take(); !slices.Equal(got, want) {
+		t.Errorf("seek owner got %v", got)
+	}
+	if got := bc.take(); !slices.Equal(got, want) {
+		t.Errorf("acceptor got %v", got)
+	}
 }
 
 func TestMoves(t *testing.T) {

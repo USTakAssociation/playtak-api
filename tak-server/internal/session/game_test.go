@@ -432,3 +432,33 @@ func TestDisconnectStopsObserving(t *testing.T) {
 		t.Errorf("closed session still observing %v", got)
 	}
 }
+
+func TestGameStartFailureTellsBothPlayers(t *testing.T) {
+	h := newHarness(t, Config{})
+	// A games database missing a migration, as when one is skipped.
+	if _, err := h.gamesDB.Exec(`ALTER TABLE games DROP COLUMN increment_scales`); err != nil {
+		t.Fatal(err)
+	}
+	w, b := h.connect(), h.connect()
+	w.send("Login Guest")
+	w.drainUntil("OnlinePlayers")
+	b.send("Login Guest")
+	b.drainUntil("OnlinePlayers")
+	w.drainUntil("OnlinePlayers")
+	w.send("Seek 5 600 30 W 0 21 1 0 0 ")
+	w.drainUntil("Seek new")
+	b.drainUntil("Seek new")
+
+	b.send("Accept 1")
+	b.expect("Seek remove 1 Guest1 5 600 30 W 0 21 1 0 0 0 0 ")
+	b.expect("Message Could not start the game. Please try again.")
+	b.expect("NOK")
+	w.expect("Seek remove 1 Guest1 5 600 30 W 0 21 1 0 0 0 0 ")
+	w.expect("Message Could not start the game. Please try again.")
+	w.expectNothing()
+	b.expectNothing()
+
+	// Both are free to seek again.
+	w.send("Seek 5 600 30")
+	w.drainUntil("Seek new")
+}

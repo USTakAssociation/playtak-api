@@ -188,6 +188,12 @@ func (m *Manager) Accept(ctx context.Context, acceptor *player.Player, from List
 		delete(m.byPlayer, acceptor.Name)
 		delete(m.byPlayer, creator.Name)
 		m.mu.Unlock()
+		// The seek is already gone, so both sides are told why.
+		msg := protocol.ServerMessage{Text: "Could not start the game. Please try again."}
+		from.Send(msg)
+		if sk.Owner != seek.Listener(from) {
+			sk.Owner.Send(msg)
+		}
 		return nil, err
 	}
 
