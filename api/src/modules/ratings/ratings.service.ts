@@ -4,6 +4,7 @@ import { writeFileSync } from 'fs';
 import { access, readFile, writeFile } from 'fs/promises';
 import { Like, MoreThan, Repository } from 'typeorm';
 import { gzipSync } from 'zlib';
+import { LEGACY_GAMES_CUTOFF, LEGACY_GAMES_IGNORED_FOR_RATINGS } from '../../config/feature-flags';
 import { DefaultExceptionDto } from '../dto/error.dto';
 import { Fatigue, Player } from '../dto/players/player.dto';
 import { Rating, RatingList, RatingQuery } from '../dto/rating/ratings.dto';
@@ -43,7 +44,14 @@ export class RatingService {
 		}
 		try {
 			const results = await this.ratingRepository.findAndCount({
-				select: { name: true, rating: true, ratedgames: true, maxrating: true, participation_rating: true, isbot: true },
+				select: {
+					name: true,
+					rating: true,
+					ratedgames: true,
+					maxrating: true,
+					participation_rating: true,
+					isbot: true
+				},
 				where: whereSearch,
 				order: {
 					[sort]: order
@@ -69,7 +77,14 @@ export class RatingService {
 	public async getPlayersRating(name: string): Promise<Rating | DefaultExceptionDto> {
 		try {
 			const result = await this.ratingRepository.findOne({
-				select: { name: true, rating: true, ratedgames: true, participation_rating: true, maxrating: true, isbot: true },
+				select: {
+					name: true,
+					rating: true,
+					ratedgames: true,
+					participation_rating: true,
+					maxrating: true,
+					isbot: true
+				},
 				where: { name: name }
 			});
 			if (!result) {
@@ -172,8 +187,8 @@ export class RatingService {
 				.map(this.parseFatigue);
 			// get all the games
 			const gamesQuery = `
-				SELECT id, date, player_white, player_black, result, unrated, size, timertime, timerinc, pieces, capstones, length(notation) as notationlength FROM games 
-				where date>1461430800000 and id > ${lastUsedGame} 
+				SELECT id, date, player_white, player_black, result, unrated, size, timertime, timerinc, pieces, capstones, length(notation) as notationlength FROM games
+				where id > ${lastUsedGame} ${LEGACY_GAMES_IGNORED_FOR_RATINGS ? ` and date>${LEGACY_GAMES_CUTOFF}` : ''}
 				order by id asc limit 50000;`;
 			const gamesData = await gameRunner.manager.query(gamesQuery);
 

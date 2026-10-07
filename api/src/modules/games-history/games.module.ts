@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Games } from './entities/games.entity';
+import { PlayerGames } from './entities/player-games.entity';
 import { GamesController } from './games.controller';
 import { GamesService } from './games.service';
 import { PTNService } from './services/ptn.service';
@@ -10,7 +11,7 @@ import { PTNService } from './services/ptn.service';
 @Module({
 	controllers: [GamesController],
 	imports: [
-		TypeOrmModule.forFeature([Games], 'games'),
+		TypeOrmModule.forFeature([Games, PlayerGames], 'games'),
 		ThrottlerModule.forRootAsync({
 			useFactory: () => [
 				{
