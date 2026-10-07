@@ -79,12 +79,14 @@ func TestSudoKickThroughProtocol(t *testing.T) {
 	h.addPlayer("mona", true)
 	h.addPlayer("patty", false)
 	p := loginAs(h, "patty")
+	ps := p.conn.peer.(*Session)
 	m := loginAs(h, "mona")
 	m.send("sudo kick PATTY")
 	m.expect("sudoReply > sudo kick PATTY")
 	m.expect("sudoReply patty kicked")
-	p.drainUntil("") // whatever was queued is flushed first
 	p.expectClosed(transport.CloseKicked)
+	// Wait for patty's session to finish cleaning up, so they're offline.
+	<-ps.Done()
 	m.send("sudo kick patty")
 	m.drainUntil("sudoReply Player not logged in")
 }
