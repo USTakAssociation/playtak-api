@@ -156,6 +156,72 @@ describe('PTNService', () => {
 		});
 	});
 
+	describe('Clock notes', () => {
+		const base = {
+			id: 3,
+			date: 1653488350594,
+			size: 5,
+			player_white: 'alice',
+			player_black: 'carol',
+			notation: 'P A1,P E5,P C3',
+			result: '1-0',
+			timertime: 600,
+			timerinc: 5,
+			rating_white: 0,
+			rating_black: 0,
+			unrated: 0,
+			tournament: 0,
+			komi: 0,
+			pieces: 21,
+			capstones: 1,
+			rating_change_white: 0,
+			rating_change_black: 0,
+			clocks: '605000,598250,590125,0'
+		};
+
+		it('formats clocks the way PTN Ninja records them', () => {
+			expect(service.formatClockValue(605000)).toEqual('10:05');
+			expect(service.formatClockValue(3723000)).toEqual('1:02:03');
+			expect(service.formatClockValue(59999)).toEqual('0:59.999');
+			expect(service.formatClockValue(8340)).toEqual('0:08.34');
+			// Decimals are only kept under a minute, where PTN Ninja's timer shows them.
+			expect(service.formatClockValue(60500)).toEqual('1:00');
+			expect(service.formatClockValue(0)).toEqual('0:00');
+		});
+
+		it('are left out of the PTN unless asked for', () => {
+			expect(service.getPTN(base)).not.toContain('clock');
+			expect(service.getPTN(base)).toEqual(service.getPTN({ ...base, clocks: null }));
+		});
+
+		it("follow each ply with its mover's clock, then the player to move's final clock", () => {
+			const ptn = service.getPTN(base, { includeClocks: true });
+			expect(ptn).toContain('\n1. a1 {clock1:10:05} e5 {clock2:9:58}\n2. c3 {clock1:9:50} {clock2:0:00}\n1-0\n');
+		});
+
+		it('attribute plies by turn order in a double black stack game', () => {
+			const ptn = service.getPTN(
+				{ ...base, notation: 'P A1,P E5', clocks: '1000,2000,3000', opening: 'double black stack' },
+				{ includeClocks: true }
+			);
+			expect(ptn).toContain('\n1. 2a1 {clock1:0:01} e5 {clock2:0:02} {clock1:0:03}\n');
+		});
+
+		it('are skipped for games without usable clock data', () => {
+			const plain = service.getPTN(base);
+			expect(service.getPTN({ ...base, clocks: null }, { includeClocks: true })).toEqual(plain);
+			expect(service.getPTN({ ...base, clocks: undefined }, { includeClocks: true })).toEqual(plain);
+			expect(service.getPTN({ ...base, clocks: '' }, { includeClocks: true })).toEqual(plain);
+			// One value too few for the notation.
+			expect(service.getPTN({ ...base, clocks: '605000,598250,590125' }, { includeClocks: true })).toEqual(plain);
+			expect(service.getPTN({ ...base, clocks: '605000,abc,590125,0' }, { includeClocks: true })).toEqual(plain);
+		});
+
+		it('are not written for a game with no moves', () => {
+			expect(service.getMoves('', 'swap', [600000])).toEqual('');
+		});
+	});
+
 	describe('Get Timer Info', () => {
 		it('should return the correct string', () => {
 			const timerS = service.getTimerInfo(30, 20);

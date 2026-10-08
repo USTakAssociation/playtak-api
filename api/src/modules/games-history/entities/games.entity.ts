@@ -66,4 +66,9 @@ export class Games {
 
 	@Column({ default: 'swap' })
 	opening: string;
+
+	// Per-ply remaining clock in ms (see ptn.service parseClocks). Not selected by
+	// default: it is only needed for PTN Ninja links and would bloat game lists.
+	@Column({ type: 'text', nullable: true, select: false })
+	clocks: string | null;
 }
