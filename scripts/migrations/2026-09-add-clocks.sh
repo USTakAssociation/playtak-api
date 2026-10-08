@@ -5,7 +5,7 @@
 # Safe to re-run: the ALTER is skipped if the column already exists.
 set -e
 
-scriptpath=$(dirname "$(readlink -f "$0")")
+scriptpath=$(cd "$(dirname "$0")" && pwd)
 gamesdb="${1:-$scriptpath/../../playtakdb/games.db}"
 
 if [ ! -f "$gamesdb" ]; then
