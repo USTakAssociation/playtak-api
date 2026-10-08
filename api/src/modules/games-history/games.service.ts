@@ -303,7 +303,11 @@ export class GamesService {
 	async getRawPTN(id: number, includeClocks = false): Promise<any> {
 		try {
 			const result = includeClocks
-				? await this.findOneWithClocks(id)
+				? await this.repository
+						.createQueryBuilder('game')
+						.addSelect('game.clocks')
+						.where('game.id = :id', { id })
+						.getOne()
 				: await this.repository.findOne({
 						where: { id }
 					});
@@ -315,22 +319,6 @@ export class GamesService {
 		} catch (error) {
 			console.error(error);
 			throw new Error(error);
-		}
-	}
-
-	private async findOneWithClocks(id: number): Promise<Games | null> {
-		try {
-			return await this.repository
-				.createQueryBuilder('game')
-				.addSelect('game.clocks')
-				.where('game.id = :id', { id })
-				.getOne();
-		} catch (error) {
-			// A database not yet migrated to the clocks column still serves the plain PTN.
-			console.warn(`Could not read clocks for game ${id}:`, error);
-			return this.repository.findOne({
-				where: { id }
-			});
 		}
 	}
 }
