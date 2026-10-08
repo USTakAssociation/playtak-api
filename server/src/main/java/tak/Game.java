@@ -1237,47 +1237,38 @@ public class Game implements Publisher<GameUpdate>, GameSettings {
 
 	private void saveToDB() {
 		try {
-			String sql = "UPDATE games " + "SET notation=?, result=? " + "WHERE id=?";
+			String sql = "UPDATE games " + "SET notation=?, result=?, clocks=? " + "WHERE id=?";
 			PreparedStatement stmt = Database.gamesConnection.prepareStatement(sql);
 			stmt.setString(1, moveListString());
 			stmt.setString(2, gameStateString());
-			stmt.setInt(3, no);
+			stmt.setString(3, encodeClocks());
+			stmt.setInt(4, no);
 			stmt.executeUpdate();
 			stmt.close();
 		} catch (SQLException ex) {
 			Logger.getLogger(Player.class.getName()).log(Level.SEVERE, null, ex);
 		}
-		saveClocksToDB();
 	}
 
 	/**
-	 * Stores the per-ply clocks (see {@link ClockHistory}). Kept apart from
-	 * {@link #saveToDB()}'s statement so a database that has not been migrated to
-	 * the {@code clocks} column still records the game's notation and result.
+	 * The game's per-ply clocks for the {@code clocks} column (see
+	 * {@link ClockHistory}), or {@code null} when the snapshots do not line up
+	 * with the moves and the game is stored without them.
 	 */
-	private void saveClocksToDB() {
+	private String encodeClocks() {
 		// timeHistory holds the initial clocks followed by one snapshot per ply.
 		if (timeHistory.size() != moveList.size() + 1) {
 			Logger.getLogger(Game.class.getName()).log(Level.WARNING,
 					"Game#{0}: {1} clock snapshots for {2} moves, not saving clocks",
 					new Object[]{no, timeHistory.size(), moveList.size()});
-			return;
+			return null;
 		}
 		List<long[]> clocksAfterPly = new ArrayList<>();
 		for (int i = 1; i < timeHistory.size(); i++) {
 			TimeSnapshot snap = timeHistory.get(i);
 			clocksAfterPly.add(new long[]{snap.whiteTime, snap.blackTime});
 		}
-		try {
-			String sql = "UPDATE games SET clocks=? WHERE id=?";
-			PreparedStatement stmt = Database.gamesConnection.prepareStatement(sql);
-			stmt.setString(1, ClockHistory.encode(clocksAfterPly, sideToMoveTimeAtEnd()));
-			stmt.setInt(2, no);
-			stmt.executeUpdate();
-			stmt.close();
-		} catch (SQLException ex) {
-			Logger.getLogger(Game.class.getName()).log(Level.WARNING, "Game#" + no + ": could not save clocks", ex);
-		}
+		return ClockHistory.encode(clocksAfterPly, sideToMoveTimeAtEnd());
 	}
 
 	/**
