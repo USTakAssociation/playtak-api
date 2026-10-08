@@ -34,7 +34,7 @@ class ClockHistoryTest {
 	}
 
 	@Test
-	void aFlaggedClockIsStoredAsZero() {
+	void aClockThatRanOutIsStoredAsZero() {
 		List<long[]> clocks = List.<long[]>of(new long[]{5_000, 3_000});
 		assertEquals("5000,0", ClockHistory.encode(clocks, -42));
 	}

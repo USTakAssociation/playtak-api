@@ -37,7 +37,7 @@ final class ClockHistory {
 		return joiner.toString();
 	}
 
-	// A player who flags has run their clock below zero by the time the timeout fires.
+	// A player's clock has gone below zero by the time their timeout fires.
 	private static long clamp(long ms) {
 		return Math.max(ms, 0L);
 	}
