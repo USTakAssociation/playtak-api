@@ -43,8 +43,10 @@ func (p *echoPeer) HandleLine(line string) {
 		p.c.Send("addr:" + p.c.RemoteAddr())
 	}
 	if line == "flood" {
+		// About 16 MB: more than the kernel's socket buffers can absorb, so
+		// a client that doesn't read really does fall behind.
 		for range 2 * transport.SendQueueSize {
-			p.c.Send(strings.Repeat("x", 1000))
+			p.c.Send(strings.Repeat("x", 8*1024))
 		}
 	}
 }

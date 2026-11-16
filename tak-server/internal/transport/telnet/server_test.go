@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -128,7 +129,22 @@ func TestIdleTimeout(t *testing.T) {
 
 func TestSlowClientIsDisconnected(t *testing.T) {
 	addr, echo := start(t, 0)
-	c := dial(t, addr)
+	// A small receive buffer, set before connecting so the TCP window stays
+	// small: otherwise a large default buffer (Linux allows tens of MB) can
+	// absorb the whole flood and the client never falls behind.
+	dialer := net.Dialer{Control: func(_, _ string, raw syscall.RawConn) error {
+		var setErr error
+		err := raw.Control(func(fd uintptr) {
+			setErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_RCVBUF, 4096)
+		})
+		return errors.Join(err, setErr)
+	}}
+	nc, err := dialer.Dial("tcp", addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { nc.Close() })
+	c := &client{t: t, nc: nc, r: bufio.NewReader(nc)}
 	c.expect("hello")
 	c.write("flood\n") // never read: the queue overflows
 	select {
