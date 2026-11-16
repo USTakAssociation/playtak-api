@@ -1167,8 +1167,8 @@ Room names:
   create them.
 - Joining any other name creates the room if it does not exist. The server
   removes a room when its last member leaves.
-- Room names are not checked for profanity. Moderators can kick players who
-  misuse them.
+- Room names are not filtered. Moderators can kick players who misuse
+  them.
 
 You join rooms per connection. Each connection joins its own rooms, and a
 new connection must join them again.
@@ -1205,7 +1205,8 @@ ends, for post-game chat, until its last member leaves.
 | `chat.joined` | `room` (string), `username` (string) | Everyone in the room, including the player who joined. Not sent for `global`. |
 | `chat.left` | `room` (string), `username` (string) | Everyone in the room, including the player who left. Not sent for `global`. |
 
-Messages are limited to 256 characters. Profanity is masked.
+Messages are limited to 256 characters. Chat is not filtered; moderators
+handle abuse with gag, kick and ban.
 
 Messages reach only players who are online. Chat history, messages to
 offline players and room member lists may come later (see
@@ -1503,7 +1504,7 @@ fetch("https://beta.playtak.com/api/v1/auth/guest", {
 
 | Field | Rule |
 | --- | --- |
-| Username | 4 to 16 characters: a letter, then letters, digits or `_`. Must not contain "guest", contain profanity, or look like an existing name (names that differ only by case, or by look-alike characters, count as the same). |
+| Username | 4 to 16 characters: a letter, then letters, digits or `_`. Must not contain "guest", or look like an existing name (names that differ only by case, or by look-alike characters, count as the same). |
 | Email | Up to 30 characters before the `@` (letters, digits and ``.!#$%&'*+-=?^_``), and 3 to 30 after it (letters, digits, `.` and `-`) |
 | Password | 6 to 50 characters, with no spaces |
 
@@ -1524,7 +1525,7 @@ Creates an account. The password is emailed.
 | Status | Body |
 | --- | --- |
 | `201` | `{"name":"alice"}` |
-| `400` | `invalid_username`, `invalid_email`, `guest_name` or `profanity` |
+| `400` | `invalid_username`, `invalid_email` or `guest_name` |
 | `409` | `name_taken` |
 | `429` | `rate_limited` |
 

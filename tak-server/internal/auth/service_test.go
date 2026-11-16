@@ -34,17 +34,6 @@ func (m fakeMailer) next(t *testing.T) sentMail {
 	}
 }
 
-type fakeProfanity []string
-
-func (f fakeProfanity) ContainsBadWord(s string) bool {
-	for _, w := range f {
-		if strings.Contains(strings.ToLower(s), w) {
-			return true
-		}
-	}
-	return false
-}
-
 type fixture struct {
 	svc   *Service
 	store *players.Store
@@ -57,7 +46,7 @@ func newFixture(t *testing.T) fixture {
 	store := players.NewStore(conn)
 	mail := make(fakeMailer, 10)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := NewService(store, players.NewTokenStore(conn), mail, fakeProfanity{"darn"}, log)
+	svc := NewService(store, players.NewTokenStore(conn), mail, log)
 	return fixture{svc: svc, store: store, mail: mail}
 }
 
@@ -153,7 +142,6 @@ func TestRegister(t *testing.T) {
 		{"1abc", "x@example.com", ErrInvalidUsername},
 		{"valid", "not-an-email", ErrInvalidEmail},
 		{"MyGuestName", "x@example.com", ErrGuestName},
-		{"darnit", "x@example.com", ErrProfanity},
 		{"newbie", "x@example.com", ErrNameTaken},
 		{"NEWB1E", "x@example.com", ErrNameTaken},
 	} {

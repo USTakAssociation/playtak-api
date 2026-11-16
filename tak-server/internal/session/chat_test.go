@@ -23,9 +23,10 @@ func TestShoutThroughProtocol(t *testing.T) {
 	a.drainUntil("OnlinePlayers")
 	lurker := h.connect() // not logged in: hears nothing
 
+	// Chat isn't filtered: words reach everyone as sent.
 	a.send("Shout hello darn world 😀")
-	a.expect("Shout <Guest1> hello **** world 😀")
-	b.expect("Shout <Guest1> hello **** world 😀")
+	a.expect("Shout <Guest1> hello darn world 😀")
+	b.expect("Shout <Guest1> hello darn world 😀")
 	lurker.expectNothing()
 }
 
@@ -55,8 +56,8 @@ func TestTellThroughProtocol(t *testing.T) {
 
 	// Names match ignoring case; Told shows the name as registered.
 	b.send("Tell alice psst darn")
-	a.expect("Tell <bobby> psst ****")
-	b.expect("Told <Alice> psst ****")
+	a.expect("Tell <bobby> psst darn")
+	b.expect("Told <Alice> psst darn")
 
 	b.send("Tell nobody1 hi")
 	b.expect("Error:Player is not online")
@@ -100,8 +101,8 @@ func TestRoomsThroughProtocol(t *testing.T) {
 	b.expect("Joined room lobby")
 
 	a.send("ShoutRoom lobby hi darn")
-	a.expect("ShoutRoom lobby <Guest1> hi ****")
-	b.expect("ShoutRoom lobby <Guest1> hi ****")
+	a.expect("ShoutRoom lobby <Guest1> hi darn")
+	b.expect("ShoutRoom lobby <Guest1> hi darn")
 	c.expectNothing()
 
 	c.send("ShoutRoom lobby let me in")

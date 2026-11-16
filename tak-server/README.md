@@ -100,9 +100,8 @@ Inside a package, files are split by area. The two largest:
 | `internal/seek` | Open seeks and rematches. |
 | `internal/game` | Live games: the game goroutine, clocks, undo/draw/give time, observers, disconnects, and saving results. |
 | `internal/tak` | The rules of Tak: placing, moving, roads, flat wins, TPS. |
-| `internal/chat` | Shout, rooms and Tell, with profanity masking and gagging. |
+| `internal/chat` | Shout, rooms and Tell, and keeping gagged players' messages to themselves. |
 | `internal/moderation` | `sudo` commands for moderators and admins. |
-| `internal/wordfilter` | The profanity word list, used for usernames and chat. |
 | `internal/api` | The HTTP REST API. |
 | `internal/clientip` | Finds the client's real IP behind a reverse proxy, trusting proxy headers only from configured proxies. |
 | `internal/ratelimit` | Per-key token buckets (per IP, per username), built on `golang.org/x/time/rate`. |
@@ -192,7 +191,6 @@ main ones:
 | `TAK_GAME_COMMAND_TIMEOUT` | `10s` | How long a command waits for its game before failing with NOK. |
 | `TAK_PENDING_RESULTS_FILE` | beside the games DB | Where finished games wait until they're saved. |
 | `TAK_ALLOW_MULTIPLE_SESSIONS` | `false` | Let a player stay logged in on several connections. See [docs/multi-session-cleanup.md](docs/multi-session-cleanup.md). |
-| `TAK_BADWORDS_URL` | shared Google Sheet | CSV word list for the profanity filter. Must be an http(s) URL. |
 | `TAK_SMTP_*` | empty | Outgoing email. Empty means emails are logged instead; their bodies only at `debug` level, since they can hold passwords. |
 | `TAK_SERVICE_API_KEY` | empty | Shared secret for service-to-service calls such as `PUT /api/v1/seeks`. Empty disables them. |
 | `TAK_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`. |
@@ -420,6 +418,7 @@ The deliberate changes in client-visible behaviour, for release notes:
 - `ShoutRoom` requires having joined the room first, otherwise it replies `Error:You are not in that room`.
 - Message length counts characters, so an emoji counts as one, not two.
 - The IRC bridge is gone.
+- No profanity filter: chat isn't masked and usernames aren't checked for bad words. Moderators handle abuse with gag, kick and ban. `sudo reload wordconfig` now replies `Command not found`.
 
 **Moderation**
 - Ranks are enforced: a moderator acts only on players, an admin on players and moderators, and nobody acts on themselves. Java let a moderator act on an admin who wasn't also flagged mod.

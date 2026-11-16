@@ -21,7 +21,6 @@ import (
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/online"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/transport"
-	"github.com/USTakAssociation/playtak-api/tak-server/internal/wordfilter"
 )
 
 // fakeConn stands in for a transport connection. Closing it ends the
@@ -90,7 +89,7 @@ func newHarnessWithGames(t *testing.T, cfg Config, gameCfg game.Config) *harness
 	store := players.NewStore(conn)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	mail := &sentMail{}
-	authSvc := auth.NewService(store, players.NewTokenStore(conn), mail, &wordfilter.Filter{}, log)
+	authSvc := auth.NewService(store, players.NewTokenStore(conn), mail, log)
 	registry := online.NewRegistry()
 	seeks := seek.NewManager()
 
@@ -102,29 +101,15 @@ func newHarnessWithGames(t *testing.T, cfg Config, gameCfg game.Config) *harness
 	go results.Run(ctx)
 	gm := game.NewManager(gameCfg, gameStore, store, results, seeks, registry, log)
 
-	reload := func(context.Context) (int, error) { return 0, nil }
 	m := NewManager(context.Background(), Services{
 		Auth:       authSvc,
 		Players:    registry,
 		Seeks:      seeks,
 		Games:      gm,
-		Chat:       chat.NewService(maskWord{"darn"}, log),
-		Moderation: moderation.NewService(store, authSvc, gm, registry, mail, reload, log),
+		Chat:       chat.NewService(log),
+		Moderation: moderation.NewService(store, authSvc, gm, registry, mail, log),
 	}, cfg, log)
 	return &harness{t: t, m: m, store: store, gamesDB: gamesDB, mail: mail}
-}
-
-// maskWord masks one word, standing in for the profanity filter.
-type maskWord struct{ word string }
-
-func (w maskWord) Mask(s string) string {
-	parts := strings.Split(s, " ")
-	for i, p := range parts {
-		if p == w.word {
-			parts[i] = "****"
-		}
-	}
-	return strings.Join(parts, " ")
 }
 
 // addPlayer creates a registered player whose password is "password".

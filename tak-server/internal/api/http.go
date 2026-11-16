@@ -134,8 +134,6 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_email")
 	case errors.Is(err, auth.ErrGuestName):
 		writeError(w, http.StatusBadRequest, "guest_name")
-	case errors.Is(err, auth.ErrProfanity):
-		writeError(w, http.StatusBadRequest, "profanity")
 	case errors.Is(err, auth.ErrNameTaken):
 		writeError(w, http.StatusConflict, "name_taken")
 	default:

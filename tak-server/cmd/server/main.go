@@ -31,7 +31,6 @@ import (
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/transport"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/transport/telnet"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/transport/websocket"
-	"github.com/USTakAssociation/playtak-api/tak-server/internal/wordfilter"
 )
 
 const (
@@ -73,15 +72,6 @@ func run(ctx context.Context, settings *config.Config, log *slog.Logger) error {
 	}
 	defer gamesDB.Close()
 
-	var filter wordfilter.Filter
-	loadCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	if n, err := filter.Load(loadCtx, settings.BadWordsURL); err != nil {
-		log.Warn("profanity filter disabled", "err", err)
-	} else {
-		log.Info("loaded profanity filter", "words", n)
-	}
-	cancel()
-
 	var mailer auth.Mailer = email.Log{Logger: log}
 	if settings.SMTP.Host != "" {
 		mailer = email.NewSMTP(settings.SMTP.Host, settings.SMTP.User, settings.SMTP.Password, settings.SMTP.From)
@@ -90,7 +80,7 @@ func run(ctx context.Context, settings *config.Config, log *slog.Logger) error {
 	}
 
 	playerStore := players.NewStore(playersDB)
-	authSvc := auth.NewService(playerStore, players.NewTokenStore(playersDB), mailer, &filter, log)
+	authSvc := auth.NewService(playerStore, players.NewTokenStore(playersDB), mailer, log)
 	registry := online.NewRegistry()
 	seeks := seek.NewManager()
 
@@ -107,14 +97,13 @@ func run(ctx context.Context, settings *config.Config, log *slog.Logger) error {
 		CommandTimeout:             settings.GameCommandTimeout,
 		AllowMultipleSessions:      settings.AllowMultipleSessions,
 	}, gameStore, playerStore, results, seeks, registry, log)
-	reloadWords := func(ctx context.Context) (int, error) { return filter.Load(ctx, settings.BadWordsURL) }
 	sessions := session.NewManager(ctx, session.Services{
 		Auth:       authSvc,
 		Players:    registry,
 		Seeks:      seeks,
 		Games:      gameManager,
-		Chat:       chat.NewService(&filter, log),
-		Moderation: moderation.NewService(playerStore, authSvc, gameManager, registry, mailer, reloadWords, log),
+		Chat:       chat.NewService(log),
+		Moderation: moderation.NewService(playerStore, authSvc, gameManager, registry, mailer, log),
 	}, session.Config{AllowMultipleSessions: settings.AllowMultipleSessions}, log)
 	if settings.ServiceAPIKey == "" {
 		log.Warn("TAK_SERVICE_API_KEY not set; service endpoints such as PUT /api/v1/seeks are disabled")

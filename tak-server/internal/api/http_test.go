@@ -18,7 +18,6 @@ import (
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/email"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/online"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
-	"github.com/USTakAssociation/playtak-api/tak-server/internal/wordfilter"
 )
 
 // bcrypt hash of "password"
@@ -36,7 +35,7 @@ func newTestServerWithSeeks(t *testing.T) (*httptest.Server, *players.Store, *on
 	conn := dbtest.NewPlayersDB(t)
 	store := players.NewStore(conn)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	authSvc := auth.NewService(store, players.NewTokenStore(conn), email.Log{Logger: log}, &wordfilter.Filter{}, log)
+	authSvc := auth.NewService(store, players.NewTokenStore(conn), email.Log{Logger: log}, log)
 	reg := online.NewRegistry()
 	seeks := seek.NewManager()
 	srv := httptest.NewServer(NewServer(authSvc, reg, seeks, serviceKey, &clientip.Resolver{}, log).Handler())

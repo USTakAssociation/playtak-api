@@ -24,7 +24,8 @@ func TestParseSudo(t *testing.T) {
 		{"sudo list gag", sudo("sudo list gag", protocol.SudoList, "", "gag")},
 		{"sudo list online", sudo("sudo list online", protocol.SudoList, "", "online")},
 		{"sudo broadcast Server going down", sudo("sudo broadcast Server going down", protocol.SudoBroadcast, "", "Server going down")},
-		{"sudo reload wordconfig", sudo("sudo reload wordconfig", protocol.SudoReloadWords, "", "")},
+		// The bad word filter was dropped, so its reload command is unknown.
+		{"sudo reload wordconfig", sudo("sudo reload wordconfig", protocol.SudoUnknown, "", "")},
 		{"sudo mod alice", sudo("sudo mod alice", protocol.SudoMod, "alice", "")},
 		{"sudo unmod alice", sudo("sudo unmod alice", protocol.SudoUnmod, "alice", "")},
 		{"sudo admin alice", sudo("sudo admin alice", protocol.SudoAdmin, "alice", "")},

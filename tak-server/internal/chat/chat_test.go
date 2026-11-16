@@ -27,14 +27,9 @@ func (m *member) take() []protocol.Event {
 	return ev
 }
 
-// upper "masks" by upper-casing, so tests can see masking was applied.
-type upper struct{}
-
-func (upper) Mask(s string) string { return strings.ToUpper(s) }
-
 func newService() (*Service, *bytes.Buffer) {
 	var log bytes.Buffer
-	return NewService(upper{}, slog.New(slog.NewTextHandler(&log, nil))), &log
+	return NewService(slog.New(slog.NewTextHandler(&log, nil))), &log
 }
 
 func (s *Service) roomCount() int {
@@ -47,7 +42,7 @@ func TestShout(t *testing.T) {
 	s, log := newService()
 	a, b := &member{}, &member{}
 	s.Shout(Sender{Name: "alice", Session: a}, []Member{a, b}, "hello")
-	want := []protocol.Event{protocol.Shout{From: "alice", Text: "HELLO"}}
+	want := []protocol.Event{protocol.Shout{From: "alice", Text: "hello"}}
 	for _, m := range []*member{a, b} {
 		if got := m.take(); !slices.Equal(got, want) {
 			t.Errorf("got %v, want %v", got, want)
@@ -88,7 +83,7 @@ func TestRooms(t *testing.T) {
 	if err := s.ShoutRoom(Sender{Name: "alice", Session: a}, "lobby", "hi"); err != nil {
 		t.Fatal(err)
 	}
-	want := []protocol.Event{protocol.RoomShout{Room: "lobby", From: "alice", Text: "HI"}}
+	want := []protocol.Event{protocol.RoomShout{Room: "lobby", From: "alice", Text: "hi"}}
 	for _, m := range []*member{a, b} {
 		if got := m.take(); !slices.Equal(got, want) {
 			t.Errorf("member got %v", got)
@@ -171,10 +166,10 @@ func TestTell(t *testing.T) {
 	if err := s.Tell(Sender{Name: "alice", Session: sender}, "Bobby", target, "secret"); err != nil {
 		t.Fatal(err)
 	}
-	if got := target.take(); !slices.Equal(got, []protocol.Event{protocol.TellReceived{From: "alice", Text: "SECRET"}}) {
+	if got := target.take(); !slices.Equal(got, []protocol.Event{protocol.TellReceived{From: "alice", Text: "secret"}}) {
 		t.Errorf("target got %v", got)
 	}
-	if got := sender.take(); !slices.Equal(got, []protocol.Event{protocol.Told{To: "Bobby", Text: "SECRET"}}) {
+	if got := sender.take(); !slices.Equal(got, []protocol.Event{protocol.Told{To: "Bobby", Text: "secret"}}) {
 		t.Errorf("sender got %v", got)
 	}
 	if strings.Contains(strings.ToLower(log.String()), "secret") {

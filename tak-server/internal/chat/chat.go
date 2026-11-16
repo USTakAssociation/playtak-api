@@ -1,5 +1,5 @@
-// Package chat delivers shouts, room shouts and private tells, masking
-// profanity and keeping gagged players' messages to themselves.
+// Package chat delivers shouts, room shouts and private tells, keeping
+// gagged players' messages to themselves.
 package chat
 
 import (
@@ -38,23 +38,17 @@ type Sender struct {
 	Session Member // where the sender's own copy goes
 }
 
-// Masker hides profanity.
-type Masker interface {
-	Mask(s string) string
-}
-
 // Service delivers chat. Every message passes through it, which is where
 // chat history would be recorded.
 type Service struct {
-	masker Masker
-	log    *slog.Logger
+	log *slog.Logger
 
 	mu    sync.Mutex
 	rooms map[string]map[Member]struct{}
 }
 
-func NewService(masker Masker, log *slog.Logger) *Service {
-	return &Service{masker: masker, log: log, rooms: make(map[string]map[Member]struct{})}
+func NewService(log *slog.Logger) *Service {
+	return &Service{log: log, rooms: make(map[string]map[Member]struct{})}
 }
 
 // Shout sends text to everyone, or only back to a gagged sender.
@@ -65,7 +59,7 @@ func (s *Service) Shout(from Sender, everyone []Member, text string) {
 		from.Session.Send(protocol.Shout{From: from.Name, Text: mutedNotice})
 		return
 	}
-	event := protocol.Shout{From: from.Name, Text: s.masker.Mask(text)}
+	event := protocol.Shout{From: from.Name, Text: text}
 	for _, m := range everyone {
 		m.Send(event)
 	}
@@ -139,7 +133,7 @@ func (s *Service) ShoutRoom(from Sender, room, text string) error {
 		from.Session.Send(protocol.RoomShout{Room: room, From: from.Name, Text: mutedNotice})
 		return nil
 	}
-	event := protocol.RoomShout{Room: room, From: from.Name, Text: s.masker.Mask(text)}
+	event := protocol.RoomShout{Room: room, From: from.Name, Text: text}
 	for _, m := range members {
 		m.Send(event)
 	}
@@ -164,9 +158,8 @@ func (s *Service) Tell(from Sender, to string, target Recipient, text string) er
 		from.Session.Send(protocol.Told{To: to, Text: mutedNotice})
 		return nil
 	}
-	masked := s.masker.Mask(text)
-	target.Send(protocol.TellReceived{From: from.Name, Text: masked})
-	from.Session.Send(protocol.Told{To: to, Text: masked})
+	target.Send(protocol.TellReceived{From: from.Name, Text: text})
+	from.Session.Send(protocol.Told{To: to, Text: text})
 	return nil
 }
 

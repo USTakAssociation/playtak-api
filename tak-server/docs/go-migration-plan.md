@@ -122,9 +122,8 @@ tak-server/
 │   │   ├── clock.go           # time bookkeeping
 │   │   └── manager.go         # starting games, the game list, saving results
 │   ├── tak/                   # rules engine: game.go, stone.go, roads.go, tps.go, result.go
-│   ├── chat/chat.go           # shout, rooms, tell, masking, gagging
+│   ├── chat/chat.go           # shout, rooms, tell, gagging
 │   ├── moderation/            # sudo commands for moderators and admins
-│   ├── wordfilter/            # profanity word list
 │   ├── api/                   # REST: http.go (routing, auth endpoints), seeks.go
 │   ├── clientip/              # client IP behind a trusted reverse proxy
 │   ├── ratelimit/             # per-key token buckets

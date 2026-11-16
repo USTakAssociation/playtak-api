@@ -12,7 +12,6 @@ var (
 	reSudo       = regexp.MustCompile(`^sudo ([^\n\r]{1,256})`)
 	reSudoBan    = regexp.MustCompile(`^sudo ban ` + sudoName + ` ([^\n\r]{1,256})`)
 	reSudoList   = regexp.MustCompile(`^sudo list ([a-zA-Z]{3,15})`)
-	reSudoReload = regexp.MustCompile(`^sudo reload wordconfig`)
 	reSudoSet    = regexp.MustCompile(`^sudo set ([a-zA-Z]{3,15}) ` + sudoName + ` ([^\n\r\s]{6,100})`)
 	reSudoSetAny = regexp.MustCompile(`^(sudo set \S+ \S+ )\S+`)
 	reSudoBcast  = regexp.MustCompile(`^sudo broadcast ([^\n\r]{1,256})`)
@@ -40,8 +39,6 @@ func parseSudo(line string) protocol.Command {
 		command.Action, command.Name, command.Arg = protocol.SudoBan, m[1], m[2]
 	} else if m := reSudoList.FindStringSubmatch(line); m != nil {
 		command.Action, command.Arg = protocol.SudoList, m[1]
-	} else if reSudoReload.MatchString(line) {
-		command.Action = protocol.SudoReloadWords
 	} else if m := reSudoSet.FindStringSubmatch(line); m != nil {
 		if m[1] == "password" {
 			command.Action, command.Name, command.Arg = protocol.SudoSetPassword, m[2], m[3]

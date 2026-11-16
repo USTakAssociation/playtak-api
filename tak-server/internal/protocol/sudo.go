@@ -12,7 +12,6 @@ const (
 	SudoUnban
 	SudoList
 	SudoBroadcast
-	SudoReloadWords
 	SudoMod
 	SudoUnmod
 	SudoAdmin

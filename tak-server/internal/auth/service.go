@@ -22,7 +22,6 @@ var (
 	ErrInvalidEmail    = errors.New("invalid email")
 	ErrInvalidPassword = errors.New("invalid password")
 	ErrGuestName       = errors.New("username contains guest")
-	ErrProfanity       = errors.New("username contains profanity")
 	ErrNameTaken       = errors.New("username is already taken")
 	ErrNoSuchPlayer    = errors.New("no such player")
 	ErrEmailMismatch   = errors.New("email does not match")
@@ -64,17 +63,12 @@ type Mailer interface {
 	Send(ctx context.Context, to, subject, body string) error
 }
 
-type ProfanityChecker interface {
-	ContainsBadWord(s string) bool
-}
-
 type Service struct {
-	players   PlayerStore
-	tokens    TokenStore
-	mail      Mailer
-	profanity ProfanityChecker
-	log       *slog.Logger
-	now       func() time.Time
+	players PlayerStore
+	tokens  TokenStore
+	mail    Mailer
+	log     *slog.Logger
+	now     func() time.Time
 
 	limits *limiters // nil: no rate limits (see EnableLimits)
 
@@ -87,12 +81,11 @@ type resetToken struct {
 	expires time.Time
 }
 
-func NewService(ps PlayerStore, ts TokenStore, mail Mailer, profanity ProfanityChecker, log *slog.Logger) *Service {
+func NewService(ps PlayerStore, ts TokenStore, mail Mailer, log *slog.Logger) *Service {
 	return &Service{
 		players:     ps,
 		tokens:      ts,
 		mail:        mail,
-		profanity:   profanity,
 		log:         log,
 		now:         time.Now,
 		resetTokens: make(map[string]resetToken),
@@ -165,8 +158,6 @@ func (s *Service) Register(ctx context.Context, name, email, ip string) (players
 		return players.Record{}, ErrInvalidEmail
 	case strings.Contains(strings.ToLower(name), "guest"):
 		return players.Record{}, ErrGuestName
-	case s.profanity.ContainsBadWord(name):
-		return players.Record{}, ErrProfanity
 	}
 
 	password := newTemporaryPassword()

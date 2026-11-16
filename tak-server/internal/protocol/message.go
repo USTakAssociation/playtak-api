@@ -135,7 +135,6 @@ type RegistrationError int
 const (
 	RegistrationMalformed RegistrationError = iota
 	RegistrationGuestName
-	RegistrationProfanity
 	RegistrationNameTaken
 	RegistrationServerError
 	RegistrationRateLimited

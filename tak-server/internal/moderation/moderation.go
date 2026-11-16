@@ -43,18 +43,17 @@ type Result struct {
 }
 
 type Service struct {
-	store       Store
-	accounts    Accounts
-	games       Games
-	registry    *online.Registry
-	mail        Mailer
-	reloadWords func(context.Context) (int, error)
-	log         *slog.Logger
+	store    Store
+	accounts Accounts
+	games    Games
+	registry *online.Registry
+	mail     Mailer
+	log      *slog.Logger
 }
 
 func NewService(store Store, accounts Accounts, games Games, registry *online.Registry, mail Mailer,
-	reloadWords func(context.Context) (int, error), log *slog.Logger) *Service {
-	return &Service{store: store, accounts: accounts, games: games, registry: registry, mail: mail, reloadWords: reloadWords, log: log}
+	log *slog.Logger) *Service {
+	return &Service{store: store, accounts: accounts, games: games, registry: registry, mail: mail, log: log}
 }
 
 // rank orders authority: a moderator acts on players, an admin on players
@@ -121,12 +120,6 @@ func (s *Service) run(ctx context.Context, actor *online.Player, command protoco
 		// Sent as a raw protocol line, as the Java server did: admins use it
 		// for Message, Error:, Shout, ShoutRoom and Tell announcements.
 		return Result{Broadcast: command.Arg}
-	case protocol.SudoReloadWords:
-		if _, err := s.reloadWords(ctx); err != nil {
-			s.log.Error("reload bad word filter", "err", err)
-			return reply("Could not reload the bad word filter")
-		}
-		return reply("Bad word filter reloaded")
 	case protocol.SudoMod, protocol.SudoUnmod:
 		return reply(s.setRole(ctx, actor, command.Name, players.FlagMod, command.Action == protocol.SudoMod, "moderator"))
 	case protocol.SudoAdmin, protocol.SudoUnadmin:

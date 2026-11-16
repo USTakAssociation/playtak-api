@@ -37,9 +37,6 @@ type Config struct {
 	// EventSubscriberURL receives game update webhooks. Empty disables them.
 	EventSubscriberURL string // TAK_EVENT_SUBSCRIBER_URL
 
-	// BadWordsURL is the CSV word list for the profanity filter.
-	BadWordsURL string // TAK_BADWORDS_URL
-
 	// AllowMultipleSessions lets a player be logged in on several
 	// connections at once. When false, a new login disconnects the old one.
 	AllowMultipleSessions bool // TAK_ALLOW_MULTIPLE_SESSIONS
@@ -68,8 +65,6 @@ type SMTP struct {
 	Password string // TAK_SMTP_PASSWORD
 	From     string // TAK_SMTP_FROM
 }
-
-const defaultBadWordsURL = "https://docs.google.com/spreadsheets/d/1eVhQjZe1wbZdPQ4a2IlZ-jJUsgZmVoyrzXAjlQpA7hk/export?format=csv"
 
 // Load reads .env (if present) and then the environment.
 func Load() (*Config, error) {
@@ -134,7 +129,6 @@ func FromEnv(getenv func(string) string) (*Config, error) {
 		GameCommandTimeout:         commandTimeout,
 		PendingResultsFile:         get("TAK_PENDING_RESULTS_FILE", filepath.Join(filepath.Dir(gamesDB), "pending-game-results.jsonl")),
 		EventSubscriberURL:         getenv("TAK_EVENT_SUBSCRIBER_URL"),
-		BadWordsURL:                get("TAK_BADWORDS_URL", defaultBadWordsURL),
 		AllowMultipleSessions:      multi,
 		LogLevel:                   level,
 		ServiceAPIKey:              getenv("TAK_SERVICE_API_KEY"),

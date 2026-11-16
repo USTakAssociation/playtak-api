@@ -17,7 +17,6 @@ import (
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/email"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/online"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
-	"github.com/USTakAssociation/playtak-api/tak-server/internal/wordfilter"
 )
 
 // newLimitedServer has auth limits on. trusted lists proxies whose headers
@@ -27,7 +26,7 @@ func newLimitedServer(t *testing.T, trusted string) (*httptest.Server, *players.
 	conn := dbtest.NewPlayersDB(t)
 	store := players.NewStore(conn)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	authSvc := auth.NewService(store, players.NewTokenStore(conn), email.Log{Logger: log}, &wordfilter.Filter{}, log)
+	authSvc := auth.NewService(store, players.NewTokenStore(conn), email.Log{Logger: log}, log)
 	authSvc.EnableLimits(true)
 	resolver, err := clientip.NewResolver(trusted)
 	if err != nil {

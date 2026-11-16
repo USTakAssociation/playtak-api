@@ -86,8 +86,6 @@ func (s *Session) register(ctx context.Context, command protocol.Register) {
 		reason = protocol.RegistrationMalformed
 	case errors.Is(err, auth.ErrGuestName):
 		reason = protocol.RegistrationGuestName
-	case errors.Is(err, auth.ErrProfanity):
-		reason = protocol.RegistrationProfanity
 	case errors.Is(err, auth.ErrNameTaken):
 		reason = protocol.RegistrationNameTaken
 	case errors.Is(err, auth.ErrRateLimited):

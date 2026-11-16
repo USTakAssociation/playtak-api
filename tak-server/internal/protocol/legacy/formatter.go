@@ -131,7 +131,6 @@ func line(s string) ([]string, error) { return []string{s}, nil }
 var registrationErrors = map[protocol.RegistrationError]string{
 	protocol.RegistrationMalformed:   "Unknown format for username/email. Only [a-z][A-Z][0-9][_] allowed for username, it should be 4-16 characters and should start with letter",
 	protocol.RegistrationGuestName:   "Can't register with guest in the name",
-	protocol.RegistrationProfanity:   "Username cannot contain profanity",
 	protocol.RegistrationNameTaken:   "Username is already taken",
 	protocol.RegistrationServerError: "Server error, please try again later",
 	protocol.RegistrationRateLimited: "Too many registrations, please try again later",

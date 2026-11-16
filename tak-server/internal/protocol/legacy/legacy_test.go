@@ -80,7 +80,6 @@ func TestFormat(t *testing.T) {
 		{protocol.Shout{From: "Server", Text: "hi 🐢"}, []string{"Shout <Server> hi 🐢"}},
 		{protocol.Registered{Name: "bob"}, []string{"Registered bob. Check your email for password"}},
 		{protocol.RegistrationFailed{Reason: protocol.RegistrationGuestName}, []string{"Registration Error: Can't register with guest in the name"}},
-		{protocol.RegistrationFailed{Reason: protocol.RegistrationProfanity}, []string{"Registration Error: Username cannot contain profanity"}},
 		{protocol.RegistrationFailed{Reason: protocol.RegistrationNameTaken}, []string{"Registration Error: Username is already taken"}},
 		{protocol.RegistrationFailed{Reason: protocol.RegistrationMalformed}, []string{"Registration Error: Unknown format for username/email. Only [a-z][A-Z][0-9][_] allowed for username, it should be 4-16 characters and should start with letter"}},
 		{protocol.ResetTokenSent{}, []string{"Reset token sent"}},

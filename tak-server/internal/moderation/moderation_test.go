@@ -76,8 +76,6 @@ type env struct {
 	games    *fakeGames
 	mail     *fakeMail
 	log      *bytes.Buffer
-	reloads  int
-	reloadOK bool
 }
 
 // newEnv has players pat (player), mona and mike (mods), ada and abe
@@ -87,7 +85,7 @@ func newEnv(t *testing.T) *env {
 	ctx := context.Background()
 	e := &env{t: t, store: players.NewStore(dbtest.NewPlayersDB(t)), registry: online.NewRegistry(),
 		accounts: &fakeAccounts{passwords: map[string]string{}}, games: &fakeGames{},
-		mail: &fakeMail{sent: make(chan string, 10)}, log: &bytes.Buffer{}, reloadOK: true}
+		mail: &fakeMail{sent: make(chan string, 10)}, log: &bytes.Buffer{}}
 	for _, n := range []string{"pat", "mona", "mike", "ada", "abe", "val"} {
 		if _, err := e.store.Create(ctx, n, n+"@example.com", "hash"); err != nil {
 			t.Fatal(err)
@@ -99,14 +97,7 @@ func newEnv(t *testing.T) *env {
 	for _, n := range []string{"ada", "abe", "val"} {
 		e.store.SetFlag(ctx, n, players.FlagAdmin, true)
 	}
-	reload := func(context.Context) (int, error) {
-		e.reloads++
-		if !e.reloadOK {
-			return 0, errors.New("download failed")
-		}
-		return 10, nil
-	}
-	e.s = NewService(e.store, e.accounts, e.games, e.registry, e.mail, reload, slog.New(slog.NewTextHandler(e.log, nil)))
+	e.s = NewService(e.store, e.accounts, e.games, e.registry, e.mail, slog.New(slog.NewTextHandler(e.log, nil)))
 	return e
 }
 
@@ -331,7 +322,7 @@ func TestList(t *testing.T) {
 
 func TestAdminOnlyCommands(t *testing.T) {
 	e := newEnv(t)
-	for _, a := range []protocol.SudoAction{protocol.SudoBroadcast, protocol.SudoReloadWords, protocol.SudoMod,
+	for _, a := range []protocol.SudoAction{protocol.SudoBroadcast, protocol.SudoMod,
 		protocol.SudoUnmod, protocol.SudoAdmin, protocol.SudoUnadmin, protocol.SudoBot, protocol.SudoUnbot,
 		protocol.SudoSetPassword, protocol.SudoRevoke} {
 		got := e.run("mona", "", a, "pat", "secretpw")
@@ -339,7 +330,7 @@ func TestAdminOnlyCommands(t *testing.T) {
 			t.Errorf("action %d by a mod: %+v", a, got)
 		}
 	}
-	if e.reloads != 0 || len(e.accounts.passwords) != 0 || len(e.accounts.revoked) != 0 || e.record("pat").IsMod {
+	if len(e.accounts.passwords) != 0 || len(e.accounts.revoked) != 0 || e.record("pat").IsMod {
 		t.Error("denied commands must do nothing")
 	}
 }
@@ -358,16 +349,6 @@ func TestBroadcast(t *testing.T) {
 		if got.Broadcast != arg || len(got.Replies) != 0 {
 			t.Errorf("broadcast %q: %+v", arg, got)
 		}
-	}
-}
-
-func TestReloadWords(t *testing.T) {
-	e := newEnv(t)
-	want(t, e.run("ada", "", protocol.SudoReloadWords, "", ""), "Bad word filter reloaded")
-	e.reloadOK = false
-	want(t, e.run("ada", "", protocol.SudoReloadWords, "", ""), "Could not reload the bad word filter")
-	if e.reloads != 2 {
-		t.Errorf("%d reloads", e.reloads)
 	}
 }
 
