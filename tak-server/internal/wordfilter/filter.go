@@ -24,11 +24,11 @@ type Filter struct {
 // Load replaces the word list with the CSV at url and returns the number of
 // words loaded.
 func (f *Filter) Load(ctx context.Context, url string) (int, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return 0, fmt.Errorf("load word list: %w", err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(request)
 	if err != nil {
 		return 0, fmt.Errorf("load word list: %w", err)
 	}
@@ -43,9 +43,9 @@ func (f *Filter) Load(ctx context.Context, url string) (int, error) {
 // words loaded.
 func (f *Filter) Read(r io.Reader) (int, error) {
 	words := make(map[string][]string)
-	sc := bufio.NewScanner(r)
-	for sc.Scan() {
-		word, exceptions, _ := strings.Cut(sc.Text(), ",")
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		word, exceptions, _ := strings.Cut(scanner.Text(), ",")
 		word = strings.ToLower(strings.ReplaceAll(word, " ", ""))
 		if word == "" {
 			continue
@@ -57,7 +57,7 @@ func (f *Filter) Read(r io.Reader) (int, error) {
 		}
 		words[word] = list
 	}
-	if err := sc.Err(); err != nil {
+	if err := scanner.Err(); err != nil {
 		return 0, fmt.Errorf("read word list: %w", err)
 	}
 	f.mu.Lock()

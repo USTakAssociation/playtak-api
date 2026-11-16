@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
-	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/online"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/protocol"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/tak"
 )
@@ -17,7 +17,7 @@ import (
 var blitz = protocol.GameSettings{Size: 5, Time: 60, Pieces: 21, Capstones: 1, Color: protocol.White}
 
 // startWith has b accept a's seek with settings s; a plays white.
-func (e *env) startWith(s protocol.GameSettings) (g *Game, a *player.Player, ac *client, b *player.Player, bc *client) {
+func (e *env) startWith(s protocol.GameSettings) (g *Game, a *online.Player, ac *client, b *online.Player, bc *client) {
 	e.t.Helper()
 	a, ac = e.login(0)
 	b, bc = e.login(0)
@@ -240,7 +240,7 @@ func TestAbandonBeforeOutOfTime(t *testing.T) {
 
 // ---- Bot first move ----
 
-func (e *env) startAgainstBot(s protocol.GameSettings, botColor protocol.Color) (g *Game, human *player.Player, hc *client) {
+func (e *env) startAgainstBot(s protocol.GameSettings, botColor protocol.Color) (g *Game, human *online.Player, hc *client) {
 	e.t.Helper()
 	human, hc = e.login(0)
 	bot := e.players.Acquire(players.Record{ID: 50, Name: "TakBot", IsBot: true})

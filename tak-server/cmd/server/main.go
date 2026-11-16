@@ -25,7 +25,7 @@ import (
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/email"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/game"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/moderation"
-	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/online"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/session"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/transport"
@@ -43,23 +43,23 @@ const (
 )
 
 func main() {
-	cfg, err := config.Load()
+	settings, err := config.Load()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: cfg.LogLevel}))
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: settings.LogLevel}))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := run(ctx, cfg, log); err != nil {
+	if err := run(ctx, settings, log); err != nil {
 		log.Error("server stopped", "err", err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
-	playersDB, err := db.Open(ctx, cfg.PlayersDB)
+func run(ctx context.Context, settings *config.Config, log *slog.Logger) error {
+	playersDB, err := db.Open(ctx, settings.PlayersDB)
 	if err != nil {
 		return err
 	}
@@ -67,7 +67,7 @@ func run(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
 	if err := players.CheckSchema(ctx, playersDB); err != nil {
 		return err
 	}
-	gamesDB, err := db.Open(ctx, cfg.GamesDB)
+	gamesDB, err := db.Open(ctx, settings.GamesDB)
 	if err != nil {
 		return err
 	}
@@ -75,7 +75,7 @@ func run(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
 
 	var filter wordfilter.Filter
 	loadCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	if n, err := filter.Load(loadCtx, cfg.BadWordsURL); err != nil {
+	if n, err := filter.Load(loadCtx, settings.BadWordsURL); err != nil {
 		log.Warn("profanity filter disabled", "err", err)
 	} else {
 		log.Info("loaded profanity filter", "words", n)
@@ -83,31 +83,31 @@ func run(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
 	cancel()
 
 	var mailer auth.Mailer = email.Log{Logger: log}
-	if cfg.SMTP.Host != "" {
-		mailer = email.NewSMTP(cfg.SMTP.Host, cfg.SMTP.User, cfg.SMTP.Password, cfg.SMTP.From)
+	if settings.SMTP.Host != "" {
+		mailer = email.NewSMTP(settings.SMTP.Host, settings.SMTP.User, settings.SMTP.Password, settings.SMTP.From)
 	} else {
 		log.Warn("no SMTP server configured; emails will be logged instead of sent")
 	}
 
 	playerStore := players.NewStore(playersDB)
 	authSvc := auth.NewService(playerStore, players.NewTokenStore(playersDB), mailer, &filter, log)
-	registry := player.NewRegistry()
+	registry := online.NewRegistry()
 	seeks := seek.NewManager()
 
 	gameStore := games.NewStore(gamesDB)
-	results := games.NewResults(gameStore, cfg.PendingResultsFile, log)
+	results := games.NewResults(gameStore, settings.PendingResultsFile, log)
 	resultsDone := make(chan struct{})
 	resultsCtx, stopResults := context.WithCancel(context.Background())
 	go func() { results.Run(resultsCtx); close(resultsDone) }()
 	defer func() { stopResults(); <-resultsDone }()
 
 	gameManager := game.NewManager(game.Config{
-		ReconnectTimeout:           cfg.ReconnectTimeout,
-		TournamentReconnectTimeout: cfg.TournamentReconnectTimeout,
-		CommandTimeout:             cfg.GameCommandTimeout,
-		AllowMultipleSessions:      cfg.AllowMultipleSessions,
+		ReconnectTimeout:           settings.ReconnectTimeout,
+		TournamentReconnectTimeout: settings.TournamentReconnectTimeout,
+		CommandTimeout:             settings.GameCommandTimeout,
+		AllowMultipleSessions:      settings.AllowMultipleSessions,
 	}, gameStore, playerStore, results, seeks, registry, log)
-	reloadWords := func(ctx context.Context) (int, error) { return filter.Load(ctx, cfg.BadWordsURL) }
+	reloadWords := func(ctx context.Context) (int, error) { return filter.Load(ctx, settings.BadWordsURL) }
 	sessions := session.NewManager(ctx, session.Services{
 		Auth:       authSvc,
 		Players:    registry,
@@ -115,44 +115,44 @@ func run(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
 		Games:      gameManager,
 		Chat:       chat.NewService(&filter, log),
 		Moderation: moderation.NewService(playerStore, authSvc, gameManager, registry, mailer, reloadWords, log),
-	}, session.Config{AllowMultipleSessions: cfg.AllowMultipleSessions}, log)
-	if cfg.ServiceAPIKey == "" {
+	}, session.Config{AllowMultipleSessions: settings.AllowMultipleSessions}, log)
+	if settings.ServiceAPIKey == "" {
 		log.Warn("TAK_SERVICE_API_KEY not set; service endpoints such as PUT /api/v1/seeks are disabled")
 	}
 
-	clientIP, err := clientip.NewResolver(cfg.TrustedProxies)
+	clientIP, err := clientip.NewResolver(settings.TrustedProxies)
 	if err != nil {
 		return fmt.Errorf("TAK_TRUSTED_PROXIES: %w", err)
 	}
-	authSvc.EnableLimits(cfg.LoginLimitByUsername)
-	apiServer := api.NewServer(authSvc, registry, seeks, cfg.ServiceAPIKey, clientIP, log)
+	authSvc.EnableLimits(settings.LoginLimitByUsername)
+	apiServer := api.NewServer(authSvc, registry, seeks, settings.ServiceAPIKey, clientIP, log)
 
-	telnetLn, err := net.Listen("tcp", cfg.TelnetAddr)
+	telnetLn, err := net.Listen("tcp", settings.TelnetAddr)
 	if err != nil {
 		return err
 	}
 	wsSrv := &http.Server{
-		Addr:              cfg.WSAddr,
+		Addr:              settings.WSAddr,
 		Handler:           &websocket.Handler{Acceptor: sessions, Log: log, ClientIP: clientIP},
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	apiSrv := &http.Server{
-		Addr:              cfg.HTTPAddr,
+		Addr:              settings.HTTPAddr,
 		Handler:           apiServer.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	errc := make(chan error, 3)
 	go func() {
-		log.Info("telnet listening", "addr", cfg.TelnetAddr)
+		log.Info("telnet listening", "addr", settings.TelnetAddr)
 		errc <- (&telnet.Server{Acceptor: sessions, Log: log}).Serve(ctx, telnetLn)
 	}()
 	go func() {
-		log.Info("websocket listening", "addr", cfg.WSAddr)
+		log.Info("websocket listening", "addr", settings.WSAddr)
 		errc <- ignoreClosed(wsSrv.ListenAndServe())
 	}()
 	go func() {
-		log.Info("http api listening", "addr", cfg.HTTPAddr)
+		log.Info("http api listening", "addr", settings.HTTPAddr)
 		errc <- ignoreClosed(apiSrv.ListenAndServe())
 	}()
 	go cleanupLoop(ctx, authSvc, apiServer, registry, log)
@@ -174,7 +174,7 @@ func run(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
 
 // cleanupLoop hourly forgets idle guests and rate-limit counters that have
 // reset, and deletes expired API tokens.
-func cleanupLoop(ctx context.Context, authSvc *auth.Service, apiServer *api.Server, registry *player.Registry, log *slog.Logger) {
+func cleanupLoop(ctx context.Context, authSvc *auth.Service, apiServer *api.Server, registry *online.Registry, log *slog.Logger) {
 	t := time.NewTicker(cleanupInterval)
 	defer t.Stop()
 	for {

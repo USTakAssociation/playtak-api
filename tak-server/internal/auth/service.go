@@ -113,7 +113,7 @@ func (s *Service) Login(ctx context.Context, name, password, ip string) (players
 			return players.Record{}, err
 		}
 	}
-	rec, err := s.players.ByName(ctx, name)
+	record, err := s.players.ByName(ctx, name)
 	if errors.Is(err, players.ErrNotFound) {
 		s.loginFailed(name, ip)
 		return players.Record{}, ErrAuthFailed
@@ -121,7 +121,7 @@ func (s *Service) Login(ctx context.Context, name, password, ip string) (players
 	if err != nil {
 		return players.Record{}, err
 	}
-	if rec.IsBanned || !checkPassword(rec.PasswordHash, password) {
+	if record.IsBanned || !checkPassword(record.PasswordHash, password) {
 		s.loginFailed(name, ip)
 		return players.Record{}, ErrAuthFailed
 	}
@@ -134,7 +134,7 @@ func (s *Service) Login(ctx context.Context, name, password, ip string) (players
 	s.mu.Lock()
 	delete(s.resetTokens, name)
 	s.mu.Unlock()
-	return rec, nil
+	return record, nil
 }
 
 // loginFailed counts a failed login against name and ip.
@@ -174,7 +174,7 @@ func (s *Service) Register(ctx context.Context, name, email, ip string) (players
 	if err != nil {
 		return players.Record{}, fmt.Errorf("register %s: %w", name, err)
 	}
-	rec, err := s.players.Create(ctx, name, email, hash)
+	record, err := s.players.Create(ctx, name, email, hash)
 	if errors.Is(err, players.ErrNameTaken) {
 		return players.Record{}, ErrNameTaken
 	}
@@ -183,7 +183,7 @@ func (s *Service) Register(ctx context.Context, name, email, ip string) (players
 	}
 	s.sendMail(email, "playtak.com password",
 		fmt.Sprintf("Hello %s, your password is %s You can change it on playtak.com.", name, password))
-	return rec, nil
+	return record, nil
 }
 
 // SendResetToken emails a one-time password reset token, valid for an hour.
@@ -194,14 +194,14 @@ func (s *Service) SendResetToken(ctx context.Context, name, email string) error 
 			return err
 		}
 	}
-	rec, err := s.players.ByName(ctx, name)
+	record, err := s.players.ByName(ctx, name)
 	if errors.Is(err, players.ErrNotFound) {
 		return ErrNoSuchPlayer
 	}
 	if err != nil {
 		return err
 	}
-	if rec.Email != email {
+	if record.Email != email {
 		return ErrEmailMismatch
 	}
 	token := rand.Text()
@@ -214,7 +214,7 @@ func (s *Service) SendResetToken(ctx context.Context, name, email string) error 
 
 // ResetPassword sets a new password using a token from SendResetToken.
 func (s *Service) ResetPassword(ctx context.Context, name, token, password string) error {
-	rec, err := s.players.ByName(ctx, name)
+	record, err := s.players.ByName(ctx, name)
 	if errors.Is(err, players.ErrNotFound) {
 		return ErrNoSuchPlayer
 	}
@@ -234,38 +234,38 @@ func (s *Service) ResetPassword(ctx context.Context, name, token, password strin
 	if !valid {
 		return ErrWrongToken
 	}
-	return s.setPassword(ctx, rec.ID, password)
+	return s.setPassword(ctx, record.ID, password)
 }
 
 // ChangePassword replaces a player's password after checking the current one.
 func (s *Service) ChangePassword(ctx context.Context, name, current, next string) error {
-	rec, err := s.players.ByName(ctx, name)
+	record, err := s.players.ByName(ctx, name)
 	if errors.Is(err, players.ErrNotFound) {
 		return ErrWrongPassword
 	}
 	if err != nil {
 		return err
 	}
-	if rec.IsBanned || !checkPassword(rec.PasswordHash, current) {
+	if record.IsBanned || !checkPassword(record.PasswordHash, current) {
 		return ErrWrongPassword
 	}
 	if !ValidPassword(next) {
 		return ErrInvalidPassword
 	}
-	return s.setPassword(ctx, rec.ID, next)
+	return s.setPassword(ctx, record.ID, next)
 }
 
 // SetPassword replaces a player's password without checking the current one,
 // for admin use.
 func (s *Service) SetPassword(ctx context.Context, name, password string) error {
-	rec, err := s.players.ByName(ctx, name)
+	record, err := s.players.ByName(ctx, name)
 	if errors.Is(err, players.ErrNotFound) {
 		return ErrNoSuchPlayer
 	}
 	if err != nil {
 		return err
 	}
-	return s.setPassword(ctx, rec.ID, password)
+	return s.setPassword(ctx, record.ID, password)
 }
 
 func (s *Service) setPassword(ctx context.Context, id int, password string) error {

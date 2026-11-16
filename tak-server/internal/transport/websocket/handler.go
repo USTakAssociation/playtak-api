@@ -33,7 +33,7 @@ var upgrader = websocket.Upgrader{
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ws, err := upgrader.Upgrade(w, r, nil)
+	socket, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return // Upgrade has already written an error response
 	}
@@ -41,30 +41,30 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if idle == 0 {
 		idle = transport.IdleTimeout
 	}
-	ws.SetReadLimit(transport.MaxLineBytes)
+	socket.SetReadLimit(transport.MaxLineBytes)
 
 	remote := r.RemoteAddr
 	if h.ClientIP != nil {
 		remote = h.ClientIP.IP(r)
 	}
-	c := &conn{ws: ws, queue: transport.NewQueue(), remote: remote}
-	go c.writeLoop()
+	connection := &conn{socket: socket, queue: transport.NewQueue(), remote: remote}
+	go connection.writeLoop()
 
-	peer := h.Acceptor.Accept(c)
+	peer := h.Acceptor.Accept(connection)
 	defer peer.Closed()
-	defer c.queue.Close(transport.CloseNormal)
+	defer connection.queue.Close(transport.CloseNormal)
 
 	for {
-		ws.SetReadDeadline(time.Now().Add(idle))
-		_, data, err := ws.ReadMessage()
+		socket.SetReadDeadline(time.Now().Add(idle))
+		_, data, err := socket.ReadMessage()
 		if err != nil {
 			var ne net.Error
 			switch {
 			case errors.Is(err, websocket.ErrReadLimit):
-				h.Log.Info("websocket message too long", "remote", c.RemoteAddr())
-				c.queue.Close(transport.CloseError)
+				h.Log.Info("websocket message too long", "remote", connection.RemoteAddr())
+				connection.queue.Close(transport.CloseError)
 			case errors.As(err, &ne) && ne.Timeout():
-				c.queue.Close(transport.CloseGoingAway)
+				connection.queue.Close(transport.CloseGoingAway)
 			}
 			return
 		}
@@ -73,14 +73,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type conn struct {
-	ws     *websocket.Conn
+	socket *websocket.Conn
 	queue  *transport.Queue
 	remote string
 }
 
 func (c *conn) Send(line string) {
 	if !c.queue.Push(line) && c.queue.Reason() == transport.CloseError {
-		c.ws.NetConn().Close()
+		c.socket.NetConn().Close()
 	}
 }
 
@@ -97,17 +97,17 @@ var closeCodes = map[transport.CloseReason]int{
 // writeLoop sends queued lines until the queue closes, then sends a close
 // frame with the close reason and closes the socket.
 func (c *conn) writeLoop() {
-	defer c.ws.Close()
+	defer c.socket.Close()
 	for line := range c.queue.Lines() {
-		c.ws.SetWriteDeadline(time.Now().Add(transport.WriteTimeout))
-		if err := c.ws.WriteMessage(websocket.BinaryMessage, []byte(line+"\n")); err != nil {
-			c.ws.NetConn().Close()
+		c.socket.SetWriteDeadline(time.Now().Add(transport.WriteTimeout))
+		if err := c.socket.WriteMessage(websocket.BinaryMessage, []byte(line+"\n")); err != nil {
+			c.socket.NetConn().Close()
 			for range c.queue.Lines() {
 				// drain so senders never see a stuck queue
 			}
 			return
 		}
 	}
-	msg := websocket.FormatCloseMessage(closeCodes[c.queue.Reason()], "")
-	c.ws.WriteControl(websocket.CloseMessage, msg, time.Now().Add(time.Second))
+	closeFrame := websocket.FormatCloseMessage(closeCodes[c.queue.Reason()], "")
+	c.socket.WriteControl(websocket.CloseMessage, closeFrame, time.Now().Add(time.Second))
 }

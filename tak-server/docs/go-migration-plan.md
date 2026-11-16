@@ -89,75 +89,56 @@ Before planning the target state, here's what we're actually working with.
 
 ## 3. Project Structure
 
+The tree as built for phase 1. Packages marked *planned* don't exist yet.
+
 ```
 tak-server/
-├── cmd/
-│   └── server/
-│       └── main.go
+├── cmd/server/
+│   └── main.go                # loads config, opens the databases, wires everything, shuts down
 ├── internal/
-│   ├── config/
-│   │   └── config.go              # properties.xml equivalent
+│   ├── config/                # settings from environment variables and .env
 │   ├── transport/
-│   │   ├── hub.go                 # central connection registry
-│   │   ├── connection.go          # interface: Send, Close, Protocol
-│   │   ├── websocket/
-│   │   │   └── handler.go         # gorilla/websocket upgrade + conn lifecycle
-│   │   └── telnet/
-│   │       └── handler.go         # raw TCP listener + conn lifecycle
-│   ├── protocol/
-│   │   ├── message.go             # canonical internal message types
-│   │   ├── legacy/
-│   │   │   ├── parser.go          # text to internal message
-│   │   │   └── formatter.go       # internal message to text
-│   │   └── json/
-│   │       ├── parser.go          # JSON to internal message
-│   │       └── formatter.go       # internal message to JSON
+│   │   ├── connection.go      # Conn, Peer, Acceptor interfaces; send queue; close reasons
+│   │   ├── telnet/server.go   # raw TCP, one line per message
+│   │   ├── websocket/handler.go # gorilla/websocket upgrade and connection lifecycle
+│   │   └── transporttest/     # echo acceptor for transport tests
+│   ├── protocol/              # typed commands and events: message.go, settings.go, game.go, chat.go, sudo.go
+│   │   ├── legacy/            # text protocol: parser.go, formatter.go, seeks.go, games.go, chat.go, sudo.go
+│   │   └── json/              # planned (phase 2): JSON parser and formatter
 │   ├── session/
-│   │   ├── session.go             # per-connection state (protocol version, auth state)
-│   │   └── manager.go             # session lifecycle, reconnection tokens,
-│   │                              # single-active-session-per-tournament-game enforcement
-│   ├── auth/
-│   │   ├── service.go             # login, register, guest, password reset
-│   │   │                          # shared by telnet/ws AND REST, see 4.4
-│   │   └── bcrypt.go
-│   ├── player/
-│   │   ├── player.go              # player model (decoupled from connection)
-│   │   └── registry.go            # in-memory player map, online tracking
-│   ├── seek/
-│   │   ├── seek.go                # seek model (V1-V4)
-│   │   └── manager.go             # seek lifecycle, rematch logic
+│   │   ├── session.go         # one connection: lifecycle and command dispatch
+│   │   ├── manager.go         # every connection, binding logins, presence broadcasts
+│   │   ├── account.go         # login, registration, password reset and change
+│   │   └── game.go, seek.go, chat.go, sudo.go # handlers for each area
+│   ├── auth/                  # service.go (login, register, resets), tokens.go (REST tokens),
+│   │                          # password.go (bcrypt), limits.go (rate limits); shared by telnet, WS and REST
+│   ├── online/                # who is online: player.go (player and their connections), registry.go
+│   ├── seek/manager.go        # open seeks and rematches
 │   ├── game/
-│   │   ├── game.go                # game model + state machine
-│   │   ├── board.go               # board, squares, move history
-│   │   ├── clock.go               # timer logic extracted from game
-│   │   ├── moves.go               # place + move validation
-│   │   └── manager.go             # game registry, lifecycle
-│   ├── chat/
-│   │   ├── shout.go
-│   │   └── room.go
-│   ├── admin/
-│   │   └── service.go             # sudo commands, integrity review queue
-│   ├── integrity/
-│   │   ├── boardhash.go           # symmetry-normalized position hashing (shared utility)
-│   │   ├── liveindex.go           # position_hash to active bot game IDs, updated as bot games progress
-│   │   ├── tourneywatch.go        # per tournament move: hash, lookup liveindex, track streaks
-│   │   ├── refengine.go           # (future phase) local reference engine, ranked move queries, see 4.7
-│   │   ├── ipcorrelate.go         # IP overlap as metadata, weighted input only
-│   │   ├── scoring.go             # combine signals into suspicion score
-│   │   └── queue.go               # feeds admin review queue, async, off game event stream
-│   ├── broadcast/
-│   │   └── broadcaster.go         # GameUpdateBroadcaster webhook
-│   ├── api/
-│   │   └── http.go                # REST endpoints (seeks, auth, etc.)
-│   └── db/
-│       ├── players/
-│       │   ├── schema.sql
-│       │   ├── queries.sql
-│       │   └── db.go              # sqlc generated
-│       └── games/
-│           ├── schema.sql
-│           ├── queries.sql
-│           └── db.go              # sqlc generated
+│   │   ├── game.go            # one goroutine per game: moves, resign, timeouts, sending events
+│   │   ├── actions.go         # undo, draw, give time
+│   │   ├── observe.go         # observers
+│   │   ├── reconnect.go       # disconnects, rejoining, abandoning
+│   │   ├── clock.go           # time bookkeeping
+│   │   └── manager.go         # starting games, the game list, saving results
+│   ├── tak/                   # rules engine: game.go, stone.go, roads.go, tps.go, result.go
+│   ├── chat/chat.go           # shout, rooms, tell, masking, gagging
+│   ├── moderation/            # sudo commands for moderators and admins
+│   ├── wordfilter/            # profanity word list
+│   ├── api/                   # REST: http.go (routing, auth endpoints), seeks.go
+│   ├── clientip/              # client IP behind a trusted reverse proxy
+│   ├── ratelimit/             # per-key token buckets
+│   ├── email/                 # SMTP, or logging when no SMTP server is set
+│   ├── db/
+│   │   ├── sqlite.go          # open, transactions, busy retry
+│   │   ├── players/           # store.go (players), tokens.go (auth_tokens)
+│   │   ├── games/             # store.go (games), results.go (pending-results file and writer)
+│   │   └── dbtest/            # throwaway databases for tests
+│   ├── integrity/             # planned (phase 5): anti-cheat, see 4.7
+│   └── broadcast/             # planned (later): GameUpdateBroadcaster webhook
+├── deploy/                    # deploy.sh, rollback.sh
+├── docs/
+├── .env.example
 ├── go.mod
 └── go.sum
 ```
@@ -551,11 +532,11 @@ Two rules apply to all of it:
 | 1 | **A swappable format per connection.** The session calls `legacy.Parse` and `legacy.Format` directly. Put both behind an interface the session holds, and make the text protocol one implementation of it. | Each connection must speak either format, and telnet switches partway through | `session/session.go` |
 | 2 | **Results for replies.** Handlers send `OK`, `NOK` or nothing in many different ways. Have each handler return a result instead: success, or an error code. The text format renders exactly what it sends today, and JSON renders `ack` or `error` with the `id`. | Every JSON command gets exactly one reply, matched by `id` | every handler in `session/` |
 | 3 | **Stable error codes.** Map internal errors to the spec's codes, for example `game.ErrNotPlaying` to `NOT_IN_GAME`, `auth.ErrRateLimited` to `RATE_LIMITED`, and an illegal move to `ILLEGAL_MOVE`. | The JSON `error` event | `protocol/` |
-| 4 | **The reply must arrive before the events.** Today the game goroutine sends `Time` and the move event while the command is still running, and the reply comes after. Either the game sends the reply from its goroutine before the events, or the session holds back its own events until the reply is out. | Spec rule 6 | `game/game.go`, `session/` |
+| 4 | **The reply must arrive before the events.** Today the game goroutine sends `Time` and the move event while the command is still running, and the reply comes after. Either the game sends the reply from its goroutine before the events, or the session holds back its own events until the reply is out. | Spec rule 6 | `game/` (`game.go`, `actions.go`, `reconnect.go`), `session/` |
 | 5 | **Compatibility levels instead of version numbers.** About 16 places check `ProtocolVersion()`. Replace them with a level: text 0 to 3 is below the baseline, text 4 equals JSON 1.0, and JSON 1.x is 1.x. `RequiredProtocolVersion` becomes the minimum version a seek or game needs. | Version gating, and players on both formats playing each other | `seek`, `game`, `api`, `player`, `session` |
 | 6 | **Moves as data, not strings.** The engine records moves as strings such as `P A1 W`. Store a move structure instead and format it on the way out: the text format for the wire and the database, PTN for JSON. This needs a new PTN parser (see 6.3). | PTN only in JSON | `tak/game.go`, new `tak/ptn.go` |
-| 7 | **A full-state game event.** Have the game send one state event (TPS, ply, what changed, turn, clocks, offers, result) next to today's events. The text format ignores it, and JSON ignores `Time` and the move event. Add a snapshot event for `game.start`. | `game.start` and `game.state` | `game/game.go`, `protocol/game.go` |
-| 8 | **An explicit end reason.** Game over is a result string plus a separate quitter name today. Use a reason (`road`, `flats`, `resign`, `time`, `abandon`, `agreement`, `no_progress`, `ban`) and the winner's username. Flat ties and the 50-ply no-progress draw must be told apart. | `reason` and `winner` fields | `game/game.go`, `tak/` |
+| 7 | **A full-state game event.** Have the game send one state event (TPS, ply, what changed, turn, clocks, offers, result) next to today's events. The text format ignores it, and JSON ignores `Time` and the move event. Add a snapshot event for `game.start`. | `game.start` and `game.state` | `game/`, `protocol/game.go` |
+| 8 | **An explicit end reason.** Game over is a result string plus a separate quitter name today. Use a reason (`road`, `flats`, `resign`, `time`, `abandon`, `agreement`, `no_progress`, `ban`) and the winner's username. Flat ties and the 50-ply no-progress draw must be told apart. | `reason` and `winner` fields | `game/` (`game.go`, `reconnect.go`), `tak/` |
 | 9 | **Structured moderation results.** `moderation.Result` holds text lines. The `admin.*` acks need data, such as `usernames` for `admin.list` and `changed` for `admin.set_role`, as well as text. | `admin.*` acks | `moderation/` |
 
 ### 6.2 Transport changes

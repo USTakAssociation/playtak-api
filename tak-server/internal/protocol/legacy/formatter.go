@@ -10,8 +10,8 @@ import (
 
 // Format renders an event as the lines sent to a client using protocol
 // version (from the client's "Protocol" command, 0 if it never sent one).
-func Format(ev protocol.Event, version int) ([]string, error) {
-	switch ev := ev.(type) {
+func Format(event protocol.Event, version int) ([]string, error) {
+	switch ev := event.(type) {
 	case protocol.Greeting:
 		return []string{"Welcome!", "Login or Register"}, nil
 	case protocol.OK:
@@ -49,19 +49,19 @@ func Format(ev protocol.Event, version int) ([]string, error) {
 	case protocol.Registered:
 		return line("Registered " + ev.Name + ". Check your email for password")
 	case protocol.RegistrationFailed:
-		msg, ok := registrationErrors[ev.Reason]
+		message, ok := registrationErrors[ev.Reason]
 		if !ok {
 			return nil, fmt.Errorf("legacy: unknown registration error %d", ev.Reason)
 		}
-		return line("Registration Error: " + msg)
+		return line("Registration Error: " + message)
 	case protocol.ResetTokenSent:
 		return line("Reset token sent")
 	case protocol.ResetTokenFailed:
-		msg, ok := resetTokenErrors[ev.Reason]
+		message, ok := resetTokenErrors[ev.Reason]
 		if !ok {
 			return nil, fmt.Errorf("legacy: unknown reset token error %d", ev.Reason)
 		}
-		return line("Reset Token Error: " + msg)
+		return line("Reset Token Error: " + message)
 	case protocol.PasswordReset:
 		return line("Password is changed")
 	case protocol.PasswordResetFailed:
@@ -123,7 +123,7 @@ func Format(ev protocol.Event, version int) ([]string, error) {
 		}
 		return line(fmt.Sprintf("Game#%d GivenTime %s %d", ev.GameID, color, ev.Millis))
 	}
-	return nil, fmt.Errorf("legacy: no format for %T", ev)
+	return nil, fmt.Errorf("legacy: no format for %T", event)
 }
 
 func line(s string) ([]string, error) { return []string{s}, nil }

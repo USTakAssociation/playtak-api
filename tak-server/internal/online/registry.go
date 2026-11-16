@@ -1,4 +1,4 @@
-package player
+package online
 
 import (
 	"fmt"
@@ -49,25 +49,25 @@ func (r *Registry) FindOnline(name string) *Player {
 	return nil
 }
 
-// Acquire returns the in-memory player for rec, creating it if the player is
-// not online. Its flags are refreshed from rec either way.
-func (r *Registry) Acquire(rec players.Record) *Player {
+// Acquire returns the in-memory player for record, creating it if the player is
+// not online. Its flags are refreshed from record either way.
+func (r *Registry) Acquire(record players.Record) *Player {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if p, ok := r.byName[rec.Name]; ok && !p.Guest {
-		p.update(rec)
+	if p, ok := r.byName[record.Name]; ok && !p.Guest {
+		p.update(record)
 		return p
 	}
-	return newPlayer(rec)
+	return newPlayer(record)
 }
 
-// Refresh updates an online registered player's flags from rec, after a
+// Refresh updates an online registered player's flags from record, after a
 // change to their record. It does nothing if they aren't in memory.
-func (r *Registry) Refresh(rec players.Record) {
+func (r *Registry) Refresh(record players.Record) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if p, ok := r.byName[rec.Name]; ok && !p.Guest {
-		p.update(rec)
+	if p, ok := r.byName[record.Name]; ok && !p.Guest {
+		p.update(record)
 	}
 }
 
@@ -91,31 +91,31 @@ func (r *Registry) Guest(token string) *Player {
 }
 
 // Attach records c as one of p's connections and makes p visible to Lookup.
-func (r *Registry) Attach(p *Player, c Client) {
+func (r *Registry) Attach(player *Player, c Client) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	p.mu.Lock()
-	if !slices.Contains(p.clients, c) {
-		p.clients = append(p.clients, c)
+	player.mu.Lock()
+	if !slices.Contains(player.clients, c) {
+		player.clients = append(player.clients, c)
 	}
-	p.lastActive = time.Now()
-	p.mu.Unlock()
-	r.byName[p.Name] = p
+	player.lastActive = time.Now()
+	player.mu.Unlock()
+	r.byName[player.Name] = player
 }
 
 // Detach removes c from p's connections. A registered player with no
 // connections left is dropped from memory; guests are kept so they can rejoin
 // with their token until PruneGuests removes them.
-func (r *Registry) Detach(p *Player, c Client) {
+func (r *Registry) Detach(player *Player, c Client) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	p.mu.Lock()
-	p.clients = slices.DeleteFunc(p.clients, func(x Client) bool { return x == c })
-	remaining := len(p.clients)
-	p.lastActive = time.Now()
-	p.mu.Unlock()
-	if remaining == 0 && !p.Guest && r.byName[p.Name] == p {
-		delete(r.byName, p.Name)
+	player.mu.Lock()
+	player.clients = slices.DeleteFunc(player.clients, func(x Client) bool { return x == c })
+	remaining := len(player.clients)
+	player.lastActive = time.Now()
+	player.mu.Unlock()
+	if remaining == 0 && !player.Guest && r.byName[player.Name] == player {
+		delete(r.byName, player.Name)
 	}
 }
 

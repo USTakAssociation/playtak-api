@@ -15,7 +15,7 @@ import (
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/chat"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/game"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/moderation"
-	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/online"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/protocol"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/transport"
@@ -32,15 +32,15 @@ type Config struct {
 }
 
 type Manager struct {
-	ctx     context.Context
-	auth    *auth.Service
-	players *player.Registry
-	seeks   *seek.Manager
-	games   *game.Manager
-	chat    *chat.Service
-	mod     *moderation.Service
-	cfg     Config
-	log     *slog.Logger
+	ctx        context.Context
+	auth       *auth.Service
+	players    *online.Registry
+	seeks      *seek.Manager
+	games      *game.Manager
+	chat       *chat.Service
+	moderation *moderation.Service
+	config     Config
+	log        *slog.Logger
 
 	nextID atomic.Int64
 
@@ -55,7 +55,7 @@ type Manager struct {
 // Services are what sessions turn client commands into calls on.
 type Services struct {
 	Auth       *auth.Service
-	Players    *player.Registry
+	Players    *online.Registry
 	Seeks      *seek.Manager
 	Games      *game.Manager
 	Chat       *chat.Service
@@ -63,38 +63,38 @@ type Services struct {
 }
 
 // NewManager returns a Manager whose sessions stop their work when ctx ends.
-func NewManager(ctx context.Context, svc Services, cfg Config, log *slog.Logger) *Manager {
+func NewManager(ctx context.Context, services Services, config Config, log *slog.Logger) *Manager {
 	return &Manager{
-		ctx:      ctx,
-		auth:     svc.Auth,
-		players:  svc.Players,
-		seeks:    svc.Seeks,
-		games:    svc.Games,
-		chat:     svc.Chat,
-		mod:      svc.Moderation,
-		cfg:      cfg,
-		log:      log,
-		sessions: make(map[*Session]struct{}),
+		ctx:        ctx,
+		auth:       services.Auth,
+		players:    services.Players,
+		seeks:      services.Seeks,
+		games:      services.Games,
+		chat:       services.Chat,
+		moderation: services.Moderation,
+		config:     config,
+		log:        log,
+		sessions:   make(map[*Session]struct{}),
 	}
 }
 
 // Accept starts a session for a new connection and greets the client.
 func (m *Manager) Accept(c transport.Conn) transport.Peer {
 	id := m.nextID.Add(1)
-	s := &Session{
-		id:   id,
-		m:    m,
-		conn: c,
-		log:  m.log.With("session", id, "remote", c.RemoteAddr()),
-		done: make(chan struct{}),
+	session := &Session{
+		id:      id,
+		manager: m,
+		conn:    c,
+		log:     m.log.With("session", id, "remote", c.RemoteAddr()),
+		done:    make(chan struct{}),
 	}
 	m.mu.Lock()
-	m.sessions[s] = struct{}{}
+	m.sessions[session] = struct{}{}
 	m.mu.Unlock()
 
-	s.log.Debug("connected")
-	s.Send(protocol.Greeting{})
-	return s
+	session.log.Debug("connected")
+	session.Send(protocol.Greeting{})
+	return session
 }
 
 // CloseAll disconnects every session, e.g. on shutdown.
@@ -122,13 +122,13 @@ func (m *Manager) snapshot() []*Session {
 
 // bind logs session s in as p. Unless multiple sessions are allowed, p's
 // other sessions are told why and disconnected first.
-func (m *Manager) bind(s *Session, p *player.Player) {
+func (m *Manager) bind(session *Session, player *online.Player) {
 	m.loginMu.Lock()
 	defer m.loginMu.Unlock()
 
 	// single-session: a new login replaces the old connection.
-	if !m.cfg.AllowMultipleSessions {
-		old := p.Clients()
+	if !m.config.AllowMultipleSessions {
+		old := player.Clients()
 		for _, c := range old {
 			c.Send(protocol.ServerMessage{Text: "You've logged in from another window. Disconnecting"})
 			c.Disconnect()
@@ -141,8 +141,8 @@ func (m *Manager) bind(s *Session, p *player.Player) {
 			}
 		}
 	}
-	m.players.Attach(p, s)
-	s.player.Store(p)
+	m.players.Attach(player, session)
+	session.player.Store(player)
 }
 
 // readySessions returns the sessions that have finished logging in.

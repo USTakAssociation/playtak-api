@@ -18,7 +18,7 @@ import (
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/game"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/moderation"
-	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/online"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/transport"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/wordfilter"
@@ -91,7 +91,7 @@ func newHarnessWithGames(t *testing.T, cfg Config, gameCfg game.Config) *harness
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	mail := &sentMail{}
 	authSvc := auth.NewService(store, players.NewTokenStore(conn), mail, &wordfilter.Filter{}, log)
-	registry := player.NewRegistry()
+	registry := online.NewRegistry()
 	seeks := seek.NewManager()
 
 	gamesDB := dbtest.NewGamesDB(t)

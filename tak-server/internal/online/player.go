@@ -1,7 +1,7 @@
-// Package player tracks the players who are currently online, and guests.
+// Package online tracks the players who are currently online, and guests.
 // Registered players are loaded from the database when they log in and are
 // dropped from memory when their last session ends.
-package player
+package online
 
 import (
 	"slices"
@@ -14,7 +14,7 @@ import (
 
 // Client is one logged-in connection a player can be reached through.
 type Client interface {
-	Send(ev protocol.Event)
+	Send(event protocol.Event)
 	ProtocolVersion() int
 	// Disconnect flushes queued events and closes the connection.
 	Disconnect()
@@ -29,7 +29,7 @@ type Player struct {
 
 	mu         sync.Mutex
 	admin      bool
-	mod        bool
+	moderator  bool
 	bot        bool
 	gagged     bool
 	banned     bool
@@ -37,21 +37,21 @@ type Player struct {
 	lastActive time.Time
 }
 
-func newPlayer(rec players.Record) *Player {
-	p := &Player{ID: rec.ID, Name: rec.Name}
-	p.update(rec)
+func newPlayer(record players.Record) *Player {
+	p := &Player{ID: record.ID, Name: record.Name}
+	p.update(record)
 	return p
 }
 
 // update refreshes permission flags from a freshly loaded record.
-func (p *Player) update(rec players.Record) {
+func (p *Player) update(record players.Record) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.admin, p.mod, p.bot, p.gagged, p.banned = rec.IsAdmin, rec.IsMod, rec.IsBot, rec.IsGagged, rec.IsBanned
+	p.admin, p.moderator, p.bot, p.gagged, p.banned = record.IsAdmin, record.IsMod, record.IsBot, record.IsGagged, record.IsBanned
 }
 
 func (p *Player) IsAdmin() bool  { p.mu.Lock(); defer p.mu.Unlock(); return p.admin }
-func (p *Player) IsMod() bool    { p.mu.Lock(); defer p.mu.Unlock(); return p.mod }
+func (p *Player) IsMod() bool    { p.mu.Lock(); defer p.mu.Unlock(); return p.moderator }
 func (p *Player) IsBot() bool    { p.mu.Lock(); defer p.mu.Unlock(); return p.bot }
 func (p *Player) IsGagged() bool { p.mu.Lock(); defer p.mu.Unlock(); return p.gagged }
 func (p *Player) IsBanned() bool { p.mu.Lock(); defer p.mu.Unlock(); return p.banned }
@@ -74,10 +74,10 @@ func (p *Player) Online() bool {
 	return len(p.clients) > 0
 }
 
-// Send delivers ev to every connection the player is logged in on.
-func (p *Player) Send(ev protocol.Event) {
+// Send delivers event to every connection the player is logged in on.
+func (p *Player) Send(event protocol.Event) {
 	for _, c := range p.Clients() {
-		c.Send(ev)
+		c.Send(event)
 	}
 }
 

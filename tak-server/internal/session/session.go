@@ -2,21 +2,15 @@ package session
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"sync/atomic"
 	"time"
 
-	"github.com/USTakAssociation/playtak-api/tak-server/internal/auth"
-	"github.com/USTakAssociation/playtak-api/tak-server/internal/chat"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/clientip"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/game"
-	"github.com/USTakAssociation/playtak-api/tak-server/internal/moderation"
-	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/online"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/protocol"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/protocol/legacy"
-	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
-	"github.com/USTakAssociation/playtak-api/tak-server/internal/tak"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/transport"
 )
 
@@ -25,24 +19,24 @@ const commandTimeout = 10 * time.Second
 
 // Session is one client connection and what it is logged in as.
 type Session struct {
-	id   int64
-	m    *Manager
-	conn transport.Conn
-	log  *slog.Logger // fixed at creation; read from any goroutine
-	done chan struct{}
+	id      int64
+	manager *Manager
+	conn    transport.Conn
+	log     *slog.Logger // fixed at creation; read from any goroutine
+	done    chan struct{}
 
 	// Read by other goroutines (broadcasts), written by the read goroutine.
 	protocolVersion atomic.Int32
-	player          atomic.Pointer[player.Player]
+	player          atomic.Pointer[online.Player]
 	quitting        atomic.Bool
 	// ready is set once the login messages have been sent; only then does
 	// the session receive presence updates, so none arrives before Welcome.
 	ready atomic.Bool
 }
 
-// Send renders ev in the client's protocol and queues it.
-func (s *Session) Send(ev protocol.Event) {
-	lines, err := legacy.Format(ev, s.ProtocolVersion())
+// Send renders event in the client's protocol and queues it.
+func (s *Session) Send(event protocol.Event) {
+	lines, err := legacy.Format(event, s.ProtocolVersion())
 	if err != nil {
 		s.log.Error("format event", "err", err)
 		return
@@ -63,21 +57,21 @@ func (s *Session) Done() <-chan struct{} { return s.done }
 
 // Closed cleans up after the connection has gone away.
 func (s *Session) Closed() {
-	s.m.remove(s)
-	if p := s.player.Load(); p != nil {
-		s.m.seeks.Unsubscribe(s)
-		s.m.seeks.Cancel(s)
-		s.m.games.Unsubscribe(s)
-		s.m.games.UnobserveAll(s)
-		s.m.chat.LeaveAll(s)
-		s.m.players.Detach(p, s)
-		if g := s.m.games.ForPlayer(p.Name); g != nil && !p.Online() {
+	s.manager.remove(s)
+	if player := s.player.Load(); player != nil {
+		s.manager.seeks.Unsubscribe(s)
+		s.manager.seeks.Cancel(s)
+		s.manager.games.Unsubscribe(s)
+		s.manager.games.UnobserveAll(s)
+		s.manager.chat.LeaveAll(s)
+		s.manager.players.Detach(player, s)
+		if g := s.manager.games.ForPlayer(player.Name); g != nil && !player.Online() {
 			// Wait so the opponent hears about it before the presence update.
-			if err := g.Disconnected(s.m.ctx, p.Name); err != nil {
-				s.log.Error("report disconnect to game", "player", p.Name, "game", g.ID(), "err", err)
+			if err := g.Disconnected(s.manager.ctx, player.Name); err != nil {
+				s.log.Error("report disconnect to game", "player", player.Name, "game", g.ID(), "err", err)
 			}
 		}
-		s.m.broadcastPresence()
+		s.manager.broadcastPresence()
 	}
 	s.log.Debug("disconnected")
 	close(s.done)
@@ -88,363 +82,109 @@ func (s *Session) HandleLine(line string) {
 	if s.quitting.Load() {
 		return
 	}
-	p := s.player.Load()
-	cmd := legacy.Parse(line, p != nil)
-	ctx, cancel := context.WithTimeout(s.m.ctx, commandTimeout)
+	player := s.player.Load()
+	command := legacy.Parse(line, player != nil)
+	ctx, cancel := context.WithTimeout(s.manager.ctx, commandTimeout)
 	defer cancel()
 
-	switch cmd := cmd.(type) {
+	switch command := command.(type) {
 	case protocol.Quit:
 		s.quitting.Store(true)
 		s.conn.Close(transport.CloseNormal)
 	case protocol.Ping:
-		if p != nil {
-			p.Touch()
+		if player != nil {
+			player.Touch()
 		}
 		s.Send(protocol.OK{})
 	case protocol.ClientName:
-		s.clientName(cmd)
+		s.clientName(command)
 	case protocol.SetProtocol:
-		s.protocolVersion.Store(int32(cmd.Version))
+		s.protocolVersion.Store(int32(command.Version))
 		s.Send(protocol.OK{})
 	case protocol.LoginGuest:
-		s.loginGuest(ctx, cmd)
+		s.loginGuest(ctx, command)
 	case protocol.Login:
-		s.login(ctx, cmd)
+		s.login(ctx, command)
 	case protocol.Register:
-		s.register(ctx, cmd)
+		s.register(ctx, command)
 	case protocol.RegisterMalformed:
 		s.Send(protocol.RegistrationFailed{Reason: protocol.RegistrationMalformed})
 	case protocol.SendResetToken:
-		s.sendResetToken(ctx, cmd)
+		s.sendResetToken(ctx, command)
 	case protocol.ResetPassword:
-		s.resetPassword(ctx, cmd)
+		s.resetPassword(ctx, command)
 	case protocol.ChangePassword:
-		s.changePassword(ctx, p, cmd)
+		s.changePassword(ctx, player, command)
 	case protocol.ListSeeks:
-		s.m.seeks.SendList(s)
+		s.manager.seeks.SendList(s)
 	case protocol.PostSeek:
-		s.postSeek(p, cmd)
+		s.postSeek(player, command)
 	case protocol.CancelSeek:
-		s.m.seeks.Cancel(s)
+		s.manager.seeks.Cancel(s)
 	case protocol.Rematch:
-		s.rematch(p, cmd)
+		s.rematch(player, command)
 	case protocol.AcceptSeek:
-		if _, err := s.m.games.Accept(ctx, p, s, cmd.ID); err != nil {
+		if _, err := s.manager.games.Accept(ctx, player, s, command.ID); err != nil {
 			s.Send(protocol.NOK{})
 		}
 	case protocol.ListGames:
-		s.m.games.SendList(s)
+		s.manager.games.SendList(s)
 	case protocol.PlaceStone:
-		kind := tak.Flat
-		switch {
-		case cmd.Capstone:
-			kind = tak.Capstone
-		case cmd.Wall:
-			kind = tak.Wall
-		}
-		s.inGame(p, cmd.GameID, func(g *game.Game) error { return g.Place(ctx, p.Name, cmd.Square, kind) })
+		s.placeStone(ctx, player, command)
 	case protocol.MoveStack:
-		s.inGame(p, cmd.GameID, func(g *game.Game) error { return g.Move(ctx, p.Name, cmd.From, cmd.To, cmd.Drops) })
+		s.inGame(player, command.GameID, func(g *game.Game) error { return g.Move(ctx, player.Name, command.From, command.To, command.Drops) })
 	case protocol.Resign:
 		// The game announces the result; there's no OK.
-		if g := s.gameFor(p, cmd.GameID); g == nil || g.Resign(ctx, p.Name) != nil {
+		if g := s.gameFor(player, command.GameID); g == nil || g.Resign(ctx, player.Name) != nil {
 			s.Send(protocol.NOK{})
 		}
 	case protocol.RequestUndo:
-		s.inGame(p, cmd.GameID, func(g *game.Game) error { return g.RequestUndo(ctx, p.Name) })
+		s.inGame(player, command.GameID, func(g *game.Game) error { return g.RequestUndo(ctx, player.Name) })
 	case protocol.RemoveUndo:
-		s.inGame(p, cmd.GameID, func(g *game.Game) error { return g.RemoveUndo(ctx, p.Name) })
+		s.inGame(player, command.GameID, func(g *game.Game) error { return g.RemoveUndo(ctx, player.Name) })
 	case protocol.OfferDraw:
-		s.inGame(p, cmd.GameID, func(g *game.Game) error { return g.OfferDraw(ctx, p.Name) })
+		s.inGame(player, command.GameID, func(g *game.Game) error { return g.OfferDraw(ctx, player.Name) })
 	case protocol.RemoveDraw:
-		s.inGame(p, cmd.GameID, func(g *game.Game) error { return g.RemoveDraw(ctx, p.Name) })
+		s.inGame(player, command.GameID, func(g *game.Game) error { return g.RemoveDraw(ctx, player.Name) })
 	case protocol.GiveTime:
-		s.inGame(p, cmd.GameID, func(g *game.Game) error { return g.GiveTime(ctx, p.Name) })
+		s.inGame(player, command.GameID, func(g *game.Game) error { return g.GiveTime(ctx, player.Name) })
 	case protocol.Observe:
 		// The game answers with what it has so far; there's no OK.
-		if err := s.m.games.Observe(ctx, p.Name, s, cmd.GameID); err != nil {
+		if err := s.manager.games.Observe(ctx, player.Name, s, command.GameID); err != nil {
 			s.Send(protocol.NOK{})
 		}
 	case protocol.Unobserve:
-		if err := s.m.games.Unobserve(ctx, s, cmd.GameID); err != nil {
+		if err := s.manager.games.Unobserve(ctx, s, command.GameID); err != nil {
 			s.Send(protocol.NOK{})
 		} else {
 			s.Send(protocol.OK{})
 		}
 	case protocol.PostShout:
-		var everyone []chat.Member
-		for _, o := range s.m.readySessions() {
-			everyone = append(everyone, o)
-		}
-		s.m.chat.Shout(s.chatSender(p), everyone, cmd.Text)
+		s.shout(player, command)
 	case protocol.PostRoomShout:
-		if err := s.m.chat.ShoutRoom(s.chatSender(p), cmd.Room, cmd.Text); err != nil {
+		if err := s.manager.chat.ShoutRoom(s.chatSender(player), command.Room, command.Text); err != nil {
 			s.Send(protocol.CommandFailed{Reason: err.Error()})
 		}
 	case protocol.JoinRoom:
-		s.m.chat.Join(cmd.Room, s)
+		s.manager.chat.Join(command.Room, s)
 	case protocol.LeaveRoom:
-		s.m.chat.Leave(cmd.Room, s)
+		s.manager.chat.Leave(command.Room, s)
 		s.Send(protocol.OK{})
 	case protocol.SendTell:
-		var err error
-		if target := s.m.players.FindOnline(cmd.To); target != nil {
-			err = s.m.chat.Tell(s.chatSender(p), target.Name, target, cmd.Text)
-		} else {
-			err = s.m.chat.Tell(s.chatSender(p), cmd.To, nil, cmd.Text)
-		}
-		if err != nil {
-			s.Send(protocol.CommandFailed{Reason: err.Error()})
-		}
+		s.tell(player, command)
 	case protocol.Sudo:
-		s.sudo(ctx, p, cmd)
+		s.sudo(ctx, player, command)
 	case protocol.ShowGame:
-		g := s.gameFor(p, cmd.GameID)
-		if g == nil {
-			s.Send(protocol.NOK{})
-			break
-		}
-		if tps, err := g.TPS(ctx, p.Name); err == nil {
-			s.Send(protocol.PositionShown{GameID: cmd.GameID, TPS: tps})
-		} else {
-			s.Send(protocol.NOK{})
-		}
+		s.showGame(ctx, player, command)
 	case protocol.ShowSquare:
-		g := s.gameFor(p, cmd.GameID)
-		if g == nil {
-			s.Send(protocol.NOK{})
-			break
-		}
-		if stack, err := g.SquareString(ctx, p.Name, cmd.Square); err == nil {
-			s.Send(protocol.SquareShown{GameID: cmd.GameID, Stack: stack})
-		} else {
-			s.Send(protocol.NOK{})
-		}
+		s.showSquare(ctx, player, command)
 	default:
 		s.Send(protocol.NOK{})
-	}
-}
-
-// Client versions too old to work with the current protocol.
-var retiredClients = map[string]bool{
-	"TreffnonX-08.09.16": true,
-	"TakWeb-16.05.26":    true,
-}
-
-func (s *Session) clientName(cmd protocol.ClientName) {
-	s.log.Debug("client", "name", cmd.Name)
-	if retiredClients[cmd.Name] {
-		s.Send(protocol.Shout{From: "Server", Text: "Your Playtak client is unfortunately no longer compatible. Please go to https://www.playtak.com in order to play."})
-		return
-	}
-	s.Send(protocol.OK{})
-}
-
-// Login message order matches the Java server: a guest's game is resumed
-// before their Welcome, a registered player's after Welcome and Is Mod; then
-// come the seek list, the game list and the presence update.
-
-func (s *Session) loginGuest(ctx context.Context, cmd protocol.LoginGuest) {
-	p := s.m.players.Guest(cmd.Token)
-	s.m.bind(s, p)
-	s.log.Info("guest logged in", "player", p.Name)
-	s.resumeGame(ctx, p)
-	s.Send(protocol.LoggedIn{Name: p.Name})
-	s.subscribe()
-}
-
-func (s *Session) login(ctx context.Context, cmd protocol.Login) {
-	rec, err := s.m.auth.Login(ctx, cmd.Name, cmd.Password, s.ip())
-	// A rate-limited login looks like any other failure to old clients.
-	if errors.Is(err, auth.ErrAuthFailed) || errors.Is(err, auth.ErrRateLimited) {
-		s.Send(protocol.AuthFailure{})
-		return
-	}
-	if err != nil {
-		s.fail("login", err)
-		return
-	}
-	p := s.m.players.Acquire(rec)
-	s.m.bind(s, p)
-	s.log.Info("logged in", "player", p.Name)
-	s.Send(protocol.LoggedIn{Name: p.Name})
-	if p.IsAdmin() || p.IsMod() {
-		s.Send(protocol.IsMod{})
-	}
-	s.resumeGame(ctx, p)
-	s.subscribe()
-}
-
-func (s *Session) subscribe() {
-	s.m.seeks.Subscribe(s)
-	s.m.games.Subscribe(s)
-	s.ready.Store(true)
-	s.m.broadcastPresence()
-}
-
-// resumeGame replays the player's game in progress, if any, to this session.
-func (s *Session) resumeGame(ctx context.Context, p *player.Player) {
-	if g := s.m.games.ForPlayer(p.Name); g != nil {
-		if err := g.Reconnected(ctx, p, s); err != nil {
-			s.log.Error("resume game", "player", p.Name, "game", g.ID(), "err", err)
-		}
-	}
-}
-
-// sudo runs a moderator or admin command. Anyone else gets NOK; otherwise
-// the command is echoed, then its result.
-func (s *Session) sudo(ctx context.Context, p *player.Player, cmd protocol.Sudo) {
-	if !moderation.Allowed(p) {
-		s.Send(protocol.NOK{})
-		return
-	}
-	s.Send(protocol.SudoReply{Text: "> " + cmd.Text})
-	r := s.m.mod.Run(ctx, p, cmd)
-	for _, line := range r.Replies {
-		s.Send(protocol.SudoReply{Text: line})
-	}
-	if r.Broadcast != "" {
-		for _, o := range s.m.readySessions() {
-			o.Send(protocol.RawLine{Text: r.Broadcast})
-		}
 	}
 }
 
 // ip is the client's address, without a port.
 func (s *Session) ip() string { return clientip.Host(s.conn.RemoteAddr()) }
-
-func (s *Session) chatSender(p *player.Player) chat.Sender {
-	return chat.Sender{Name: p.Name, Gagged: p.IsGagged(), Session: s}
-}
-
-// gameFor returns the game with id if p is playing in it, else nil.
-func (s *Session) gameFor(p *player.Player, id int) *game.Game {
-	g := s.m.games.ForPlayer(p.Name)
-	if g == nil || g.ID() != id {
-		return nil
-	}
-	return g
-}
-
-// inGame runs an action in p's game id, answering OK, or NOK with the
-// reason if the game refused it.
-func (s *Session) inGame(p *player.Player, id int, action func(*game.Game) error) {
-	g := s.gameFor(p, id)
-	if g == nil {
-		s.Send(protocol.NOK{})
-		return
-	}
-	var cooldown *game.CooldownError
-	switch err := action(g); {
-	case err == nil:
-		s.Send(protocol.OK{})
-	case errors.As(err, &cooldown):
-		s.Send(protocol.ServerMessage{Text: cooldown.Error()})
-		s.Send(protocol.NOK{})
-	case errors.Is(err, game.ErrNotPlaying), errors.Is(err, game.ErrTimeout), errors.Is(err, game.ErrNothingToUndo),
-		errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
-		s.Send(protocol.NOK{})
-	default:
-		s.Send(protocol.MoveRejected{Reason: err.Error()})
-	}
-}
-
-func (s *Session) register(ctx context.Context, cmd protocol.Register) {
-	rec, err := s.m.auth.Register(ctx, cmd.Name, cmd.Email, s.ip())
-	var reason protocol.RegistrationError
-	switch {
-	case err == nil:
-		s.log.Info("registered", "name", rec.Name)
-		s.Send(protocol.Registered{Name: rec.Name})
-		return
-	case errors.Is(err, auth.ErrInvalidUsername), errors.Is(err, auth.ErrInvalidEmail):
-		reason = protocol.RegistrationMalformed
-	case errors.Is(err, auth.ErrGuestName):
-		reason = protocol.RegistrationGuestName
-	case errors.Is(err, auth.ErrProfanity):
-		reason = protocol.RegistrationProfanity
-	case errors.Is(err, auth.ErrNameTaken):
-		reason = protocol.RegistrationNameTaken
-	case errors.Is(err, auth.ErrRateLimited):
-		reason = protocol.RegistrationRateLimited
-	default:
-		s.log.Error("register", "err", err)
-		reason = protocol.RegistrationServerError
-	}
-	s.Send(protocol.RegistrationFailed{Reason: reason})
-}
-
-func (s *Session) sendResetToken(ctx context.Context, cmd protocol.SendResetToken) {
-	switch err := s.m.auth.SendResetToken(ctx, cmd.Name, cmd.Email); {
-	case err == nil:
-		s.Send(protocol.ResetTokenSent{})
-	case errors.Is(err, auth.ErrNoSuchPlayer):
-		s.Send(protocol.ResetTokenFailed{Reason: protocol.ResetTokenNoSuchPlayer})
-	case errors.Is(err, auth.ErrEmailMismatch):
-		s.Send(protocol.ResetTokenFailed{Reason: protocol.ResetTokenEmailMismatch})
-	case errors.Is(err, auth.ErrRateLimited):
-		s.Send(protocol.ResetTokenFailed{Reason: protocol.ResetTokenRateLimited})
-	default:
-		s.fail("send reset token", err)
-	}
-}
-
-func (s *Session) resetPassword(ctx context.Context, cmd protocol.ResetPassword) {
-	switch err := s.m.auth.ResetPassword(ctx, cmd.Name, cmd.Token, cmd.Password); {
-	case err == nil:
-		s.Send(protocol.PasswordReset{})
-	case errors.Is(err, auth.ErrNoSuchPlayer):
-		s.Send(protocol.PasswordResetFailed{Reason: protocol.ResetPasswordNoSuchPlayer})
-	case errors.Is(err, auth.ErrWrongToken):
-		s.Send(protocol.PasswordResetFailed{Reason: protocol.ResetPasswordWrongToken})
-	default:
-		s.fail("reset password", err)
-	}
-}
-
-func (s *Session) changePassword(ctx context.Context, p *player.Player, cmd protocol.ChangePassword) {
-	if p.Guest {
-		s.Send(protocol.WrongPassword{})
-		return
-	}
-	switch err := s.m.auth.ChangePassword(ctx, p.Name, cmd.Old, cmd.New); {
-	case err == nil:
-		s.Send(protocol.PasswordChanged{})
-	case errors.Is(err, auth.ErrWrongPassword):
-		s.Send(protocol.WrongPassword{})
-	default:
-		s.fail("change password", err)
-	}
-}
-
-// Players can't seek while in a game.
-
-func (s *Session) postSeek(p *player.Player, cmd protocol.PostSeek) {
-	var err error
-	idle := s.m.games.IfIdle(p.Name, func() {
-		_, err = s.m.seeks.Post(s, seek.Request{Creator: p.Name, Bot: p.IsBot(), Opponent: cmd.Opponent, Settings: cmd.Settings})
-	})
-	if !idle || err != nil {
-		s.Send(protocol.NOK{})
-	}
-}
-
-func (s *Session) rematch(p *player.Player, cmd protocol.Rematch) {
-	var res seek.RematchResult
-	var err error
-	idle := s.m.games.IfIdle(p.Name, func() {
-		res, err = s.m.seeks.Rematch(s, cmd.GameID, seek.Request{Creator: p.Name, Bot: p.IsBot(), Opponent: cmd.Opponent, Settings: cmd.Settings})
-	})
-	switch {
-	case !idle || err != nil:
-		s.Send(protocol.NOK{})
-	case res.AcceptID != 0:
-		s.Send(protocol.AcceptRematch{SeekID: res.AcceptID})
-	default:
-		s.Send(protocol.RematchSeekCreated{SeekID: res.Created.ID})
-	}
-}
 
 // fail logs an unexpected error and tells the client the command failed.
 func (s *Session) fail(op string, err error) {

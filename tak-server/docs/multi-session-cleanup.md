@@ -37,7 +37,7 @@ with the JSON protocol:
 - Game seats are identified by player name, and `Game.send` sends to the
   player, which means all of their sessions (`internal/game/game.go`).
 - Every login replays the player's game in progress to the new session
-  (`Session.resumeGame` in `internal/session/session.go`).
+  (`Session.resumeGame` in `internal/session/account.go`).
 - A disconnect is reported to the game only once the player has no
   connections left (`Session.Closed`).
 

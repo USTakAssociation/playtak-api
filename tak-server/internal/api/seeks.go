@@ -35,35 +35,35 @@ type seekDTO struct {
 
 var colorNames = map[protocol.Color]string{protocol.AnyColor: "ANY", protocol.White: "WHITE", protocol.Black: "BLACK"}
 
-func newSeekDTO(s seek.Seek) seekDTO {
-	d := seekDTO{
-		ID:                   s.ID,
-		Creator:              s.Creator,
-		TimeContingent:       s.Time,
-		TimeIncrement:        s.Increment,
-		ExtraTimeTriggerMove: s.ExtraTimeTrigger,
-		ExtraTimeAmount:      s.ExtraTimeAmount,
-		IncrementScales:      s.IncrementScales,
-		Opening:              s.Opening.PTN(),
-		Komi:                 float64(s.Komi) / 2,
-		BoardSize:            s.Size,
-		Capstones:            s.Capstones,
-		Pieces:               s.Pieces,
-		Unrated:              s.Unrated,
-		Tournament:           s.Tournament,
-		Color:                colorNames[s.Color],
+func newSeekDTO(openSeek seek.Seek) seekDTO {
+	response := seekDTO{
+		ID:                   openSeek.ID,
+		Creator:              openSeek.Creator,
+		TimeContingent:       openSeek.Time,
+		TimeIncrement:        openSeek.Increment,
+		ExtraTimeTriggerMove: openSeek.ExtraTimeTrigger,
+		ExtraTimeAmount:      openSeek.ExtraTimeAmount,
+		IncrementScales:      openSeek.IncrementScales,
+		Opening:              openSeek.Opening.PTN(),
+		Komi:                 float64(openSeek.Komi) / 2,
+		BoardSize:            openSeek.Size,
+		Capstones:            openSeek.Capstones,
+		Pieces:               openSeek.Pieces,
+		Unrated:              openSeek.Unrated,
+		Tournament:           openSeek.Tournament,
+		Color:                colorNames[openSeek.Color],
 	}
-	if s.PNTID != 0 {
-		d.PNTID = &s.PNTID
+	if openSeek.PNTID != 0 {
+		response.PNTID = &openSeek.PNTID
 	}
-	if s.Opponent != "" {
-		d.Opponent = &s.Opponent
+	if openSeek.Opponent != "" {
+		response.Opponent = &openSeek.Opponent
 	}
-	return d
+	return response
 }
 
 func (d seekDTO) settings() (protocol.GameSettings, bool) {
-	g := protocol.GameSettings{
+	settings := protocol.GameSettings{
 		Size:             d.BoardSize,
 		Time:             d.TimeContingent,
 		Increment:        d.TimeIncrement,
@@ -77,25 +77,25 @@ func (d seekDTO) settings() (protocol.GameSettings, bool) {
 		ExtraTimeAmount:  d.ExtraTimeAmount,
 	}
 	if strings.EqualFold(d.Opening, protocol.OpeningDoubleBlackStack.PTN()) {
-		g.Opening = protocol.OpeningDoubleBlackStack
+		settings.Opening = protocol.OpeningDoubleBlackStack
 	}
 	switch d.Color {
 	case "", "ANY":
 	case "WHITE":
-		g.Color = protocol.White
+		settings.Color = protocol.White
 	case "BLACK":
-		g.Color = protocol.Black
+		settings.Color = protocol.Black
 	default:
-		return g, false
+		return settings, false
 	}
-	return g, true
+	return settings, true
 }
 
 func (s *Server) listSeeks(w http.ResponseWriter, r *http.Request) {
 	seeks := s.seeks.List()
 	out := make([]seekDTO, len(seeks))
-	for i, sk := range seeks {
-		out[i] = newSeekDTO(sk)
+	for i, openSeek := range seeks {
+		out[i] = newSeekDTO(openSeek)
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -107,24 +107,24 @@ func (s *Server) createSeek(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "invalid_service_key")
 		return
 	}
-	var req seekDTO
-	if !decode(w, r, &req) {
+	var body seekDTO
+	if !decode(w, r, &body) {
 		return
 	}
-	settings, ok := req.settings()
+	settings, ok := body.settings()
 	if !ok {
 		writeError(w, http.StatusBadRequest, "invalid_color")
 		return
 	}
 
-	p := s.players.Lookup(req.Creator)
-	if p == nil || !p.Online() {
+	player := s.players.Lookup(body.Creator)
+	if player == nil || !player.Online() {
 		writeError(w, http.StatusNotFound, "creator_not_online")
 		return
 	}
 	// The seek belongs to one of the creator's sessions: the most recent one
 	// that can display it.
-	clients := p.Clients()
+	clients := player.Clients()
 	slices.Reverse(clients)
 	var owner seek.Listener
 	for _, c := range clients {
@@ -139,15 +139,15 @@ func (s *Server) createSeek(w http.ResponseWriter, r *http.Request) {
 	}
 
 	opponent := ""
-	if req.Opponent != nil {
-		opponent = *req.Opponent
+	if body.Opponent != nil {
+		opponent = *body.Opponent
 	}
 	pntID := 0
-	if req.PNTID != nil {
-		pntID = *req.PNTID
+	if body.PNTID != nil {
+		pntID = *body.PNTID
 	}
 	created, err := s.seeks.Post(owner, seek.Request{
-		Creator: p.Name, Bot: p.IsBot(), Opponent: opponent, Settings: settings, PNTID: pntID,
+		Creator: player.Name, Bot: player.IsBot(), Opponent: opponent, Settings: settings, PNTID: pntID,
 	})
 	if err != nil {
 		writeError(w, http.StatusUnprocessableEntity, "incompatible_protocol")

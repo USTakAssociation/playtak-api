@@ -13,7 +13,7 @@ import (
 //	x3,12,2S/x,22S,22C,11,21/x5/x5/1,x4 1 6
 func (g *Game) TPS() string {
 	rows := make([]string, 0, g.size)
-	for r := g.size - 1; r >= 0; r-- {
+	for rank := g.size - 1; rank >= 0; rank-- {
 		var cells []string
 		empty := 0
 		flush := func() {
@@ -26,26 +26,26 @@ func (g *Game) TPS() string {
 			empty = 0
 		}
 		for f := range g.size {
-			s := g.pos.stacks[g.index(Square{File: f, Rank: r})]
-			if len(s) == 0 {
+			stack := g.position.stacks[g.index(Square{File: f, Rank: rank})]
+			if len(stack) == 0 {
 				empty++
 				continue
 			}
 			flush()
-			var b strings.Builder
-			for _, st := range s {
-				b.WriteByte("12"[st.Color])
+			var builder strings.Builder
+			for _, st := range stack {
+				builder.WriteByte("12"[st.Color])
 			}
-			switch s[len(s)-1].Kind {
+			switch stack[len(stack)-1].Kind {
 			case Wall:
-				b.WriteByte('S')
+				builder.WriteByte('S')
 			case Capstone:
-				b.WriteByte('C')
+				builder.WriteByte('C')
 			}
-			cells = append(cells, b.String())
+			cells = append(cells, builder.String())
 		}
 		flush()
 		rows = append(rows, strings.Join(cells, ","))
 	}
-	return fmt.Sprintf("%s %d %d", strings.Join(rows, "/"), g.Turn()+1, g.pos.ply/2+1)
+	return fmt.Sprintf("%s %d %d", strings.Join(rows, "/"), g.Turn()+1, g.position.ply/2+1)
 }

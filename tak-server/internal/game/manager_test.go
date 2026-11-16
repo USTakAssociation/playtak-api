@@ -13,7 +13,7 @@ import (
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/dbtest"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/games"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
-	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/online"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/protocol"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/tak"
@@ -87,7 +87,7 @@ type env struct {
 	t       *testing.T
 	m       *Manager
 	seeks   *seek.Manager
-	players *player.Registry
+	players *online.Registry
 	results *savedResults
 	now     time.Time
 	timers  []*fakeTimer
@@ -118,7 +118,7 @@ func newEnv(t *testing.T, cfg Config) *env {
 	if cfg.ReconnectTimeout == 0 {
 		cfg.ReconnectTimeout = time.Minute
 	}
-	e := &env{t: t, seeks: seek.NewManager(), players: player.NewRegistry(), results: &savedResults{}, now: t0}
+	e := &env{t: t, seeks: seek.NewManager(), players: online.NewRegistry(), results: &savedResults{}, now: t0}
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	e.m = NewManager(cfg, games.NewStore(dbtest.NewGamesDB(t)), players.NewStore(dbtest.NewPlayersDB(t)),
 		e.results, e.seeks, e.players, log)
@@ -170,7 +170,7 @@ func (e *env) pending() int {
 func settle(g *Game) { g.do(context.Background(), func() {}) }
 
 // login brings a guest online with one connection.
-func (e *env) login(version int) (*player.Player, *client) {
+func (e *env) login(version int) (*online.Player, *client) {
 	p := e.players.Guest("")
 	c := &client{version: version}
 	e.players.Attach(p, c)
@@ -178,7 +178,7 @@ func (e *env) login(version int) (*player.Player, *client) {
 }
 
 // seek posts a seek for p from its connection.
-func (e *env) seek(p *player.Player, c *client, s protocol.GameSettings, opponent string) seek.Seek {
+func (e *env) seek(p *online.Player, c *client, s protocol.GameSettings, opponent string) seek.Seek {
 	e.t.Helper()
 	sk, err := e.seeks.Post(c, seek.Request{Creator: p.Name, Opponent: opponent, Settings: s})
 	if err != nil {
@@ -190,7 +190,7 @@ func (e *env) seek(p *player.Player, c *client, s protocol.GameSettings, opponen
 var std5 = protocol.GameSettings{Size: 5, Time: 600, Increment: 30, Pieces: 21, Capstones: 1, Color: protocol.White}
 
 // start has b accept a's white seek, so a plays white.
-func (e *env) start() (g *Game, a *player.Player, ac *client, b *player.Player, bc *client) {
+func (e *env) start() (g *Game, a *online.Player, ac *client, b *online.Player, bc *client) {
 	e.t.Helper()
 	a, ac = e.login(0)
 	b, bc = e.login(0)

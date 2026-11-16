@@ -20,40 +20,40 @@ type Resolver struct {
 // NewResolver trusts the proxies in cidrs, a comma-separated list such as
 // "127.0.0.1/32,::1/128". A bare address is treated as a single host.
 func NewResolver(cidrs string) (*Resolver, error) {
-	r := &Resolver{}
-	for _, s := range strings.Split(cidrs, ",") {
-		s = strings.TrimSpace(s)
-		if s == "" {
+	resolver := &Resolver{}
+	for _, cidr := range strings.Split(cidrs, ",") {
+		cidr = strings.TrimSpace(cidr)
+		if cidr == "" {
 			continue
 		}
-		p, err := netip.ParsePrefix(s)
+		p, err := netip.ParsePrefix(cidr)
 		if err != nil {
-			a, aerr := netip.ParseAddr(s)
+			a, aerr := netip.ParseAddr(cidr)
 			if aerr != nil {
-				return nil, fmt.Errorf("trusted proxy %q: %w", s, err)
+				return nil, fmt.Errorf("trusted proxy %q: %w", cidr, err)
 			}
 			p = netip.PrefixFrom(a, a.BitLen())
 		}
-		r.trusted = append(r.trusted, p.Masked())
+		resolver.trusted = append(resolver.trusted, p.Masked())
 	}
-	return r, nil
+	return resolver, nil
 }
 
 // IP returns the client's address for r. If the connection comes from a
 // trusted proxy, it's taken from X-Real-IP, or failing that the nearest
 // untrusted address in X-Forwarded-For. Otherwise it's the connection's own
 // address, whatever the headers say, so clients can't spoof it.
-func (r *Resolver) IP(req *http.Request) string {
-	peer := Host(req.RemoteAddr)
+func (r *Resolver) IP(request *http.Request) string {
+	peer := Host(request.RemoteAddr)
 	if !r.trustedAddr(peer) {
 		return peer
 	}
-	if real := strings.TrimSpace(req.Header.Get("X-Real-IP")); valid(real) {
+	if real := strings.TrimSpace(request.Header.Get("X-Real-IP")); valid(real) {
 		return canonical(real)
 	}
 	// X-Forwarded-For grows to the right as each proxy appends the address
 	// it received from; anything left of our own proxies could be forged.
-	hops := strings.Split(strings.Join(req.Header.Values("X-Forwarded-For"), ","), ",")
+	hops := strings.Split(strings.Join(request.Header.Values("X-Forwarded-For"), ","), ",")
 	for i := len(hops) - 1; i >= 0; i-- {
 		hop := strings.TrimSpace(hops[i])
 		if !valid(hop) {

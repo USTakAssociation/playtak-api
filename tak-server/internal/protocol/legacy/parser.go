@@ -74,17 +74,17 @@ func parseLoggedOut(line string) protocol.Command {
 }
 
 func parseLoggedIn(line string) protocol.Command {
-	if cmd := parseSeekCommand(line); cmd != nil {
-		return cmd
+	if command := parseSeekCommand(line); command != nil {
+		return command
 	}
-	if cmd := parseGameCommand(line); cmd != nil {
-		return cmd
+	if command := parseGameCommand(line); command != nil {
+		return command
 	}
-	if cmd := parseChatCommand(line); cmd != nil {
-		return cmd
+	if command := parseChatCommand(line); command != nil {
+		return command
 	}
-	if cmd := parseSudo(line); cmd != nil {
-		return cmd
+	if command := parseSudo(line); command != nil {
+		return command
 	}
 	if m := reChangePassword.FindStringSubmatch(line); m != nil {
 		return protocol.ChangePassword{Old: m[1], New: m[2]}

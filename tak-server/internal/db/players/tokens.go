@@ -67,13 +67,13 @@ func (s *TokenStore) Get(ctx context.Context, hash []byte, now time.Time) (Token
 // revoked or expired, so a refresh token can only be exchanged once.
 func (s *TokenStore) Rotate(ctx context.Context, oldHash []byte, now time.Time, next ...Token) error {
 	return db.WithTransaction(ctx, s.db, func(tx *sql.Tx) error {
-		res, err := tx.ExecContext(ctx,
+		result, err := tx.ExecContext(ctx,
 			`DELETE FROM auth_tokens WHERE token_hash = ? AND kind = ? AND expires_at > ?`,
 			oldHash, TokenRefresh, now.Unix())
 		if err != nil {
 			return fmt.Errorf("delete refresh token: %w", err)
 		}
-		if n, err := res.RowsAffected(); err != nil {
+		if n, err := result.RowsAffected(); err != nil {
 			return fmt.Errorf("delete refresh token: %w", err)
 		} else if n == 0 {
 			return ErrNotFound
@@ -96,20 +96,20 @@ func (s *TokenStore) Delete(ctx context.Context, hashes ...[]byte) error {
 
 // DeleteForPlayer revokes every token belonging to playerID.
 func (s *TokenStore) DeleteForPlayer(ctx context.Context, playerID int) (int64, error) {
-	res, err := s.db.ExecContext(ctx, `DELETE FROM auth_tokens WHERE player_id = ?`, playerID)
+	result, err := s.db.ExecContext(ctx, `DELETE FROM auth_tokens WHERE player_id = ?`, playerID)
 	if err != nil {
 		return 0, fmt.Errorf("delete tokens for player %d: %w", playerID, err)
 	}
-	return res.RowsAffected()
+	return result.RowsAffected()
 }
 
 // DeleteExpired removes tokens that expired at or before now.
 func (s *TokenStore) DeleteExpired(ctx context.Context, now time.Time) (int64, error) {
-	res, err := s.db.ExecContext(ctx, `DELETE FROM auth_tokens WHERE expires_at <= ?`, now.Unix())
+	result, err := s.db.ExecContext(ctx, `DELETE FROM auth_tokens WHERE expires_at <= ?`, now.Unix())
 	if err != nil {
 		return 0, fmt.Errorf("delete expired tokens: %w", err)
 	}
-	return res.RowsAffected()
+	return result.RowsAffected()
 }
 
 func insertTokens(ctx context.Context, tx *sql.Tx, tokens []Token) error {

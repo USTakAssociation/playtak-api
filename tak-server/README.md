@@ -13,6 +13,7 @@ a JSON protocol, multiple sessions per player and async games.
 ## Contents
 
 - [How it fits together](#how-it-fits-together)
+- [Repository layout](#repository-layout)
 - [Packages](#packages)
 - [Running locally](#running-locally)
 - [Configuration](#configuration)
@@ -29,7 +30,8 @@ a JSON protocol, multiple sessions per player and async games.
  telnet :10000 ──┐
                  ├─ transport ─ session ─┬─ auth ─────────── db/players
  websocket :9999 ┘   (lines)   (one per  ├─ seek
-                               connection)├─ game ── tak      db/games
+                               connection)├─ online
+                                         ├─ game ── tak      db/games
                                          ├─ chat
  http :9998 ──── api ─ auth, seek        └─ moderation
 ```
@@ -48,11 +50,40 @@ a JSON protocol, multiple sessions per player and async games.
   state never needs a lock.
 - **tak** is the rules engine. It's pure (no I/O and no clocks) and has been
   checked move for move against the Java engine.
-- **players** are loaded from the database when they log in. Only online
-  players and guests are held in memory.
+- **online** holds the players who are logged in, and guests. Registered
+  players are loaded from the database when they log in; nobody else is
+  held in memory.
 - **Finished games** are written to a pending-results file first, then
   saved to the games DB in the background, with retries. A busy database
   or a restart can't lose a result.
+
+## Repository layout
+
+```
+tak-server/
+├── cmd/server/     entry point (main.go)
+├── internal/       all server code, one package per area (see Packages)
+├── deploy/         deploy.sh and rollback.sh, run on the server by GitHub Actions
+├── docs/           json-protocol.md (draft), multi-session-cleanup.md, go-migration-plan.md
+├── .env.example    every setting, with defaults
+└── README.md
+```
+
+Related code outside this folder:
+
+| Path | What it is |
+| --- | --- |
+| `../scripts/migrations/` | Database migrations, run by `deploy.sh` |
+| `../scripts/development/` | `create_databases.sh` and `add_user.sh` for local setup |
+| `../tests/` | Compatibility suite, run against a live server |
+| `../.github/workflows/tak-server-*.yml` | CI and deploys |
+
+Inside a package, files are split by area. The two largest:
+
+| Package | Files |
+| --- | --- |
+| `internal/game` | `game.go` (the game goroutine, moves, resign, timeouts), `actions.go` (undo, draw, give time), `observe.go`, `reconnect.go` (disconnects and rejoining), `clock.go`, `manager.go` (starting games, the game list, results) |
+| `internal/session` | `session.go` (connection lifecycle and command dispatch), `account.go` (login, registration, passwords), `game.go`, `seek.go`, `chat.go`, `sudo.go`, `manager.go` (all connections, logins, presence) |
 
 ## Packages
 
@@ -65,7 +96,7 @@ a JSON protocol, multiple sessions per player and async games.
 | `internal/protocol` | Typed commands and events, independent of the wire format. |
 | `internal/protocol/legacy` | The text protocol: parsing lines into commands and formatting events per protocol version (0–4). |
 | `internal/auth` | Login, registration, password resets and REST tokens. Passwords use bcrypt. |
-| `internal/player` | The registry of online players and guests. |
+| `internal/online` | Who is online: the registry of logged-in players and guests. |
 | `internal/seek` | Open seeks and rematches. |
 | `internal/game` | Live games: the game goroutine, clocks, undo/draw/give time, observers, disconnects, and saving results. |
 | `internal/tak` | The rules of Tak: placing, moving, roads, flat wins, TPS. |
@@ -272,49 +303,84 @@ if not, naming the script to run.
 
 ## Deploying
 
-What has to change when the Go server replaces the Java server. A full
-cutover plan (order of steps, testing on beta, rollback) is still to be
-written.
+Production runs the binary under systemd on the VPS, next to the Java
+server it replaces. GitHub Actions builds and deploys it:
 
-**1. Run the migrations** against the production databases, in date order.
-Each is safe to run more than once:
+| Workflow | Runs on | Does |
+| --- | --- | --- |
+| `tak-server-ci.yml` | pull requests to `dev` or `main` | `go vet`, `go test -race`, checks the deploy scripts |
+| `tak-server-cd-dev.yml` | push to `dev` (or run by hand) | tests, builds, deploys to beta |
+| `tak-server-cd-prod.yml` | push to `main` (or run by hand) | tests, builds, deploys to prod |
+
+The deploy job copies a release (binary, `.env`, migrations and the scripts
+in `deploy/`) to the server and runs `deploy/deploy.sh beta|prod` as root.
+
+### What deploy.sh does
+
+Safe to run again. On each run it:
+
+1. Stops the Go and Java servers for that environment.
+2. Backs up both databases to `/var/backups/tak-server-<env>/<time>/`,
+   keeping the 10 newest.
+3. Runs every migration. Each is safe to run more than once.
+4. Installs the binary and `.env` to `/var/apps/tak-server-<env>/` and the
+   unit `tak-server-<env>.service`.
+5. Disables the Java unit (`takserver-<env>.service`), so a reboot can't
+   start both, and starts the Go unit.
+6. Checks the server sends `Welcome!` on its telnet port. If it doesn't
+   within 30 seconds, it runs `rollback.sh` and fails the job.
+
+Games in progress when the server stops end without a result, as with the
+Java server. Warn players first with `sudo broadcast Message ...`.
+
+### Rolling back
+
+On the server, as root:
 
 ```sh
-bash scripts/migrations/2026-05-add-increment-scales.sh /playtakdb/games.db
-bash scripts/migrations/2026-08-add-nocase-player-indexes.sh /playtakdb/games.db
-bash scripts/migrations/2026-09-players-id-primary-key.sh /playtakdb/players.db
-bash scripts/migrations/2026-09-add-auth-tokens.sh /playtakdb/players.db
+bash /var/apps/tak-server-prod/rollback.sh prod              # back to Java, keep the data
+bash /var/apps/tak-server-prod/rollback.sh prod --restore-db # also restore the newest backup
 ```
 
-The server refuses to start if the players migrations are missing. The
-games migration isn't checked at startup; without it, starting a game fails
-and both players are told "Could not start the game".
+The Java server runs on the migrated databases, so restoring is rarely
+needed. Restoring loses everything since the backup; the replaced files are
+kept as `*.before-restore`.
 
-**2. nginx: pass the client IP** in every location that proxies to the Go
-server: `/ws` on playtak.com and beta.playtak.com, and `/api/` on
-beta.playtak.com (and the production API location once it points here).
-Add:
+### Settings: the TAK_ENV secret
 
-```nginx
-proxy_set_header X-Real-IP $remote_addr;
+Each GitHub environment (`Beta`, `Prod`) needs a `TAK_ENV` secret holding
+the whole `.env` file. It replaces the Java `PROPERTIES` secret. Set the
+ports and database paths explicitly, because beta and prod share the
+machine. Beta, matching its Java config:
+
+```sh
+TAK_TELNET_ADDR=:10002
+TAK_WS_ADDR=:10001
+TAK_HTTP_ADDR=:10003
+TAK_PLAYERS_DB=/var/apps/playtak-server-beta/players.db
+TAK_GAMES_DB=/var/apps/playtak-server-beta/games.db
+TAK_RECONNECT_TIMEOUT=4m
+TAK_SMTP_HOST=mail.lunanode.net
+TAK_SMTP_USER=admin@playtak.com
+TAK_SMTP_PASSWORD=...
+TAK_SMTP_FROM=admin@playtak.com
 ```
 
-nginx connects from 127.0.0.1, which the default `TAK_TRUSTED_PROXIES`
-already trusts. Keep the existing `limit_req` lines; they complement the
-server's own limits.
+Prod uses ports `10000`, `9999` and `9998` and its own database paths.
+See [`.env.example`](.env.example) for every setting.
 
-**3. Configure the server** with environment variables (see
-[`.env.example`](.env.example)):
+### Before the first deploy
 
-- `TAK_PLAYERS_DB`, `TAK_GAMES_DB`: the production database paths.
-- `TAK_SMTP_*`: the mail server. Left empty, no email is sent.
-- `TAK_SERVICE_API_KEY`: set it if the tournament service creates seeks.
-- `TAK_TRUSTED_PROXIES`: only if nginx moves off this machine.
-- `TAK_PENDING_RESULTS_FILE`: on persistent storage. By default it sits
-  beside the games database.
-
-**4. Announce the changes** players will notice, listed below, including
-asking anyone who can't log in to reset their password.
+- `sqlite3` must be installed on the server; the migrations and backups use it.
+- nginx: add `proxy_set_header X-Real-IP $remote_addr;` to every location
+  that proxies to the server: `/ws` on playtak.com and beta.playtak.com,
+  and `/api/` on beta.playtak.com. nginx connects from 127.0.0.1, which the
+  default `TAK_TRUSTED_PROXIES` trusts.
+- Once the Go server has replaced Java for good, delete the Java workflows
+  (`server-cd-dev.yml`, `server-cd-prod.yml`). A push under `server/` would
+  otherwise start the Java server on the same ports.
+- Announce the changes listed below, including asking anyone who can't log
+  in to reset their password.
 
 ## Changes from the Java server
 

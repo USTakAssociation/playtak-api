@@ -45,33 +45,33 @@ func (s *SMTP) Send(ctx context.Context, to, subject, body string) error {
 		conn.SetDeadline(deadline)
 	}
 
-	c, err := smtp.NewClient(conn, s.host)
+	client, err := smtp.NewClient(conn, s.host)
 	if err != nil {
 		return fmt.Errorf("send mail: %w", err)
 	}
-	defer c.Close()
-	if err := c.Auth(smtp.PlainAuth("", s.user, s.password, s.host)); err != nil {
+	defer client.Close()
+	if err := client.Auth(smtp.PlainAuth("", s.user, s.password, s.host)); err != nil {
 		return fmt.Errorf("send mail: auth: %w", err)
 	}
-	if err := c.Mail(s.from); err != nil {
+	if err := client.Mail(s.from); err != nil {
 		return fmt.Errorf("send mail: %w", err)
 	}
-	if err := c.Rcpt(to); err != nil {
+	if err := client.Rcpt(to); err != nil {
 		return fmt.Errorf("send mail: %w", err)
 	}
-	w, err := c.Data()
+	message, err := client.Data()
 	if err != nil {
 		return fmt.Errorf("send mail: %w", err)
 	}
-	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s\r\n",
+	text := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s\r\n",
 		s.from, to, subject, body)
-	if _, err := w.Write([]byte(msg)); err != nil {
+	if _, err := message.Write([]byte(text)); err != nil {
 		return fmt.Errorf("send mail: %w", err)
 	}
-	if err := w.Close(); err != nil {
+	if err := message.Close(); err != nil {
 		return fmt.Errorf("send mail: %w", err)
 	}
-	return c.Quit()
+	return client.Quit()
 }
 
 // Log is used when no SMTP server is configured. It logs each message

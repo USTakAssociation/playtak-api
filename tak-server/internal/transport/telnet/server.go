@@ -25,7 +25,7 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
 		ln.Close()
 	}()
 	for {
-		nc, err := ln.Accept()
+		netConn, err := ln.Accept()
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil
@@ -36,50 +36,50 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
 			}
 			return err
 		}
-		go s.handle(nc)
+		go s.handle(netConn)
 	}
 }
 
 type conn struct {
-	nc    net.Conn
-	queue *transport.Queue
+	netConn net.Conn
+	queue   *transport.Queue
 }
 
 func (c *conn) Send(line string) {
 	if !c.queue.Push(line) && c.queue.Reason() == transport.CloseError {
 		// Too slow to keep up: drop the socket now rather than draining a
 		// full queue into it.
-		c.nc.Close()
+		c.netConn.Close()
 	}
 }
 
 func (c *conn) Close(reason transport.CloseReason) { c.queue.Close(reason) }
-func (c *conn) RemoteAddr() string                 { return c.nc.RemoteAddr().String() }
+func (c *conn) RemoteAddr() string                 { return c.netConn.RemoteAddr().String() }
 
-func (s *Server) handle(nc net.Conn) {
+func (s *Server) handle(netConn net.Conn) {
 	idle := s.IdleTimeout
 	if idle == 0 {
 		idle = transport.IdleTimeout
 	}
-	c := &conn{nc: nc, queue: transport.NewQueue()}
-	go c.writeLoop()
+	connection := &conn{netConn: netConn, queue: transport.NewQueue()}
+	go connection.writeLoop()
 
-	peer := s.Acceptor.Accept(c)
+	peer := s.Acceptor.Accept(connection)
 	defer peer.Closed()
-	defer c.queue.Close(transport.CloseNormal)
+	defer connection.queue.Close(transport.CloseNormal)
 
-	r := bufio.NewReaderSize(nc, transport.MaxLineBytes)
+	r := bufio.NewReaderSize(netConn, transport.MaxLineBytes)
 	for {
-		nc.SetReadDeadline(time.Now().Add(idle))
+		netConn.SetReadDeadline(time.Now().Add(idle))
 		line, err := r.ReadSlice('\n')
 		if err != nil {
 			var ne net.Error
 			switch {
 			case errors.Is(err, bufio.ErrBufferFull):
-				s.Log.Info("telnet line too long", "remote", c.RemoteAddr())
-				c.queue.Close(transport.CloseError)
+				s.Log.Info("telnet line too long", "remote", connection.RemoteAddr())
+				connection.queue.Close(transport.CloseError)
 			case errors.As(err, &ne) && ne.Timeout():
-				c.queue.Close(transport.CloseGoingAway)
+				connection.queue.Close(transport.CloseGoingAway)
 			}
 			return
 		}
@@ -89,26 +89,26 @@ func (s *Server) handle(nc net.Conn) {
 
 // writeLoop sends queued lines until the queue closes, then closes the socket.
 func (c *conn) writeLoop() {
-	defer c.nc.Close()
-	w := bufio.NewWriter(c.nc)
+	defer c.netConn.Close()
+	writer := bufio.NewWriter(c.netConn)
 	failed := false
 	for line := range c.queue.Lines() {
 		if failed {
 			continue // drain so senders never see a stuck queue
 		}
-		c.nc.SetWriteDeadline(time.Now().Add(transport.WriteTimeout))
-		w.WriteString(line)
-		w.WriteByte('\n')
+		c.netConn.SetWriteDeadline(time.Now().Add(transport.WriteTimeout))
+		writer.WriteString(line)
+		writer.WriteByte('\n')
 		// Flush once the queue is momentarily empty, batching bursts.
 		if len(c.queue.Lines()) == 0 {
-			if err := w.Flush(); err != nil {
+			if err := writer.Flush(); err != nil {
 				failed = true
-				c.nc.Close()
+				c.netConn.Close()
 			}
 		}
 	}
 	if !failed {
-		c.nc.SetWriteDeadline(time.Now().Add(transport.WriteTimeout))
-		w.Flush()
+		c.netConn.SetWriteDeadline(time.Now().Add(transport.WriteTimeout))
+		writer.Flush()
 	}
 }

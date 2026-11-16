@@ -40,27 +40,27 @@ func parseSeekCommand(line string) protocol.Command {
 	if reList.MatchString(line) {
 		return protocol.ListSeeks{}
 	}
-	if m := reSeekV4.FindStringSubmatch(line); m != nil {
-		n, ok := ints(m, 1, 2, 3, 6, 7, 8, 11, 12, 13)
+	if match := reSeekV4.FindStringSubmatch(line); match != nil {
+		n, ok := ints(match, 1, 2, 3, 6, 7, 8, 11, 12, 13)
 		if !ok {
 			return nil
 		}
 		return seekCommand(protocol.GameSettings{
-			Size: n[1], Time: n[2], Increment: n[3], IncrementScales: m[4] == "1", Color: color(m[5]),
-			Komi: n[6], Pieces: n[7], Capstones: n[8], Unrated: m[9] == "1", Tournament: m[10] == "1",
+			Size: n[1], Time: n[2], Increment: n[3], IncrementScales: match[4] == "1", Color: color(match[5]),
+			Komi: n[6], Pieces: n[7], Capstones: n[8], Unrated: match[9] == "1", Tournament: match[10] == "1",
 			ExtraTimeTrigger: n[11], ExtraTimeAmount: n[12], Opening: protocol.Opening(n[13]),
-		}, m[14])
+		}, match[14])
 	}
-	if m := reSeekV3.FindStringSubmatch(line); m != nil {
-		n, ok := ints(m, 1, 2, 3, 5, 6, 7, 10, 11)
+	if match := reSeekV3.FindStringSubmatch(line); match != nil {
+		n, ok := ints(match, 1, 2, 3, 5, 6, 7, 10, 11)
 		if !ok {
 			return nil
 		}
 		return seekCommand(protocol.GameSettings{
-			Size: n[1], Time: n[2], Increment: n[3], Color: color(m[4]),
-			Komi: n[5], Pieces: n[6], Capstones: n[7], Unrated: m[8] == "1", Tournament: m[9] == "1",
+			Size: n[1], Time: n[2], Increment: n[3], Color: color(match[4]),
+			Komi: n[5], Pieces: n[6], Capstones: n[7], Unrated: match[8] == "1", Tournament: match[9] == "1",
 			ExtraTimeTrigger: n[10], ExtraTimeAmount: n[11],
-		}, m[12])
+		}, match[12])
 	}
 	if m := reSeekV2.FindStringSubmatch(line); m != nil {
 		n, ok := ints(m, 1, 2, 3, 5, 6, 7)
@@ -156,29 +156,29 @@ func colorLetter(c protocol.Color) string {
 }
 
 // formatSeek renders the fields after "Seek new " / "Seek remove ".
-func formatSeek(s protocol.Seek, version int) string {
-	f := []string{
-		strconv.Itoa(s.ID), s.Creator, strconv.Itoa(s.Size), strconv.Itoa(s.Time), strconv.Itoa(s.Increment),
+func formatSeek(openSeek protocol.Seek, version int) string {
+	fields := []string{
+		strconv.Itoa(openSeek.ID), openSeek.Creator, strconv.Itoa(openSeek.Size), strconv.Itoa(openSeek.Time), strconv.Itoa(openSeek.Increment),
 	}
 	if version >= 4 {
-		f = append(f, flag(s.IncrementScales))
+		fields = append(fields, flag(openSeek.IncrementScales))
 	}
-	f = append(f, colorLetter(s.Color), strconv.Itoa(s.Komi), strconv.Itoa(s.Pieces), strconv.Itoa(s.Capstones),
-		flag(s.Unrated), flag(s.Tournament), strconv.Itoa(s.ExtraTimeTrigger), strconv.Itoa(s.ExtraTimeAmount))
+	fields = append(fields, colorLetter(openSeek.Color), strconv.Itoa(openSeek.Komi), strconv.Itoa(openSeek.Pieces), strconv.Itoa(openSeek.Capstones),
+		flag(openSeek.Unrated), flag(openSeek.Tournament), strconv.Itoa(openSeek.ExtraTimeTrigger), strconv.Itoa(openSeek.ExtraTimeAmount))
 	if version <= 1 {
 		// Protocol 0-1 ends with the raw opponent, leaving a trailing space
 		// when there is none.
-		return strings.Join(append(f, s.Opponent), " ")
+		return strings.Join(append(fields, openSeek.Opponent), " ")
 	}
-	opponent := s.Opponent
+	opponent := openSeek.Opponent
 	if opponent == "" {
 		opponent = "0"
 	}
-	f = append(f, opponent, flag(s.Bot))
+	fields = append(fields, opponent, flag(openSeek.Bot))
 	if version >= 4 {
-		f = append(f, strconv.Itoa(int(s.Opening)))
+		fields = append(fields, strconv.Itoa(int(openSeek.Opening)))
 	}
-	return strings.Join(f, " ")
+	return strings.Join(fields, " ")
 }
 
 func flag(b bool) string {

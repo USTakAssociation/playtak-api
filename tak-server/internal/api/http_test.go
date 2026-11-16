@@ -16,7 +16,7 @@ import (
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/dbtest"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/email"
-	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/online"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/wordfilter"
 )
@@ -26,18 +26,18 @@ const passwordHash = "$2a$10$JpGWa00gDsDtJK0Ttq/dD.F2zTj9kCkdcHwO5pIZFfWbT3CfDY/
 
 const serviceKey = "test-service-key"
 
-func newTestServer(t *testing.T) (*httptest.Server, *players.Store, *player.Registry) {
+func newTestServer(t *testing.T) (*httptest.Server, *players.Store, *online.Registry) {
 	srv, store, reg, _ := newTestServerWithSeeks(t)
 	return srv, store, reg
 }
 
-func newTestServerWithSeeks(t *testing.T) (*httptest.Server, *players.Store, *player.Registry, *seek.Manager) {
+func newTestServerWithSeeks(t *testing.T) (*httptest.Server, *players.Store, *online.Registry, *seek.Manager) {
 	t.Helper()
 	conn := dbtest.NewPlayersDB(t)
 	store := players.NewStore(conn)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	authSvc := auth.NewService(store, players.NewTokenStore(conn), email.Log{Logger: log}, &wordfilter.Filter{}, log)
-	reg := player.NewRegistry()
+	reg := online.NewRegistry()
 	seeks := seek.NewManager()
 	srv := httptest.NewServer(NewServer(authSvc, reg, seeks, serviceKey, &clientip.Resolver{}, log).Handler())
 	t.Cleanup(srv.Close)

@@ -49,7 +49,7 @@ func fromTPS(t *testing.T, s Settings, tps string) *Game {
 					stack[len(stack)-1].Kind = Capstone
 				}
 			}
-			g.pos.stacks[g.index(Square{File: file, Rank: rank})] = stack
+			g.position.stacks[g.index(Square{File: file, Rank: rank})] = stack
 			file++
 		}
 		if file != g.size {
@@ -58,8 +58,8 @@ func fromTPS(t *testing.T, s Settings, tps string) *Game {
 	}
 	turn, _ := strconv.Atoi(fields[1])
 	moveNo, _ := strconv.Atoi(fields[2])
-	g.pos.ply = (moveNo-1)*2 + turn - 1
-	g.pos.lastReset = g.pos.ply
+	g.position.ply = (moveNo-1)*2 + turn - 1
+	g.position.lastReset = g.position.ply
 	if got := g.TPS(); got != tps {
 		t.Fatalf("TPS round trip: got %q, want %q", got, tps)
 	}

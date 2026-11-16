@@ -28,7 +28,7 @@ var (
 
 // Member is a session that can receive chat.
 type Member interface {
-	Send(ev protocol.Event)
+	Send(event protocol.Event)
 }
 
 // Sender is who a message comes from.
@@ -65,23 +65,23 @@ func (s *Service) Shout(from Sender, everyone []Member, text string) {
 		from.Session.Send(protocol.Shout{From: from.Name, Text: mutedNotice})
 		return
 	}
-	ev := protocol.Shout{From: from.Name, Text: s.masker.Mask(text)}
+	event := protocol.Shout{From: from.Name, Text: s.masker.Mask(text)}
 	for _, m := range everyone {
-		m.Send(ev)
+		m.Send(event)
 	}
 }
 
 // Join adds m to room, creating it if needed.
-func (s *Service) Join(room string, m Member) {
+func (s *Service) Join(room string, member Member) {
 	s.mu.Lock()
 	members := s.rooms[room]
 	if members == nil {
 		members = make(map[Member]struct{})
 		s.rooms[room] = members
 	}
-	members[m] = struct{}{}
+	members[member] = struct{}{}
 	s.mu.Unlock()
-	m.Send(protocol.RoomJoined{Room: room})
+	member.Send(protocol.RoomJoined{Room: room})
 }
 
 // Leave removes m from room; an empty room is deleted.
@@ -139,9 +139,9 @@ func (s *Service) ShoutRoom(from Sender, room, text string) error {
 		from.Session.Send(protocol.RoomShout{Room: room, From: from.Name, Text: mutedNotice})
 		return nil
 	}
-	ev := protocol.RoomShout{Room: room, From: from.Name, Text: s.masker.Mask(text)}
+	event := protocol.RoomShout{Room: room, From: from.Name, Text: s.masker.Mask(text)}
 	for _, m := range members {
-		m.Send(ev)
+		m.Send(event)
 	}
 	return nil
 }
@@ -149,7 +149,7 @@ func (s *Service) ShoutRoom(from Sender, room, text string) error {
 // Recipient is a player who can be told something: all of their sessions
 // receive it.
 type Recipient interface {
-	Send(ev protocol.Event)
+	Send(event protocol.Event)
 }
 
 // Tell sends text privately to the player named to, who must be online.

@@ -34,9 +34,9 @@ func TestRoadsOnEveryBoardSize(t *testing.T) {
 		g := New(Settings{Size: size, Pieces: 50, Capstones: 2})
 		// Fill rank 1 except the last square with white flats.
 		for f := 0; f < size-1; f++ {
-			g.pos.stacks[g.index(Square{File: f, Rank: 0})] = []Stone{{Color: White}}
+			g.position.stacks[g.index(Square{File: f, Rank: 0})] = []Stone{{Color: White}}
 		}
-		g.pos.ply = 10
+		g.position.ply = 10
 		if err := g.Place(White, Square{File: size - 1, Rank: 0}, Flat); err != nil {
 			t.Fatal(err)
 		}

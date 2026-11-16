@@ -75,16 +75,16 @@ func (s *Store) ByID(ctx context.Context, id int) (Record, error) {
 }
 
 func (s *Store) one(ctx context.Context, query string, arg any) (Record, error) {
-	var r Record
-	err := s.db.QueryRowContext(ctx, query, arg).Scan(&r.ID, &r.Name, &r.PasswordHash, &r.Email,
-		&r.IsBot, &r.IsAdmin, &r.IsMod, &r.IsGagged, &r.IsBanned)
+	var record Record
+	err := s.db.QueryRowContext(ctx, query, arg).Scan(&record.ID, &record.Name, &record.PasswordHash, &record.Email,
+		&record.IsBot, &record.IsAdmin, &record.IsMod, &record.IsGagged, &record.IsBanned)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Record{}, ErrNotFound
 	}
 	if err != nil {
 		return Record{}, fmt.Errorf("query player %v: %w", arg, err)
 	}
-	return r, nil
+	return record, nil
 }
 
 // NameTaken reports whether name, or a look-alike of it, is registered.
@@ -103,7 +103,7 @@ func (s *Store) NameTaken(ctx context.Context, name string) (bool, error) {
 // look-alike check and the insert are one statement, so two concurrent
 // registrations of similar names cannot both succeed.
 func (s *Store) Create(ctx context.Context, name, email, passwordHash string) (Record, error) {
-	res, err := s.db.ExecContext(ctx, `
+	result, err := s.db.ExecContext(ctx, `
 		INSERT INTO players (name, password, email)
 		SELECT ?, ?, ?
 		WHERE NOT EXISTS (SELECT 1 FROM players WHERE `+normalizedNameSQL+` = ?)`,
@@ -111,12 +111,12 @@ func (s *Store) Create(ctx context.Context, name, email, passwordHash string) (R
 	if err != nil {
 		return Record{}, fmt.Errorf("create player %s: %w", name, err)
 	}
-	if n, err := res.RowsAffected(); err != nil {
+	if n, err := result.RowsAffected(); err != nil {
 		return Record{}, fmt.Errorf("create player %s: %w", name, err)
 	} else if n == 0 {
 		return Record{}, ErrNameTaken
 	}
-	id, err := res.LastInsertId()
+	id, err := result.LastInsertId()
 	if err != nil {
 		return Record{}, fmt.Errorf("create player %s: %w", name, err)
 	}
@@ -195,30 +195,30 @@ func (s *Store) Rating(ctx context.Context, id int, at time.Time) (int, error) {
 		}
 		return err
 	}
-	r := ratingRow{unrated: true}
-	if err := load(id, &r); err != nil {
+	row := ratingRow{unrated: true}
+	if err := load(id, &row); err != nil {
 		return 0, fmt.Errorf("load rating for player %d: %w", id, err)
 	}
-	if r.base != 0 {
-		if err := load(r.base, &r); err != nil {
+	if row.base != 0 {
+		if err := load(row.base, &row); err != nil {
 			return 0, fmt.Errorf("load base rating for player %d: %w", id, err)
 		}
 	}
-	if r.unrated {
+	if row.unrated {
 		return 0, nil
 	}
-	if r.rating < 1500 {
-		return int(r.rating), nil
+	if row.rating < 1500 {
+		return int(row.rating), nil
 	}
-	decay := (float64(at.UnixMilli()) - r.age) / float64(ratingDecay.Milliseconds())
+	decay := (float64(at.UnixMilli()) - row.age) / float64(ratingDecay.Milliseconds())
 	if decay < 1 {
-		return int(r.rating), nil
+		return int(row.rating), nil
 	}
 	retention := math.Pow(0.5, decay) * 2
-	if r.rating < 1700 {
-		return int(math.Min(r.rating, 1500+retention*200)), nil
+	if row.rating < 1700 {
+		return int(math.Min(row.rating, 1500+retention*200)), nil
 	}
-	return int(r.rating - 200*(1-retention)), nil
+	return int(row.rating - 200*(1-retention)), nil
 }
 
 // CheckSchema verifies the database has had the migrations this package

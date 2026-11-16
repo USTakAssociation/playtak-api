@@ -1,0 +1,58 @@
+name: Tak Server (Go) CD Prod
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'tak-server/**'
+      - 'scripts/migrations/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    environment: Prod
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
+      with:
+        go-version-file: tak-server/go.mod
+        cache-dependency-path: tak-server/go.sum
+
+    - name: Test
+      working-directory: ./tak-server
+      run: go test ./...
+
+    - name: Build
+      working-directory: ./tak-server
+      run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o dist/tak-server ./cmd/server
+
+    - name: Prep Artifact
+      env:
+        TAK_ENV: ${{ secrets.TAK_ENV }}
+      run: |
+        dist=tak-server/dist
+        printf '%s\n' "${TAK_ENV}" > $dist/.env
+        cp tak-server/deploy/deploy.sh tak-server/deploy/rollback.sh $dist/
+        mkdir $dist/migrations
+        cp scripts/migrations/*.sh $dist/migrations/
+        tar -czf tak-server-prod.tar.gz -C $dist .
+
+    - name: Deploy
+      env:
+        PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+        HOSTNAME: ${{ secrets.HOSTNAME }}
+        USER_NAME: ${{ secrets.USER_NAME }}
+        SSH_PORT: ${{ secrets.SSH_PORT }}
+      run: |
+        echo "$PRIVATE_KEY" > private_key.pem && chmod 0400 private_key.pem
+        scp -P ${SSH_PORT} -o StrictHostKeyChecking=no -i private_key.pem tak-server-prod.tar.gz ${USER_NAME}@${HOSTNAME}:~
+        ssh -p ${SSH_PORT} -o StrictHostKeyChecking=no -i private_key.pem ${USER_NAME}@${HOSTNAME} '
+          set -e
+          rm -rf tak-server-prod-release
+          mkdir tak-server-prod-release
+          tar -xzf tak-server-prod.tar.gz -C tak-server-prod-release
+          sudo bash tak-server-prod-release/deploy.sh prod
+        '

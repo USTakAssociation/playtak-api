@@ -12,7 +12,7 @@ import (
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/auth"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/clientip"
-	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/online"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/ratelimit"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
 )
@@ -30,7 +30,7 @@ const maxBodyBytes = 64 * 1024
 
 type Server struct {
 	auth    *auth.Service
-	players *player.Registry
+	players *online.Registry
 	seeks   *seek.Manager
 	// serviceKey authorizes service-to-service calls. Empty disables them.
 	serviceKey string
@@ -43,7 +43,7 @@ type Server struct {
 
 // NewServer returns the API. clientIP finds the client's address behind a
 // reverse proxy, for rate limits and logs.
-func NewServer(authSvc *auth.Service, players *player.Registry, seeks *seek.Manager, serviceKey string, clientIP *clientip.Resolver, log *slog.Logger) *Server {
+func NewServer(authSvc *auth.Service, players *online.Registry, seeks *seek.Manager, serviceKey string, clientIP *clientip.Resolver, log *slog.Logger) *Server {
 	return &Server{
 		auth: authSvc, players: players, seeks: seeks, serviceKey: serviceKey, clientIP: clientIP, log: log,
 		tokenCalls: ratelimit.New(tokenCallsPerIP, time.Minute, maxTrackedIPs),
@@ -88,14 +88,14 @@ func newTokenResponse(name string, pair auth.TokenPair) tokenResponse {
 }
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
-	var req struct {
+	var body struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
-	if !decode(w, r, &req) {
+	if !decode(w, r, &body) {
 		return
 	}
-	rec, err := s.auth.Login(r.Context(), req.Username, req.Password, s.ip(r))
+	record, err := s.auth.Login(r.Context(), body.Username, body.Password, s.ip(r))
 	if errors.Is(err, auth.ErrAuthFailed) {
 		writeError(w, http.StatusUnauthorized, "invalid_credentials")
 		return
@@ -107,27 +107,27 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		s.internalError(w, "login", err)
 		return
 	}
-	pair, err := s.auth.IssueTokens(r.Context(), rec.ID)
+	pair, err := s.auth.IssueTokens(r.Context(), record.ID)
 	if err != nil {
 		s.internalError(w, "issue tokens", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, newTokenResponse(rec.Name, pair))
+	writeJSON(w, http.StatusOK, newTokenResponse(record.Name, pair))
 }
 
 func (s *Server) register(w http.ResponseWriter, r *http.Request) {
-	var req struct {
+	var body struct {
 		Username string `json:"username"`
 		Email    string `json:"email"`
 	}
-	if !decode(w, r, &req) {
+	if !decode(w, r, &body) {
 		return
 	}
-	rec, err := s.auth.Register(r.Context(), req.Username, req.Email, s.ip(r))
+	record, err := s.auth.Register(r.Context(), body.Username, body.Email, s.ip(r))
 	switch {
 	case rateLimited(w, err):
 	case err == nil:
-		writeJSON(w, http.StatusCreated, map[string]string{"name": rec.Name})
+		writeJSON(w, http.StatusCreated, map[string]string{"name": record.Name})
 	case errors.Is(err, auth.ErrInvalidUsername):
 		writeError(w, http.StatusBadRequest, "invalid_username")
 	case errors.Is(err, auth.ErrInvalidEmail):
@@ -144,13 +144,13 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) refresh(w http.ResponseWriter, r *http.Request) {
-	var req struct {
+	var body struct {
 		RefreshToken string `json:"refreshToken"`
 	}
-	if !decode(w, r, &req) {
+	if !decode(w, r, &body) {
 		return
 	}
-	pair, err := s.auth.Refresh(r.Context(), req.RefreshToken)
+	pair, err := s.auth.Refresh(r.Context(), body.RefreshToken)
 	if errors.Is(err, auth.ErrAuthFailed) {
 		writeError(w, http.StatusUnauthorized, "invalid_token")
 		return
@@ -159,12 +159,12 @@ func (s *Server) refresh(w http.ResponseWriter, r *http.Request) {
 		s.internalError(w, "refresh", err)
 		return
 	}
-	rec, err := s.auth.Authenticate(r.Context(), pair.AccessToken)
+	record, err := s.auth.Authenticate(r.Context(), pair.AccessToken)
 	if err != nil {
 		s.internalError(w, "load refreshed player", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, newTokenResponse(rec.Name, pair))
+	writeJSON(w, http.StatusOK, newTokenResponse(record.Name, pair))
 }
 
 // guest reserves a guest identity. Guests have no account, so instead of API
@@ -176,13 +176,13 @@ func (s *Server) guest(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
-	var req struct {
+	var body struct {
 		RefreshToken string `json:"refreshToken"`
 	}
-	if r.ContentLength != 0 && !decode(w, r, &req) {
+	if r.ContentLength != 0 && !decode(w, r, &body) {
 		return
 	}
-	if err := s.auth.Logout(r.Context(), bearerToken(r), req.RefreshToken); err != nil {
+	if err := s.auth.Logout(r.Context(), bearerToken(r), body.RefreshToken); err != nil {
 		s.internalError(w, "logout", err)
 		return
 	}

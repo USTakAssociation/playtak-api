@@ -66,29 +66,29 @@ func (p position) clone() position {
 
 // Game is a game of Tak in progress. It isn't safe for concurrent use.
 type Game struct {
-	size    int
-	komi    int
-	opening protocol.Opening
-	pos     position
-	history []position // the position before each ply, for undo
-	moves   []string
-	result  Result
+	size     int
+	komi     int
+	opening  protocol.Opening
+	position position
+	history  []position // the position before each ply, for undo
+	moves    []string
+	result   Result
 }
 
 // New starts a game. A size outside 3-8 falls back to 5.
-func New(s Settings) *Game {
-	size := s.Size
+func New(settings Settings) *Game {
+	size := settings.Size
 	if size < 3 || size > 8 {
 		size = defaultSize
 	}
 	return &Game{
 		size:    size,
-		komi:    s.Komi,
-		opening: s.Opening,
-		pos: position{
+		komi:    settings.Komi,
+		opening: settings.Opening,
+		position: position{
 			stacks: make([][]Stone, size*size),
-			stones: [2]int{s.Pieces, s.Pieces},
-			caps:   [2]int{s.Capstones, s.Capstones},
+			stones: [2]int{settings.Pieces, settings.Pieces},
+			caps:   [2]int{settings.Capstones, settings.Capstones},
 		},
 	}
 }
@@ -96,58 +96,58 @@ func New(s Settings) *Game {
 func (g *Game) Size() int { return g.size }
 
 // Ply is the number of plies played.
-func (g *Game) Ply() int { return g.pos.ply }
+func (g *Game) Ply() int { return g.position.ply }
 
 // Turn is the color to move.
-func (g *Game) Turn() Color { return Color(g.pos.ply % 2) }
+func (g *Game) Turn() Color { return Color(g.position.ply % 2) }
 
 // Result is the result decided by the position, or None while it's open.
 func (g *Game) Result() Result { return g.result }
 
 // Reserves returns how many stones and capstones c has left to place.
 func (g *Game) Reserves(c Color) (stones, capstones int) {
-	return g.pos.stones[c], g.pos.caps[c]
+	return g.position.stones[c], g.position.caps[c]
 }
 
 // Moves returns the moves played, in protocol notation ("P A1 C",
 // "M A1 A3 1 2").
 func (g *Game) Moves() []string { return append([]string(nil), g.moves...) }
 
-// Stack returns the stones on sq, bottom first, or nil if sq is off the board.
-func (g *Game) Stack(sq Square) []Stone {
-	if !g.onBoard(sq) {
+// Stack returns the stones on square, bottom first, or nil if square is off the board.
+func (g *Game) Stack(square Square) []Stone {
+	if !g.onBoard(square) {
 		return nil
 	}
-	return append([]Stone(nil), g.pos.stacks[g.index(sq)]...)
+	return append([]Stone(nil), g.position.stacks[g.index(square)]...)
 }
 
-// Place puts a stone of kind on sq for player by. During each player's first
+// Place puts a stone of kind on square for player by. During each player's first
 // ply the stone placed is the opponent's, and must be a flat.
-func (g *Game) Place(by Color, sq Square, kind Kind) error {
+func (g *Game) Place(by Color, square Square, kind Kind) error {
 	if g.result != None {
 		return ErrGameOver
 	}
 	if by != g.Turn() {
 		return ErrNotYourTurn
 	}
-	if !g.onBoard(sq) {
+	if !g.onBoard(square) {
 		return ErrOffBoard
 	}
-	if len(g.pos.stacks[g.index(sq)]) > 0 {
+	if len(g.position.stacks[g.index(square)]) > 0 {
 		return ErrOccupied
 	}
-	opening := g.pos.ply < 2
+	opening := g.position.ply < 2
 	if opening && kind != Flat {
 		return ErrFirstMoveFlat
 	}
-	if kind == Capstone && g.pos.caps[by] == 0 {
+	if kind == Capstone && g.position.caps[by] == 0 {
 		return ErrNoCapstones
 	}
-	if kind != Capstone && g.pos.stones[by] == 0 {
+	if kind != Capstone && g.position.stones[by] == 0 {
 		return ErrNoStones
 	}
 
-	g.history = append(g.history, g.pos.clone())
+	g.history = append(g.history, g.position.clone())
 	owner := by
 	if opening {
 		owner = by.Opponent()
@@ -155,20 +155,20 @@ func (g *Game) Place(by Color, sq Square, kind Kind) error {
 	// The stone comes from the mover's reserve even when it's the opponent's
 	// color, so both reserves drop by one over the opening.
 	if kind == Capstone {
-		g.pos.caps[by]--
+		g.position.caps[by]--
 	} else {
-		g.pos.stones[by]--
+		g.position.stones[by]--
 	}
-	i := g.index(sq)
-	g.pos.stacks[i] = append(g.pos.stacks[i], Stone{Color: owner, Kind: kind})
+	i := g.index(square)
+	g.position.stacks[i] = append(g.position.stacks[i], Stone{Color: owner, Kind: kind})
 	// Double black stack: white's first placement is two black flats, the
 	// second taken from black's reserve.
-	if g.opening == protocol.OpeningDoubleBlackStack && g.pos.ply == 0 {
-		g.pos.stones[Black]--
-		g.pos.stacks[i] = append(g.pos.stacks[i], Stone{Color: Black, Kind: Flat})
+	if g.opening == protocol.OpeningDoubleBlackStack && g.position.ply == 0 {
+		g.position.stones[Black]--
+		g.position.stacks[i] = append(g.position.stacks[i], Stone{Color: Black, Kind: Flat})
 	}
 
-	move := "P " + sq.String()
+	move := "P " + square.String()
 	switch kind {
 	case Wall:
 		move += " W"
@@ -176,8 +176,8 @@ func (g *Game) Place(by Color, sq Square, kind Kind) error {
 		move += " C"
 	}
 	g.moves = append(g.moves, move)
-	g.pos.ply++
-	g.pos.lastReset = g.pos.ply
+	g.position.ply++
+	g.position.lastReset = g.position.ply
 	g.decide(true)
 	return nil
 }
@@ -191,7 +191,7 @@ func (g *Game) Move(by Color, from, to Square, drops []int) error {
 	if by != g.Turn() {
 		return ErrNotYourTurn
 	}
-	if g.pos.ply < 2 {
+	if g.position.ply < 2 {
 		return ErrFirstMovePlace
 	}
 	if from.File != to.File && from.Rank != to.Rank {
@@ -200,7 +200,7 @@ func (g *Game) Move(by Color, from, to Square, drops []int) error {
 	if !g.onBoard(from) || !g.onBoard(to) {
 		return ErrOffBoard
 	}
-	src := g.pos.stacks[g.index(from)]
+	src := g.position.stacks[g.index(from)]
 	if len(src) == 0 {
 		return ErrNoStack
 	}
@@ -229,7 +229,7 @@ func (g *Game) Move(by Color, from, to Square, drops []int) error {
 	}
 	step := Square{File: sign(to.File - from.File), Rank: sign(to.Rank - from.Rank)}
 	for i := 1; i <= dist; i++ {
-		s := g.pos.stacks[g.index(Square{File: from.File + step.File*i, Rank: from.Rank + step.Rank*i})]
+		s := g.position.stacks[g.index(Square{File: from.File + step.File*i, Rank: from.Rank + step.Rank*i})]
 		if len(s) == 0 {
 			continue
 		}
@@ -246,20 +246,20 @@ func (g *Game) Move(by Color, from, to Square, drops []int) error {
 		}
 	}
 
-	g.history = append(g.history, g.pos.clone())
+	g.history = append(g.history, g.position.clone())
 	fi := g.index(from)
 	carried := append([]Stone(nil), src[len(src)-carry:]...)
-	g.pos.stacks[fi] = src[:len(src)-carry]
-	for i, d := range drops {
+	g.position.stacks[fi] = src[:len(src)-carry]
+	for i, drop := range drops {
 		di := g.index(Square{File: from.File + step.File*(i+1), Rank: from.Rank + step.Rank*(i+1)})
-		dst := g.pos.stacks[di]
+		dst := g.position.stacks[di]
 		if len(dst) > 0 && dst[len(dst)-1].Kind == Wall {
 			// Only reachable on the last square with a lone capstone.
 			dst[len(dst)-1].Kind = Flat
-			g.pos.lastReset = g.pos.ply + 1
+			g.position.lastReset = g.position.ply + 1
 		}
-		g.pos.stacks[di] = append(dst, carried[:d]...)
-		carried = carried[d:]
+		g.position.stacks[di] = append(dst, carried[:drop]...)
+		carried = carried[drop:]
 	}
 
 	move := fmt.Sprintf("M %s %s", from, to)
@@ -267,7 +267,7 @@ func (g *Game) Move(by Color, from, to Square, drops []int) error {
 		move += " " + strconv.Itoa(d)
 	}
 	g.moves = append(g.moves, move)
-	g.pos.ply++
+	g.position.ply++
 	g.decide(false)
 	return nil
 }
@@ -278,7 +278,7 @@ func (g *Game) Undo() bool {
 	if len(g.history) == 0 || g.result != None {
 		return false
 	}
-	g.pos = g.history[len(g.history)-1]
+	g.position = g.history[len(g.history)-1]
 	g.history = g.history[:len(g.history)-1]
 	g.moves = g.moves[:len(g.moves)-1]
 	return true
@@ -301,12 +301,12 @@ func (g *Game) decide(placement bool) {
 	if g.result != None {
 		return
 	}
-	outOfPieces := func(c Color) bool { return g.pos.stones[c] == 0 && g.pos.caps[c] == 0 }
+	outOfPieces := func(c Color) bool { return g.position.stones[c] == 0 && g.position.caps[c] == 0 }
 	if placement && (outOfPieces(White) || outOfPieces(Black)) || g.boardFull() {
 		g.result = g.flatResult()
 		return
 	}
-	if !placement && g.pos.lastReset+staleLimit <= g.pos.ply {
+	if !placement && g.position.lastReset+staleLimit <= g.position.ply {
 		g.result = Draw
 	}
 }
@@ -314,7 +314,7 @@ func (g *Game) decide(placement bool) {
 // flatResult counts flats on top of stacks, with komi added to black.
 func (g *Game) flatResult() Result {
 	var score [2]int
-	for _, s := range g.pos.stacks {
+	for _, s := range g.position.stacks {
 		if len(s) > 0 && s[len(s)-1].Kind == Flat {
 			score[s[len(s)-1].Color] += 2
 		}
@@ -330,7 +330,7 @@ func (g *Game) flatResult() Result {
 }
 
 func (g *Game) boardFull() bool {
-	for _, s := range g.pos.stacks {
+	for _, s := range g.position.stacks {
 		if len(s) == 0 {
 			return false
 		}
@@ -338,17 +338,17 @@ func (g *Game) boardFull() bool {
 	return true
 }
 
-func (g *Game) onBoard(sq Square) bool {
-	return sq.File >= 0 && sq.File < g.size && sq.Rank >= 0 && sq.Rank < g.size
+func (g *Game) onBoard(square Square) bool {
+	return square.File >= 0 && square.File < g.size && square.Rank >= 0 && square.Rank < g.size
 }
 
-func (g *Game) index(sq Square) int { return sq.Rank*g.size + sq.File }
+func (g *Game) index(square Square) int { return square.Rank*g.size + square.File }
 
 // SquareString shows a square's stack bottom first, e.g. "[F, f, C]", or "[]"
 // for an empty or off-board square.
-func (g *Game) SquareString(sq Square) string {
+func (g *Game) SquareString(square Square) string {
 	var parts []string
-	for _, s := range g.Stack(sq) {
+	for _, s := range g.Stack(square) {
 		parts = append(parts, string(s.letter()))
 	}
 	return "[" + strings.Join(parts, ", ") + "]"

@@ -15,7 +15,7 @@ import (
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/dbtest"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/email"
-	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/online"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/wordfilter"
 )
@@ -33,7 +33,7 @@ func newLimitedServer(t *testing.T, trusted string) (*httptest.Server, *players.
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := httptest.NewServer(NewServer(authSvc, player.NewRegistry(), seek.NewManager(), serviceKey, resolver, log).Handler())
+	srv := httptest.NewServer(NewServer(authSvc, online.NewRegistry(), seek.NewManager(), serviceKey, resolver, log).Handler())
 	t.Cleanup(srv.Close)
 	return srv, store
 }

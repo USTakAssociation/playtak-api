@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
-	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/online"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/protocol"
 )
 
@@ -46,13 +46,13 @@ type Service struct {
 	store       Store
 	accounts    Accounts
 	games       Games
-	registry    *player.Registry
+	registry    *online.Registry
 	mail        Mailer
 	reloadWords func(context.Context) (int, error)
 	log         *slog.Logger
 }
 
-func NewService(store Store, accounts Accounts, games Games, registry *player.Registry, mail Mailer,
+func NewService(store Store, accounts Accounts, games Games, registry *online.Registry, mail Mailer,
 	reloadWords func(context.Context) (int, error), log *slog.Logger) *Service {
 	return &Service{store: store, accounts: accounts, games: games, registry: registry, mail: mail, reloadWords: reloadWords, log: log}
 }
@@ -68,18 +68,18 @@ const (
 	rankAdmin
 )
 
-func rankOf(admin, mod bool) rank {
+func rankOf(admin, moderator bool) rank {
 	switch {
 	case admin:
 		return rankAdmin
-	case mod:
+	case moderator:
 		return rankMod
 	}
 	return rankPlayer
 }
 
 // Allowed reports whether p may use sudo at all.
-func Allowed(p *player.Player) bool { return rankOf(p.IsAdmin(), p.IsMod()) >= rankMod }
+func Allowed(p *online.Player) bool { return rankOf(p.IsAdmin(), p.IsMod()) >= rankMod }
 
 const (
 	noSuchPlayer = "No such player"
@@ -88,26 +88,26 @@ const (
 	serverError  = "Server error, please try again later"
 )
 
-// Run carries out cmd for actor, who must be Allowed.
-func (s *Service) Run(ctx context.Context, actor *player.Player, cmd protocol.Sudo) Result {
-	r := s.run(ctx, actor, cmd)
-	s.log.Info("sudo", "by", actor.Name, "command", cmd.Text, "result", strings.Join(r.Replies, "; "), "broadcast", r.Broadcast)
+// Run carries out command for actor, who must be Allowed.
+func (s *Service) Run(ctx context.Context, actor *online.Player, command protocol.Sudo) Result {
+	r := s.run(ctx, actor, command)
+	s.log.Info("sudo", "by", actor.Name, "command", command.Text, "result", strings.Join(r.Replies, "; "), "broadcast", r.Broadcast)
 	return r
 }
 
-func (s *Service) run(ctx context.Context, actor *player.Player, cmd protocol.Sudo) Result {
+func (s *Service) run(ctx context.Context, actor *online.Player, command protocol.Sudo) Result {
 	me := rankOf(actor.IsAdmin(), actor.IsMod())
-	switch cmd.Action {
+	switch command.Action {
 	case protocol.SudoGag, protocol.SudoUngag:
-		return reply(s.gag(ctx, me, cmd.Name, cmd.Action == protocol.SudoGag))
+		return reply(s.gag(ctx, me, command.Name, command.Action == protocol.SudoGag))
 	case protocol.SudoKick:
-		return reply(s.kick(me, cmd.Name))
+		return reply(s.kick(me, command.Name))
 	case protocol.SudoBan:
-		return reply(s.ban(ctx, me, cmd.Name, cmd.Arg)...)
+		return reply(s.ban(ctx, me, command.Name, command.Arg)...)
 	case protocol.SudoUnban:
-		return reply(s.unban(ctx, me, cmd.Name))
+		return reply(s.unban(ctx, me, command.Name))
 	case protocol.SudoList:
-		return reply(s.list(ctx, cmd.Arg))
+		return reply(s.list(ctx, command.Arg))
 	case protocol.SudoUnknown:
 		return reply("Command not found")
 	}
@@ -116,11 +116,11 @@ func (s *Service) run(ctx context.Context, actor *player.Player, cmd protocol.Su
 	if me < rankAdmin {
 		return reply(denied)
 	}
-	switch cmd.Action {
+	switch command.Action {
 	case protocol.SudoBroadcast:
 		// Sent as a raw protocol line, as the Java server did: admins use it
 		// for Message, Error:, Shout, ShoutRoom and Tell announcements.
-		return Result{Broadcast: cmd.Arg}
+		return Result{Broadcast: command.Arg}
 	case protocol.SudoReloadWords:
 		if _, err := s.reloadWords(ctx); err != nil {
 			s.log.Error("reload bad word filter", "err", err)
@@ -128,15 +128,15 @@ func (s *Service) run(ctx context.Context, actor *player.Player, cmd protocol.Su
 		}
 		return reply("Bad word filter reloaded")
 	case protocol.SudoMod, protocol.SudoUnmod:
-		return reply(s.setRole(ctx, actor, cmd.Name, players.FlagMod, cmd.Action == protocol.SudoMod, "moderator"))
+		return reply(s.setRole(ctx, actor, command.Name, players.FlagMod, command.Action == protocol.SudoMod, "moderator"))
 	case protocol.SudoAdmin, protocol.SudoUnadmin:
-		return reply(s.setRole(ctx, actor, cmd.Name, players.FlagAdmin, cmd.Action == protocol.SudoAdmin, "admin"))
+		return reply(s.setRole(ctx, actor, command.Name, players.FlagAdmin, command.Action == protocol.SudoAdmin, "admin"))
 	case protocol.SudoBot, protocol.SudoUnbot:
-		return reply(s.setRole(ctx, actor, cmd.Name, players.FlagBot, cmd.Action == protocol.SudoBot, "bot"))
+		return reply(s.setRole(ctx, actor, command.Name, players.FlagBot, command.Action == protocol.SudoBot, "bot"))
 	case protocol.SudoSetPassword:
-		return reply(s.setPassword(ctx, me, cmd.Name, cmd.Arg))
+		return reply(s.setPassword(ctx, me, command.Name, command.Arg))
 	case protocol.SudoRevoke:
-		return reply(s.revoke(ctx, me, cmd.Name))
+		return reply(s.revoke(ctx, me, command.Name))
 	}
 	return reply("Command not found")
 }
@@ -146,35 +146,35 @@ func reply(lines ...string) Result { return Result{Replies: lines} }
 // registered looks a registered player up by name, ignoring case. It returns
 // the reply to send instead if there's no such player or it failed.
 func (s *Service) registered(ctx context.Context, name string) (players.Record, string) {
-	rec, err := s.store.ByNameFold(ctx, name)
+	record, err := s.store.ByNameFold(ctx, name)
 	if errors.Is(err, players.ErrNotFound) {
-		return rec, noSuchPlayer
+		return record, noSuchPlayer
 	}
 	if err != nil {
-		s.log.Error("sudo player lookup", "name", name, "err", err)
-		return rec, serverError
+		s.log.Error("sudo player lookup", "player", name, "err", err)
+		return record, serverError
 	}
-	return rec, ""
+	return record, ""
 }
 
-// setFlag saves flag for rec and updates them in memory if they're online.
-func (s *Service) setFlag(ctx context.Context, rec players.Record, flag players.Flag, on bool) error {
-	if err := s.store.SetFlag(ctx, rec.Name, flag, on); err != nil {
+// setFlag saves flag for record and updates them in memory if they're online.
+func (s *Service) setFlag(ctx context.Context, record players.Record, flag players.Flag, on bool) error {
+	if err := s.store.SetFlag(ctx, record.Name, flag, on); err != nil {
 		return err
 	}
 	switch flag {
 	case players.FlagGagged:
-		rec.IsGagged = on
+		record.IsGagged = on
 	case players.FlagBanned:
-		rec.IsBanned = on
+		record.IsBanned = on
 	case players.FlagMod:
-		rec.IsMod = on
+		record.IsMod = on
 	case players.FlagAdmin:
-		rec.IsAdmin = on
+		record.IsAdmin = on
 	case players.FlagBot:
-		rec.IsBot = on
+		record.IsBot = on
 	}
-	s.registry.Refresh(rec)
+	s.registry.Refresh(record)
 	return nil
 }
 
@@ -191,21 +191,21 @@ func (s *Service) gag(ctx context.Context, me rank, name string, on bool) string
 		p.SetGagged(on)
 		return p.Name + gagged(on)
 	}
-	rec, fail := s.registered(ctx, name)
+	record, fail := s.registered(ctx, name)
 	if fail != "" {
 		return fail
 	}
-	if rankOf(rec.IsAdmin, rec.IsMod) >= me {
+	if rankOf(record.IsAdmin, record.IsMod) >= me {
 		return noRights
 	}
-	if rec.IsGagged == on {
+	if record.IsGagged == on {
 		return alreadyGagged(on)
 	}
-	if err := s.setFlag(ctx, rec, players.FlagGagged, on); err != nil {
-		s.log.Error("set gag", "name", rec.Name, "err", err)
+	if err := s.setFlag(ctx, record, players.FlagGagged, on); err != nil {
+		s.log.Error("set gag", "player", record.Name, "err", err)
 		return serverError
 	}
-	return rec.Name + gagged(on)
+	return record.Name + gagged(on)
 }
 
 func gagged(on bool) string {
@@ -234,7 +234,7 @@ func (s *Service) kick(me rank, name string) string {
 	return p.Name + " kicked"
 }
 
-func disconnect(p *player.Player) {
+func disconnect(p *online.Player) {
 	for _, c := range p.Clients() {
 		c.Disconnect()
 	}
@@ -244,59 +244,59 @@ func (s *Service) ban(ctx context.Context, me rank, name, reason string) []strin
 	if p := s.registry.FindOnline(name); p != nil && p.Guest {
 		return []string{"Guests can't be banned, use kick"}
 	}
-	rec, fail := s.registered(ctx, name)
+	record, fail := s.registered(ctx, name)
 	if fail != "" {
 		return []string{fail}
 	}
-	if rankOf(rec.IsAdmin, rec.IsMod) >= me {
+	if rankOf(record.IsAdmin, record.IsMod) >= me {
 		return []string{noRights}
 	}
-	if rec.IsBanned {
+	if record.IsBanned {
 		return []string{"Player is already banned"}
 	}
-	if err := s.setFlag(ctx, rec, players.FlagBanned, true); err != nil {
-		s.log.Error("set ban", "name", rec.Name, "err", err)
+	if err := s.setFlag(ctx, record, players.FlagBanned, true); err != nil {
+		s.log.Error("set ban", "player", record.Name, "err", err)
 		return []string{serverError}
 	}
 	// The ban stands from here; what follows tidies up after it.
-	if _, err := s.accounts.RevokeAll(ctx, rec.Name); err != nil {
-		s.log.Error("revoke tokens of banned player", "name", rec.Name, "err", err)
+	if _, err := s.accounts.RevokeAll(ctx, record.Name); err != nil {
+		s.log.Error("revoke tokens of banned player", "player", record.Name, "err", err)
 	}
-	if _, err := s.games.Forfeit(ctx, rec.Name); err != nil {
-		s.log.Error("end banned player's game", "name", rec.Name, "err", err)
+	if _, err := s.games.Forfeit(ctx, record.Name); err != nil {
+		s.log.Error("end banned player's game", "player", record.Name, "err", err)
 	}
-	if rec.Email != "" {
+	if record.Email != "" {
 		go func() {
-			body := rec.Name + ",\nYou have been banned from playtak.com!\nReason: " + reason
-			if err := s.mail.Send(context.WithoutCancel(ctx), rec.Email, "PlayTak.com Ban Notice", body); err != nil {
-				s.log.Error("send ban notice", "name", rec.Name, "err", err)
+			body := record.Name + ",\nYou have been banned from playtak.com!\nReason: " + reason
+			if err := s.mail.Send(context.WithoutCancel(ctx), record.Email, "PlayTak.com Ban Notice", body); err != nil {
+				s.log.Error("send ban notice", "player", record.Name, "err", err)
 			}
 		}()
 	}
 	var out []string
-	if p := s.registry.FindOnline(rec.Name); p != nil {
+	if p := s.registry.FindOnline(record.Name); p != nil {
 		disconnect(p)
-		out = append(out, rec.Name+" kicked")
+		out = append(out, record.Name+" kicked")
 	}
-	return append(out, rec.Name+" banned")
+	return append(out, record.Name+" banned")
 }
 
 func (s *Service) unban(ctx context.Context, me rank, name string) string {
-	rec, fail := s.registered(ctx, name)
+	record, fail := s.registered(ctx, name)
 	if fail != "" {
 		return fail
 	}
-	if rankOf(rec.IsAdmin, rec.IsMod) >= me {
+	if rankOf(record.IsAdmin, record.IsMod) >= me {
 		return noRights
 	}
-	if !rec.IsBanned {
+	if !record.IsBanned {
 		return "Player is not banned"
 	}
-	if err := s.setFlag(ctx, rec, players.FlagBanned, false); err != nil {
-		s.log.Error("clear ban", "name", rec.Name, "err", err)
+	if err := s.setFlag(ctx, record, players.FlagBanned, false); err != nil {
+		s.log.Error("clear ban", "player", record.Name, "err", err)
 		return serverError
 	}
-	return rec.Name + " unbanned"
+	return record.Name + " unbanned"
 }
 
 var listFlags = map[string]players.Flag{
@@ -334,65 +334,65 @@ func (s *Service) list(ctx context.Context, group string) string {
 	return "[" + strings.Join(names, ", ") + "]"
 }
 
-func (s *Service) setRole(ctx context.Context, actor *player.Player, name string, flag players.Flag, on bool, role string) string {
-	rec, fail := s.registered(ctx, name)
+func (s *Service) setRole(ctx context.Context, actor *online.Player, name string, flag players.Flag, on bool, role string) string {
+	record, fail := s.registered(ctx, name)
 	if fail != "" {
 		return fail
 	}
-	if strings.EqualFold(rec.Name, actor.Name) {
+	if strings.EqualFold(record.Name, actor.Name) {
 		return "You can't change your own roles"
 	}
-	has := map[players.Flag]bool{players.FlagMod: rec.IsMod, players.FlagAdmin: rec.IsAdmin, players.FlagBot: rec.IsBot}[flag]
+	has := map[players.Flag]bool{players.FlagMod: record.IsMod, players.FlagAdmin: record.IsAdmin, players.FlagBot: record.IsBot}[flag]
 	article := "a "
 	if role == "admin" {
 		article = "an "
 	}
 	switch {
 	case on && has:
-		return rec.Name + " is already " + article + role
+		return record.Name + " is already " + article + role
 	case !on && !has:
-		return rec.Name + " is not " + article + role
+		return record.Name + " is not " + article + role
 	}
-	if err := s.setFlag(ctx, rec, flag, on); err != nil {
-		s.log.Error("set role", "name", rec.Name, "role", role, "err", err)
+	if err := s.setFlag(ctx, record, flag, on); err != nil {
+		s.log.Error("set role", "player", record.Name, "role", role, "err", err)
 		return serverError
 	}
 	if on {
-		return fmt.Sprintf("Added %s as %s", rec.Name, role)
+		return fmt.Sprintf("Added %s as %s", record.Name, role)
 	}
-	return fmt.Sprintf("Removed %s as %s", rec.Name, role)
+	return fmt.Sprintf("Removed %s as %s", record.Name, role)
 }
 
 func (s *Service) setPassword(ctx context.Context, me rank, name, password string) string {
-	rec, fail := s.registered(ctx, name)
+	record, fail := s.registered(ctx, name)
 	if fail != "" {
 		return fail
 	}
-	if rankOf(rec.IsAdmin, rec.IsMod) >= me {
+	if rankOf(record.IsAdmin, record.IsMod) >= me {
 		return noRights
 	}
-	if err := s.accounts.SetPassword(ctx, rec.Name, password); err != nil {
-		s.log.Error("set password", "name", rec.Name, "err", err)
+	if err := s.accounts.SetPassword(ctx, record.Name, password); err != nil {
+		s.log.Error("set password", "player", record.Name, "err", err)
 		return serverError
 	}
-	if _, err := s.accounts.RevokeAll(ctx, rec.Name); err != nil {
-		s.log.Error("revoke tokens after password set", "name", rec.Name, "err", err)
+	if _, err := s.accounts.RevokeAll(ctx, record.Name); err != nil {
+		s.log.Error("revoke tokens after password set", "player", record.Name, "err", err)
 	}
 	return "Password set"
 }
 
 func (s *Service) revoke(ctx context.Context, me rank, name string) string {
-	rec, fail := s.registered(ctx, name)
+	record, fail := s.registered(ctx, name)
 	if fail != "" {
 		return fail
 	}
-	if rankOf(rec.IsAdmin, rec.IsMod) >= me {
+	if rankOf(record.IsAdmin, record.IsMod) >= me {
 		return noRights
 	}
-	n, err := s.accounts.RevokeAll(ctx, rec.Name)
+	n, err := s.accounts.RevokeAll(ctx, record.Name)
 	if err != nil {
-		s.log.Error("revoke tokens", "name", rec.Name, "err", err)
+		s.log.Error("revoke tokens", "player", record.Name, "err", err)
 		return serverError
 	}
-	return fmt.Sprintf("Revoked %d tokens for %s", n, rec.Name)
+	return fmt.Sprintf("Revoked %d tokens for %s", n, record.Name)
 }

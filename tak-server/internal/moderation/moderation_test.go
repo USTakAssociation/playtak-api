@@ -13,7 +13,7 @@ import (
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/dbtest"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
-	"github.com/USTakAssociation/playtak-api/tak-server/internal/player"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/online"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/protocol"
 )
 
@@ -71,7 +71,7 @@ type env struct {
 	t        *testing.T
 	s        *Service
 	store    *players.Store
-	registry *player.Registry
+	registry *online.Registry
 	accounts *fakeAccounts
 	games    *fakeGames
 	mail     *fakeMail
@@ -85,7 +85,7 @@ type env struct {
 func newEnv(t *testing.T) *env {
 	t.Helper()
 	ctx := context.Background()
-	e := &env{t: t, store: players.NewStore(dbtest.NewPlayersDB(t)), registry: player.NewRegistry(),
+	e := &env{t: t, store: players.NewStore(dbtest.NewPlayersDB(t)), registry: online.NewRegistry(),
 		accounts: &fakeAccounts{passwords: map[string]string{}}, games: &fakeGames{},
 		mail: &fakeMail{sent: make(chan string, 10)}, log: &bytes.Buffer{}, reloadOK: true}
 	for _, n := range []string{"pat", "mona", "mike", "ada", "abe", "val"} {
@@ -111,7 +111,7 @@ func newEnv(t *testing.T) *env {
 }
 
 // online brings a registered player online and returns their connection.
-func (e *env) online(name string) (*player.Player, *conn) {
+func (e *env) online(name string) (*online.Player, *conn) {
 	e.t.Helper()
 	rec, err := e.store.ByName(context.Background(), name)
 	if err != nil {
@@ -124,7 +124,7 @@ func (e *env) online(name string) (*player.Player, *conn) {
 }
 
 // actor returns an in-memory player for name to run commands as.
-func (e *env) actor(name string) *player.Player {
+func (e *env) actor(name string) *online.Player {
 	rec, _ := e.store.ByName(context.Background(), name)
 	return e.registry.Acquire(rec)
 }

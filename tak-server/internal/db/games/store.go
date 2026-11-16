@@ -46,25 +46,25 @@ func NewStore(conn *sql.DB) *Store {
 // The row's result is "0-0" with empty notation and rating changes of -1000
 // until Finish runs. The NestJS rating job relies on exactly these values to
 // recognise games still in progress.
-func (s *Store) Insert(ctx context.Context, r Row) (int, error) {
+func (s *Store) Insert(ctx context.Context, row Row) (int, error) {
 	var id int64
 	err := db.RetryBusy(ctx, insertBusyWait, func() error {
-		res, err := s.db.ExecContext(ctx, `
+		result, err := s.db.ExecContext(ctx, `
 			INSERT INTO games (date, size, player_white, player_black, timertime, timerinc, notation, result,
 				rating_white, rating_black, unrated, tournament, komi, pieces, capstones,
 				rating_change_white, rating_change_black, extra_time_amount, extra_time_trigger, increment_scales, opening)
 			VALUES (?, ?, ?, ?, ?, ?, '', '0-0', ?, ?, ?, ?, ?, ?, ?, -1000, -1000, ?, ?, ?, ?)`,
-			r.Date.UnixMilli(), r.Size, r.White, r.Black, r.Time, r.Increment,
-			r.RatingWhite, r.RatingBlack, r.Unrated, r.Tournament, r.Komi, r.Pieces, r.Capstones,
-			r.ExtraTimeAmount, r.ExtraTimeTrigger, r.IncrementScales, r.Opening)
+			row.Date.UnixMilli(), row.Size, row.White, row.Black, row.Time, row.Increment,
+			row.RatingWhite, row.RatingBlack, row.Unrated, row.Tournament, row.Komi, row.Pieces, row.Capstones,
+			row.ExtraTimeAmount, row.ExtraTimeTrigger, row.IncrementScales, row.Opening)
 		if err != nil {
 			return err
 		}
-		id, err = res.LastInsertId()
+		id, err = result.LastInsertId()
 		return err
 	})
 	if err != nil {
-		return 0, fmt.Errorf("insert game %s vs %s: %w", r.White, r.Black, err)
+		return 0, fmt.Errorf("insert game %s vs %s: %w", row.White, row.Black, err)
 	}
 	return int(id), nil
 }

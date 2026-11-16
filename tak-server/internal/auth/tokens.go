@@ -86,14 +86,14 @@ func (s *Service) Logout(ctx context.Context, tokens ...string) error {
 
 // RevokeAll revokes every token a player holds and returns how many there were.
 func (s *Service) RevokeAll(ctx context.Context, name string) (int64, error) {
-	rec, err := s.players.ByName(ctx, name)
+	record, err := s.players.ByName(ctx, name)
 	if errors.Is(err, players.ErrNotFound) {
 		return 0, ErrNoSuchPlayer
 	}
 	if err != nil {
 		return 0, err
 	}
-	return s.tokens.DeleteForPlayer(ctx, rec.ID)
+	return s.tokens.DeleteForPlayer(ctx, record.ID)
 }
 
 // PurgeExpiredTokens deletes expired tokens and returns how many there were.
@@ -104,17 +104,17 @@ func (s *Service) PurgeExpiredTokens(ctx context.Context) (int64, error) {
 // activePlayer loads a token's player, failing if they no longer exist or
 // have been banned since the token was issued.
 func (s *Service) activePlayer(ctx context.Context, id int) (players.Record, error) {
-	rec, err := s.players.ByID(ctx, id)
+	record, err := s.players.ByID(ctx, id)
 	if errors.Is(err, players.ErrNotFound) {
 		return players.Record{}, ErrAuthFailed
 	}
 	if err != nil {
 		return players.Record{}, fmt.Errorf("load player %d: %w", id, err)
 	}
-	if rec.IsBanned {
+	if record.IsBanned {
 		return players.Record{}, ErrAuthFailed
 	}
-	return rec, nil
+	return record, nil
 }
 
 func (s *Service) newPair(playerID int) (TokenPair, []players.Token) {

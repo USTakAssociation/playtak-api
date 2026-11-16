@@ -19,7 +19,7 @@ const defaultSize = 5
 
 // Listener is a session that owns seeks and receives seek updates.
 type Listener interface {
-	Send(ev protocol.Event)
+	Send(event protocol.Event)
 	ProtocolVersion() int
 }
 
@@ -125,19 +125,19 @@ type RematchResult struct {
 // Rematch offers a rematch of gameID, replacing owner's seek. If a rematch
 // seek for that game is already addressed to the requester, it is left for
 // them to accept instead of posting a second one.
-func (m *Manager) Rematch(owner Listener, gameID int, r Request) (RematchResult, error) {
+func (m *Manager) Rematch(owner Listener, gameID int, request Request) (RematchResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if owner.ProtocolVersion() < r.Settings.RequiredProtocolVersion() {
+	if owner.ProtocolVersion() < request.Settings.RequiredProtocolVersion() {
 		return RematchResult{}, ErrIncompatible
 	}
 	m.removeOwnerLocked(owner)
 	for _, s := range m.seeks {
-		if s.RematchOf == gameID && strings.EqualFold(s.Opponent, r.Creator) {
+		if s.RematchOf == gameID && strings.EqualFold(s.Opponent, request.Creator) {
 			return RematchResult{AcceptID: s.ID}, nil
 		}
 	}
-	return RematchResult{Created: m.addLocked(owner, r, gameID)}, nil
+	return RematchResult{Created: m.addLocked(owner, request, gameID)}, nil
 }
 
 // Get returns the seek with the given ID.
@@ -158,25 +158,25 @@ func (m *Manager) List() []Seek {
 	return m.sortedLocked()
 }
 
-func (m *Manager) addLocked(owner Listener, r Request, rematchOf int) Seek {
+func (m *Manager) addLocked(owner Listener, request Request, rematchOf int) Seek {
 	m.removeOwnerLocked(owner)
 	m.lastID++
-	s := &Seek{
+	newSeek := &Seek{
 		Seek: protocol.Seek{
 			ID:           m.lastID,
-			Creator:      r.Creator,
-			Bot:          r.Bot,
-			Opponent:     r.Opponent,
-			GameSettings: normalize(r.Settings),
+			Creator:      request.Creator,
+			Bot:          request.Bot,
+			Opponent:     request.Opponent,
+			GameSettings: normalize(request.Settings),
 		},
 		Owner:     owner,
-		PNTID:     r.PNTID,
+		PNTID:     request.PNTID,
 		RematchOf: rematchOf,
 	}
-	m.seeks[s.ID] = s
-	m.byOwner[owner] = s
-	m.broadcastLocked(protocol.SeekAdded{Seek: s.Seek}, s.Seek)
-	return *s
+	m.seeks[newSeek.ID] = newSeek
+	m.byOwner[owner] = newSeek
+	m.broadcastLocked(protocol.SeekAdded{Seek: newSeek.Seek}, newSeek.Seek)
+	return *newSeek
 }
 
 func (m *Manager) removeOwnerLocked(owner Listener) {
@@ -189,14 +189,14 @@ func (m *Manager) removeOwnerLocked(owner Listener) {
 	m.broadcastLocked(protocol.SeekRemoved{Seek: s.Seek}, s.Seek)
 }
 
-// broadcastLocked sends ev to every listener that can display s. Protocol
+// broadcastLocked sends event to every listener that can display s. Protocol
 // versions and seek settings never change, so a listener that was skipped
 // for a seek's "new" is skipped for its "remove" too.
-func (m *Manager) broadcastLocked(ev protocol.Event, s protocol.Seek) {
+func (m *Manager) broadcastLocked(event protocol.Event, s protocol.Seek) {
 	required := s.RequiredProtocolVersion()
 	for l := range m.listeners {
 		if l.ProtocolVersion() >= required {
-			l.Send(ev)
+			l.Send(event)
 		}
 	}
 }

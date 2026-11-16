@@ -50,8 +50,8 @@ func NewResults(store Finisher, path string, log *slog.Logger) *Results {
 }
 
 // Save durably records r for writing.
-func (r *Results) Save(res Result) error {
-	line, err := json.Marshal(res)
+func (r *Results) Save(result Result) error {
+	line, err := json.Marshal(result)
 	if err != nil {
 		return err
 	}
@@ -59,7 +59,7 @@ func (r *Results) Save(res Result) error {
 	err = appendSync(r.path, append(line, '\n'))
 	r.mu.Unlock()
 	if err != nil {
-		return fmt.Errorf("save result of game %d: %w", res.ID, err)
+		return fmt.Errorf("save result of game %d: %w", result.ID, err)
 	}
 	select {
 	case r.wake <- struct{}{}:
@@ -132,21 +132,21 @@ func (r *Results) read() ([]Result, error) {
 		return nil, err
 	}
 	var out []Result
-	sc := bufio.NewScanner(bytes.NewReader(data))
-	sc.Buffer(nil, 16<<20) // notation for very long games
-	for sc.Scan() {
-		if len(bytes.TrimSpace(sc.Bytes())) == 0 {
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	scanner.Buffer(nil, 16<<20) // notation for very long games
+	for scanner.Scan() {
+		if len(bytes.TrimSpace(scanner.Bytes())) == 0 {
 			continue
 		}
-		var res Result
-		if err := json.Unmarshal(sc.Bytes(), &res); err != nil {
+		var result Result
+		if err := json.Unmarshal(scanner.Bytes(), &result); err != nil {
 			// A line cut short by a crash mid-write; nothing to recover.
-			r.log.Error("skipping unreadable pending game result", "line", sc.Text(), "err", err)
+			r.log.Error("skipping unreadable pending game result", "line", scanner.Text(), "err", err)
 			continue
 		}
-		out = append(out, res)
+		out = append(out, result)
 	}
-	return out, sc.Err()
+	return out, scanner.Err()
 }
 
 // write replaces the file with results, removing it if there are none.
@@ -159,8 +159,8 @@ func (r *Results) write(results []Result) error {
 		return err
 	}
 	var buf bytes.Buffer
-	for _, res := range results {
-		line, _ := json.Marshal(res)
+	for _, result := range results {
+		line, _ := json.Marshal(result)
 		buf.Write(line)
 		buf.WriteByte('\n')
 	}
@@ -172,33 +172,33 @@ func (r *Results) write(results []Result) error {
 }
 
 func appendSync(path string, data []byte) error {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return err
 	}
-	if _, err := f.Write(data); err != nil {
-		f.Close()
+	if _, err := file.Write(data); err != nil {
+		file.Close()
 		return err
 	}
-	if err := f.Sync(); err != nil {
-		f.Close()
+	if err := file.Sync(); err != nil {
+		file.Close()
 		return err
 	}
-	return f.Close()
+	return file.Close()
 }
 
 func writeSync(path string, data []byte) error {
-	f, err := os.Create(path)
+	file, err := os.Create(path)
 	if err != nil {
 		return err
 	}
-	if _, err := f.Write(data); err != nil {
-		f.Close()
+	if _, err := file.Write(data); err != nil {
+		file.Close()
 		return err
 	}
-	if err := f.Sync(); err != nil {
-		f.Close()
+	if err := file.Sync(); err != nil {
+		file.Close()
 		return err
 	}
-	return f.Close()
+	return file.Close()
 }

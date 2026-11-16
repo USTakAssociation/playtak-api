@@ -205,13 +205,13 @@ func TestSpreadInEveryDirection(t *testing.T) {
 func TestFlattenWall(t *testing.T) {
 	// A1: black under a white capstone. B1: a black wall.
 	g := fromTPS(t, std5, "x5/x5/x5/x5/21C,2S,x3 1 10")
-	g.pos.lastReset = 0
+	g.position.lastReset = 0
 	play(t, g, "M A1 B1 1")
 	if got := g.SquareString(sq("B1")); got != "[f, C]" {
 		t.Errorf("B1 = %s, want the wall flattened under the capstone", got)
 	}
-	if g.pos.lastReset != g.pos.ply {
-		t.Errorf("flattening should reset the stale counter: lastReset %d, ply %d", g.pos.lastReset, g.pos.ply)
+	if g.position.lastReset != g.position.ply {
+		t.Errorf("flattening should reset the stale counter: lastReset %d, ply %d", g.position.lastReset, g.position.ply)
 	}
 }
 
@@ -295,8 +295,8 @@ func TestUndoRestoresStaleCount(t *testing.T) {
 	g := fromTPS(t, std5, "x4,2C/x5/x5/x5/1C,x4 1 10")
 	play(t, g, "M A1 A2 1", "P C3")
 	g.Undo()
-	if g.pos.lastReset != g.pos.ply-1 {
-		t.Errorf("lastReset %d after undoing the placement at ply %d", g.pos.lastReset, g.pos.ply)
+	if g.position.lastReset != g.position.ply-1 {
+		t.Errorf("lastReset %d after undoing the placement at ply %d", g.position.lastReset, g.position.ply)
 	}
 }
 
