@@ -28,5 +28,9 @@ jobs:
         working-directory: ./tak-server
         run: go test -race ./...
 
+      # They run as root and change production databases, so lint them too.
       - name: Check deploy scripts
-        run: bash -n tak-server/deploy/deploy.sh tak-server/deploy/rollback.sh
+        run: |
+          bash -n tak-server/deploy/deploy.sh
+          bash -n tak-server/deploy/rollback.sh
+          shellcheck tak-server/deploy/deploy.sh tak-server/deploy/rollback.sh

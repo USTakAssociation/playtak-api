@@ -294,12 +294,21 @@ limit; the per-username limit still protects accounts.
 ## Database migrations
 
 Schema changes are dated shell scripts in `../scripts/migrations`. They're
-safe to run more than once. `create_databases.sh` runs all of them for a
-fresh development setup. For production, run each new script against the
-live database before deploying the server that needs it. At startup the
-server checks that the players database has had the migrations it relies
-on (the `id` primary key and the `auth_tokens` table), and refuses to start
-if not, naming the script to run.
+safe to run more than once.
+
+- **Deploys run them automatically.** `deploy/deploy.sh` backs up both
+  databases and runs every migration before starting the server, so there's
+  nothing to run by hand. See [Deploying](#deploying).
+- **Local development:** `create_databases.sh` creates fresh databases and
+  runs every migration.
+- **Adding a migration:** add the script, then add it to the list in both
+  `deploy/deploy.sh` and `../scripts/development/create_databases.sh`, in
+  date order.
+
+At startup the server checks that the players database has had the
+migrations it relies on (the `id` primary key and the `auth_tokens` table)
+and refuses to start if not, naming the script to run. That only matters if
+the server is started without `deploy.sh`.
 
 ## Deploying
 
@@ -319,16 +328,25 @@ in `deploy/`) to the server and runs `deploy/deploy.sh beta|prod` as root.
 
 Safe to run again. On each run it:
 
-1. Stops the Go and Java servers for that environment.
+1. Stops the Go and Java servers for that environment. If either is still
+   running afterwards, it stops there and changes nothing.
 2. Backs up both databases to `/var/backups/tak-server-<env>/<time>/`,
-   keeping the 10 newest.
+   keeping the 10 newest. The backup is taken after stopping, so nothing can
+   be written between the backup and the migrations.
 3. Runs every migration. Each is safe to run more than once.
 4. Installs the binary and `.env` to `/var/apps/tak-server-<env>/` and the
    unit `tak-server-<env>.service`.
 5. Disables the Java unit (`takserver-<env>.service`), so a reboot can't
    start both, and starts the Go unit.
-6. Checks the server sends `Welcome!` on its telnet port. If it doesn't
-   within 30 seconds, it runs `rollback.sh` and fails the job.
+6. Checks the server sends `Welcome!` on its telnet port within 30 seconds.
+
+If any step after stopping fails, it rolls back to Java and fails the job:
+
+| Failed during | Rollback |
+| --- | --- |
+| the backup | Start Java. The databases were not touched. |
+| migrations or install | Restore the backup, then start Java. Nothing ran since the backup, so no data is lost, and a half-applied migration is undone. |
+| starting or the health check | Start Java and keep the data. Go may have saved games, and Java runs on the migrated databases. |
 
 Games in progress when the server stops end without a result, as with the
 Java server. Warn players first with `sudo broadcast Message ...`.
@@ -344,7 +362,9 @@ bash /var/apps/tak-server-prod/rollback.sh prod --restore-db # also restore the 
 
 The Java server runs on the migrated databases, so restoring is rarely
 needed. Restoring loses everything since the backup; the replaced files are
-kept as `*.before-restore`.
+kept as `*.before-restore`. `rollback.sh` refuses to restore while either
+server is still running, and removes any leftover journal or WAL files so
+they can't be replayed onto the restored databases.
 
 ### Settings: the TAK_ENV secret
 

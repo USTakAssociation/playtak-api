@@ -12,8 +12,11 @@
 #
 # Steps: stop the servers, back up both databases, run the migrations,
 # install the binary and its systemd unit, start it, and check it answers.
-# If it doesn't start, rollback.sh starts the Java server again.
-set -euo pipefail
+# If any step after stopping the servers fails, rollback.sh starts the Java
+# server again. A failure after the backup but before the Go server starts
+# also restores that backup: nothing has written since, so no data is lost,
+# and a half-applied migration is undone.
+set -Eeuo pipefail
 
 env=${1:-}
 case "$env" in
@@ -48,18 +51,54 @@ for db in "$players_db" "$games_db"; do
 	[ -f "$db" ] || { echo "database not found: $db" >&2; exit 1; }
 done
 
+# What a failure rolls back to depends on how far the deploy got:
+#   stopped:  the databases are untouched; start Java.
+#   backed-up: restore the backup taken after stopping (lossless), start Java.
+#   started:  Go may have saved games; keep the data, start Java (it runs on
+#             the migrated schema).
+phase=stopped
+on_failure() {
+	trap - ERR
+	echo "deploy failed at step '$phase'; rolling back to Java" >&2
+	journalctl -u "$go_unit" -n 30 --no-pager >&2 2>/dev/null || true
+	if [ "$phase" = backed-up ]; then
+		bash "$release/rollback.sh" "$env" --restore-db
+	else
+		bash "$release/rollback.sh" "$env"
+	fi
+	exit 1
+}
+
 echo "stopping servers"
 systemctl stop "$go_unit" 2>/dev/null || true
 systemctl stop "$java_unit" 2>/dev/null || true
+# A server that won't stop still holds the databases: leave everything as it
+# is rather than back up or migrate underneath it.
+for unit in "$go_unit" "$java_unit"; do
+	if systemctl is-active --quiet "$unit"; then
+		echo "$unit did not stop; deploy aborted, nothing changed" >&2
+		exit 1
+	fi
+done
+
+# Backed up only after stopping, so no write can fall between the backup and
+# the migrations; restoring it then loses nothing.
+trap on_failure ERR
 
 stamp=$(date +%Y%m%d-%H%M%S)
 echo "backing up databases to $backups/$stamp"
 mkdir -p "$backups/$stamp"
 sqlite3 "$players_db" ".backup '$backups/$stamp/players.db'"
 sqlite3 "$games_db" ".backup '$backups/$stamp/games.db'"
+# Written last: rollback.sh only restores backups that have it.
 printf '%s\n%s\n' "$players_db" "$games_db" >"$backups/$stamp/paths"
-# Keep the 10 newest backups.
-ls -1d "$backups"/*/ | sort | head -n -10 | xargs -r rm -rf
+phase=backed-up
+# Keep the 10 newest backups. Names are timestamps, so the glob sorts oldest
+# first.
+backup_dirs=("$backups"/*/)
+if [ "${#backup_dirs[@]}" -gt 10 ]; then
+	rm -rf "${backup_dirs[@]:0:${#backup_dirs[@]}-10}"
+fi
 
 echo "running migrations"
 # shortcut: the order is listed here and in scripts/development/create_databases.sh; keep both in sync when adding one.
@@ -98,6 +137,7 @@ EOF
 systemctl daemon-reload
 # Disabled so a reboot can't start both servers on the same ports.
 systemctl disable "$java_unit" 2>/dev/null || true
+phase=started
 systemctl enable --now "$go_unit"
 
 echo "checking the server answers on port $telnet_port"
@@ -110,7 +150,5 @@ for _ in $(seq 1 30); do
 	sleep 1
 done
 
-echo "the Go server did not answer; rolling back to Java" >&2
-journalctl -u "$go_unit" -n 30 --no-pager >&2 || true
-bash "$app_dir/rollback.sh" "$env"
-exit 1
+echo "the Go server did not answer" >&2
+on_failure

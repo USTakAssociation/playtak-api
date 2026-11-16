@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/online"
@@ -14,8 +15,12 @@ import (
 var (
 	// ErrNotPlaying means the player isn't in this game, or it has ended.
 	ErrNotPlaying = errors.New("not playing this game")
-	// ErrTimeout means the game didn't answer in time.
+	// ErrTimeout means the game didn't answer in time and the command was
+	// cancelled without running.
 	ErrTimeout = errors.New("game did not respond")
+	// ErrOutcomeUnknown means the command started but didn't finish in time:
+	// it may or may not have taken effect.
+	ErrOutcomeUnknown = errors.New("game did not finish the command in time")
 	// ErrNothingToUndo means no ply has been played.
 	ErrNothingToUndo = errors.New("nothing to undo")
 	// ErrCantObserve means the game can't be observed: it's gone, it's the
@@ -94,7 +99,10 @@ func (g *Game) start() {
 	}
 	g.botTimer = g.manager.afterFunc(limit, func() {
 		g.post(func() {
-			if g.engine.Ply() == 0 {
+			// botTimer is cleared for good by the first move. Stop can't
+			// recall a callback already running, and an undo can bring the
+			// ply back to 0, so the ply alone isn't enough.
+			if g.botTimer != nil && g.engine.Ply() == 0 {
 				g.end(tak.Win(tak.Black), "")
 			}
 		})
@@ -118,12 +126,27 @@ func (g *Game) run() {
 }
 
 // do runs f on the game's goroutine and waits for it to finish.
+// Command states, so a command that timed out while queued never runs.
+const (
+	commandPending int32 = iota
+	commandRunning
+	commandCancelled
+)
+
 func (g *Game) do(ctx context.Context, f func()) error {
 	timeout := time.NewTimer(g.manager.config.CommandTimeout)
 	defer timeout.Stop()
+	var state atomic.Int32
 	ran := make(chan struct{})
+	run := func() {
+		if !state.CompareAndSwap(commandPending, commandRunning) {
+			return // cancelled while queued
+		}
+		f()
+		close(ran)
+	}
 	select {
-	case g.inbox <- func() { f(); close(ran) }:
+	case g.inbox <- run:
 	case <-g.done:
 		return ErrNotPlaying
 	case <-ctx.Done():
@@ -144,8 +167,12 @@ func (g *Game) do(ctx context.Context, f func()) error {
 			return ErrNotPlaying
 		}
 	case <-timeout.C:
+		if state.CompareAndSwap(commandPending, commandCancelled) {
+			g.manager.log.Error("game did not start a command in time; cancelled", "game", g.info.ID)
+			return ErrTimeout
+		}
 		g.manager.log.Error("game did not finish a command in time", "game", g.info.ID)
-		return ErrTimeout
+		return ErrOutcomeUnknown
 	}
 }
 
@@ -159,7 +186,8 @@ func (g *Game) post(f func()) {
 
 // Place plays a placement for the named player. A rule violation is
 // returned as an error whose text explains it; ErrNotPlaying and ErrTimeout
-// mean the move wasn't considered.
+// mean the move wasn't considered, and ErrOutcomeUnknown that it may have
+// been.
 func (g *Game) Place(ctx context.Context, name, square string, kind tak.Kind) error {
 	parsedSquare, ok := tak.ParseSquare(square)
 	if !ok {

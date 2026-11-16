@@ -112,7 +112,8 @@ func TestMaxKeys(t *testing.T) {
 }
 
 func TestConcurrentUse(t *testing.T) {
-	k := New(1000, time.Second, 1000)
+	// The clock is frozen, so nothing refills: exactly the burst is allowed.
+	k, _ := clocked(1000, time.Second, 1000)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	allowed := 0
@@ -128,7 +129,7 @@ func TestConcurrentUse(t *testing.T) {
 		})
 	}
 	wg.Wait()
-	if allowed < 1000 || allowed > 1010 { // the burst, plus whatever refilled meanwhile
-		t.Errorf("%d allowed", allowed)
+	if allowed != 1000 {
+		t.Errorf("%d allowed, want exactly 1000", allowed)
 	}
 }

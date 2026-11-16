@@ -15,7 +15,9 @@ import (
 // Open opens the SQLite database at path and verifies it is reachable. It does
 // not create the file: a missing database is a deployment error.
 func Open(ctx context.Context, path string) (*sql.DB, error) {
-	dsn := "file:" + path + "?mode=rw&" + url.Values{
+	// The filename is read as a URI, so characters such as %, ? and # in the
+	// path must be escaped.
+	dsn := "file:" + (&url.URL{Path: path}).EscapedPath() + "?mode=rw&" + url.Values{
 		"_pragma": {"busy_timeout(5000)", "foreign_keys(1)"},
 	}.Encode()
 	conn, err := sql.Open("sqlite", dsn)

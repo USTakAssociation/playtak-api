@@ -165,3 +165,22 @@ func TestResultsKeepFailedOnlyAndSkipTornLines(t *testing.T) {
 		t.Errorf("saved %+v", store.saved)
 	}
 }
+
+func TestSaveAfterTornTail(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pending.jsonl")
+	// A crash mid-append left a fragment with no newline.
+	os.WriteFile(path, []byte(`{"id":1,"notation":"P A1","result":"R-0"}`+"\n"+`{"id":2`), 0o644)
+	// The server restarts and saves another result.
+	store := &fakeFinisher{calls: make(chan struct{}, 10)}
+	r := NewResults(store, path, quiet)
+	if err := r.Save(Result{ID: 3, Notation: "P C1", Result: "0-1"}); err != nil {
+		t.Fatal(err)
+	}
+	if left := r.flush(context.Background()); left != 0 {
+		t.Errorf("left %d", left)
+	}
+	// The acknowledged result must not be lost behind the fragment.
+	if store.count() != 2 || store.saved[0].ID != 1 || store.saved[1] != (Result{3, "P C1", "0-1"}) {
+		t.Errorf("saved %+v", store.saved)
+	}
+}

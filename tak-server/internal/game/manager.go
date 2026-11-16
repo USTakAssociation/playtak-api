@@ -160,7 +160,9 @@ func (m *Manager) Accept(ctx context.Context, acceptor *online.Player, from List
 		m.mu.Unlock()
 		return nil, ErrCantAccept
 	}
-	if _, busy := m.byPlayer[creator.Name]; busy {
+	// Checked by player, not just by connection: a player can post from one
+	// connection and accept from another.
+	if _, busy := m.byPlayer[creator.Name]; busy || creator.Name == acceptor.Name {
 		m.mu.Unlock()
 		return nil, ErrCantAccept
 	}

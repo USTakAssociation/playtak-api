@@ -147,21 +147,34 @@ tak-server/
 
 ### 4.1 Concurrency Model: Goroutines over Threads
 
-The Java server is one thread per connection. Go will use:
+The Java server is one thread per connection and guards each game with a
+`ReentrantLock`. The Go server uses:
 
 ```
 Per connection:
-  - 1 goroutine reading from the connection (readPump)
-  - 1 goroutine writing to the connection (writePump)
-  - writes go through a buffered channel (non-blocking sends)
+  - 1 goroutine reading from the connection
+  - 1 goroutine writing to the connection
+  - writes go through a buffered queue (1024 lines); sends never block, and
+    a client that falls that far behind is disconnected
 
 Per game:
-  - game state protected by a sync.Mutex (maps to Java's ReentrantLock)
-  - clock managed via time.AfterFunc (maps to Java's Timer/TimerTask)
+  - 1 goroutine that owns all of the game's state: board, clocks, timers,
+    offers, observers. No lock guards it.
+  - other goroutines (sessions) send it a command and wait for the reply, up
+    to TAK_GAME_COMMAND_TIMEOUT. A command that times out before running is
+    cancelled, so it can't take effect later.
+  - timers (time.AfterFunc: running out of time, reconnect windows, the bot
+    first-move rule) post their work to the same goroutine rather than
+    touching the state themselves.
 ```
 
-This is the standard gorilla/websocket pattern and will comfortably handle
-thousands of concurrent connections.
+Shared registries (online players, seeks, the game list, sessions) are small
+maps behind a `sync.Mutex`, held only briefly.
+
+This is the "share memory by communicating" pattern, chosen over a mutex
+per game because async games (4.5) will keep many games alive at once, and
+one owner per game makes their ordering simple to reason about. It
+comfortably handles thousands of concurrent connections.
 
 ### 4.2 Backwards Compatibility: The Protocol Layer is the Key
 

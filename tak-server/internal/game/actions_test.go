@@ -306,6 +306,24 @@ func TestBotTimerStopsOnFirstMove(t *testing.T) {
 	}
 }
 
+func TestStaleBotTimerAfterUndoToStart(t *testing.T) {
+	e := newEnv(t, Config{})
+	g, human, _ := e.startAgainstBot(std5, protocol.Black)
+	botTimer := e.timers[0] // the only timer before the first move
+	ctx := context.Background()
+	if err := g.Place(ctx, human.Name, "A1", tak.Flat); err != nil {
+		t.Fatal(err)
+	}
+	g.RequestUndo(ctx, human.Name)
+	g.RequestUndo(ctx, "TakBot") // back to ply 0
+	// The callback fires anyway, as if it had started before Stop.
+	botTimer.f()
+	settle(g)
+	if lastResult(e) != "" {
+		t.Errorf("a stale bot timer ended the game: %q", lastResult(e))
+	}
+}
+
 func TestNoBotTimerWhenBotIsWhite(t *testing.T) {
 	e := newEnv(t, Config{})
 	e.startAgainstBot(std5, protocol.White)

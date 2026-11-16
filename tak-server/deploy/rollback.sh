@@ -25,14 +25,34 @@ backups=/var/backups/tak-server-$env
 
 echo "stopping $go_unit"
 systemctl disable --now "$go_unit" 2>/dev/null || true
+if systemctl is-active --quiet "$go_unit"; then
+	echo "$go_unit is still running; not continuing" >&2
+	exit 1
+fi
 
 if [ "$restore" = "--restore-db" ]; then
-	latest=$(ls -1d "$backups"/*/ 2>/dev/null | sort | tail -n1)
+	# The newest complete backup: deploy.sh writes "paths" last. Names are
+	# timestamps, so the glob sorts oldest first.
+	latest=
+	for dir in "$backups"/*/; do
+		if [ -f "${dir}paths" ]; then
+			latest=$dir
+		fi
+	done
 	[ -n "$latest" ] && [ -f "$latest/paths" ] || { echo "no backup found in $backups" >&2; exit 1; }
 	{ read -r players_db && read -r games_db; } <"$latest/paths"
+	# Nothing may hold the files while they're replaced.
+	if systemctl is-active --quiet "$java_unit"; then
+		echo "$java_unit is running; stop it before restoring" >&2
+		exit 1
+	fi
 	echo "restoring databases from $latest"
 	cp -f "$players_db" "$players_db.before-restore"
 	cp -f "$games_db" "$games_db.before-restore"
+	# A leftover journal or WAL would be replayed onto the restored file.
+	for db in "$players_db" "$games_db"; do
+		rm -f "$db-journal" "$db-wal" "$db-shm"
+	done
 	cp -f "$latest/players.db" "$players_db"
 	cp -f "$latest/games.db" "$games_db"
 elif [ -n "$restore" ]; then
@@ -42,4 +62,8 @@ fi
 
 echo "starting $java_unit"
 systemctl enable --now "$java_unit"
-systemctl is-active --quiet "$java_unit" && echo "rolled back: $java_unit is running"
+if ! systemctl is-active --quiet "$java_unit"; then
+	echo "$java_unit did not start; check: journalctl -u $java_unit" >&2
+	exit 1
+fi
+echo "rolled back: $java_unit is running"

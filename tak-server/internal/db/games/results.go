@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -168,13 +169,35 @@ func (r *Results) write(results []Result) error {
 	if err := writeSync(tmp, buf.Bytes()); err != nil {
 		return err
 	}
-	return os.Rename(tmp, r.path)
+	if err := os.Rename(tmp, r.path); err != nil {
+		return err
+	}
+	return syncDir(r.path)
 }
 
+// appendSync appends data and syncs. If a crash left the file without a
+// final newline, data starts on a new line, so the torn fragment stays on its
+// own line (which read skips) instead of swallowing this record.
 func appendSync(path string, data []byte) error {
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
 	if err != nil {
 		return err
+	}
+	info, err := file.Stat()
+	if err != nil {
+		file.Close()
+		return err
+	}
+	created := info.Size() == 0
+	if size := info.Size(); size > 0 {
+		last := make([]byte, 1)
+		if _, err := file.ReadAt(last, size-1); err != nil {
+			file.Close()
+			return err
+		}
+		if last[0] != '\n' {
+			data = append([]byte{'\n'}, data...)
+		}
 	}
 	if _, err := file.Write(data); err != nil {
 		file.Close()
@@ -184,7 +207,28 @@ func appendSync(path string, data []byte) error {
 		file.Close()
 		return err
 	}
-	return file.Close()
+	if err := file.Close(); err != nil {
+		return err
+	}
+	// A new file's directory entry is only durable once the directory is synced.
+	if created {
+		return syncDir(path)
+	}
+	return nil
+}
+
+// syncDir syncs the directory holding path, making a newly created or
+// renamed entry in it durable.
+func syncDir(path string) error {
+	dir, err := os.Open(filepath.Dir(path))
+	if err != nil {
+		return err
+	}
+	if err := dir.Sync(); err != nil {
+		dir.Close()
+		return err
+	}
+	return dir.Close()
 }
 
 func writeSync(path string, data []byte) error {

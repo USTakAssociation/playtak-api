@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"net/url"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -106,5 +108,39 @@ func TestRetryBusyDoesntRetryOtherErrors(t *testing.T) {
 	})
 	if err == nil || calls != 1 {
 		t.Errorf("err %v after %d calls, want one call", err, calls)
+	}
+}
+
+func TestOpenPathWithURICharacters(t *testing.T) {
+	// SQLite reads the filename as a URI, so these must not be decoded or
+	// cut off: "%20" is not a space, and "?" and "#" are part of the name.
+	for _, dirName := range []string{"tak%20data", "a?b", "c#d", "spaced dir"} {
+		dir := filepath.Join(t.TempDir(), dirName)
+		if err := os.Mkdir(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(dir, "players.db")
+		seed, err := sql.Open("sqlite", "file:"+(&url.URL{Path: path}).EscapedPath())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := seed.Exec(`CREATE TABLE marker (x)`); err != nil {
+			t.Fatalf("%s: create: %v", dirName, err)
+		}
+		seed.Close()
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("%s: seed went elsewhere: %v", dirName, err)
+		}
+
+		conn, err := Open(context.Background(), path)
+		if err != nil {
+			t.Fatalf("%s: %v", dirName, err)
+		}
+		var n int
+		err = conn.QueryRow(`SELECT count(*) FROM sqlite_master WHERE name = 'marker'`).Scan(&n)
+		conn.Close()
+		if err != nil || n != 1 {
+			t.Errorf("%s: opened a different database (marker %d, %v)", dirName, n, err)
+		}
 	}
 }

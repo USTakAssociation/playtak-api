@@ -50,6 +50,10 @@ type Manager struct {
 	// loginMu serializes binding sessions to players, so two simultaneous
 	// logins for the same player can't both skip kicking the other.
 	loginMu sync.Mutex
+
+	// presenceMu serializes presence broadcasts, so an older snapshot can't
+	// be delivered after a newer one.
+	presenceMu sync.Mutex
 }
 
 // Services are what sessions turn client commands into calls on.
@@ -159,6 +163,10 @@ func (m *Manager) readySessions() []*Session {
 // broadcastPresence tells every logged-in session how many players are
 // online and who they are (bots excluded from the list).
 func (m *Manager) broadcastPresence() {
+	// Held from snapshot to last send. Send only queues, so this never waits
+	// on a slow client.
+	m.presenceMu.Lock()
+	defer m.presenceMu.Unlock()
 	online := m.players.Online()
 	var names []string
 	for _, p := range online {

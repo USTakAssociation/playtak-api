@@ -274,6 +274,20 @@ func TestAcceptRefusals(t *testing.T) {
 	}
 }
 
+func TestCantAcceptOwnSeekFromAnotherConnection(t *testing.T) {
+	e := newEnv(t, Config{AllowMultipleSessions: true})
+	a, ac := e.login(0)
+	second := &client{}
+	e.players.Attach(a, second) // the same player in another tab
+	own := e.seek(a, ac, std5, "")
+	if _, err := e.m.Accept(context.Background(), a, second, own.ID); !errors.Is(err, ErrCantAccept) {
+		t.Fatalf("accepting your own seek from another connection: %v", err)
+	}
+	if len(e.seeks.List()) != 1 || !e.m.IfIdle(a.Name, func() {}) {
+		t.Error("a refused accept must leave the seek and the player as they were")
+	}
+}
+
 func TestAcceptRefusedWhilePlaying(t *testing.T) {
 	e := newEnv(t, Config{})
 	_, a, _, _, _ := e.start()
@@ -566,6 +580,36 @@ func TestCommandTimeout(t *testing.T) {
 	defer close(block)
 	if err := g.Place(context.Background(), a.Name, "A1", tak.Flat); !errors.Is(err, ErrTimeout) {
 		t.Errorf("err %v, want ErrTimeout", err)
+	}
+}
+
+func TestTimedOutCommandNeverRuns(t *testing.T) {
+	e := newEnv(t, Config{CommandTimeout: 100 * time.Millisecond})
+	g, a, ac, _, bc := e.start()
+	block := make(chan struct{})
+	g.post(func() { <-block }) // wedge the game's goroutine
+	if err := g.Place(context.Background(), a.Name, "A1", tak.Flat); !errors.Is(err, ErrTimeout) {
+		t.Fatalf("err %v, want ErrTimeout", err)
+	}
+	close(block) // the game catches up
+	settle(g)
+	// ErrTimeout means the move wasn't considered: it must not be played late.
+	if moves := g.engine.Moves(); len(moves) != 0 {
+		t.Errorf("timed-out move was played: %v", moves)
+	}
+	if got := append(ac.take(), bc.take()...); len(got) != 0 {
+		t.Errorf("events sent for a timed-out move: %v", got)
+	}
+}
+
+func TestCommandTimingOutWhileRunning(t *testing.T) {
+	e := newEnv(t, Config{CommandTimeout: 100 * time.Millisecond})
+	g, _, _, _, _ := e.start()
+	block := make(chan struct{})
+	defer close(block)
+	// Started, but not finished in time: the outcome can't be known.
+	if err := g.do(context.Background(), func() { <-block }); !errors.Is(err, ErrOutcomeUnknown) {
+		t.Errorf("err %v, want ErrOutcomeUnknown", err)
 	}
 }
 

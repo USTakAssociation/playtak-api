@@ -34,7 +34,8 @@ func (s *Session) inGame(p *online.Player, id int, action func(*game.Game) error
 	case errors.As(err, &cooldown):
 		s.Send(protocol.ServerMessage{Text: cooldown.Error()})
 		s.Send(protocol.NOK{})
-	case errors.Is(err, game.ErrNotPlaying), errors.Is(err, game.ErrTimeout), errors.Is(err, game.ErrNothingToUndo),
+	case errors.Is(err, game.ErrNotPlaying), errors.Is(err, game.ErrTimeout), errors.Is(err, game.ErrOutcomeUnknown),
+		errors.Is(err, game.ErrNothingToUndo),
 		errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
 		s.Send(protocol.NOK{})
 	default:

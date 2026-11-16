@@ -24,6 +24,7 @@ var (
 	ErrNotYourStack    = errors.New("You don't control that stack")
 	ErrDropCount       = errors.New("The number of drops must match the distance moved")
 	ErrEmptyDrop       = errors.New("Each square moved over must get at least one piece")
+	ErrNoDistance      = errors.New("A move must leave its square")
 	ErrOntoCapstone    = errors.New("Can't move onto a capstone")
 	ErrOntoWall        = errors.New("Can't move onto a wall")
 	ErrFlattenNeedsCap = errors.New("Only a capstone moving alone can flatten a wall")
@@ -210,6 +211,11 @@ func (g *Game) Move(by Color, from, to Square, drops []int) error {
 	}
 	carry := 0
 	for _, d := range drops {
+		// One drop over the size already breaks the carry limit; checking it
+		// first also keeps huge values from overflowing the sum.
+		if d > g.size {
+			return fmt.Errorf("You can carry at most %d pieces", g.size)
+		}
 		carry += d
 	}
 	if carry > g.size {
@@ -221,6 +227,11 @@ func (g *Game) Move(by Color, from, to Square, drops []int) error {
 	dist := max(abs(to.File-from.File), abs(to.Rank-from.Rank))
 	if len(drops) != dist {
 		return ErrDropCount
+	}
+	// After the drop count check, so a same-square move with drops gets the
+	// same message as from the Java server.
+	if dist == 0 {
+		return ErrNoDistance
 	}
 	for _, d := range drops {
 		if d < 1 {

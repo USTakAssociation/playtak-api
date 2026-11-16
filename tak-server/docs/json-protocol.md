@@ -287,7 +287,7 @@ The first JSON command on every connection.
 
 | Field | Type | Req. | Meaning |
 | --- | --- | --- | --- |
-| `version` | string | yes | The protocol version this client supports, `major.minor`. See [section 10](#11-versioning). |
+| `version` | string | yes | The protocol version this client supports, `major.minor`. See [section 11](#11-versioning). |
 | `client_name` | string | yes | Client name, for logs |
 | `client_version` | string | yes | Client version, for logs |
 

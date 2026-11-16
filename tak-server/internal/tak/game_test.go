@@ -1,6 +1,7 @@
 package tak
 
 import (
+	"math"
 	"slices"
 	"testing"
 )
@@ -117,6 +118,27 @@ func TestDoubleBlackStack(t *testing.T) {
 	}
 }
 
+func TestHugeDropsAreRejectedWithoutChange(t *testing.T) {
+	// Drops that overflow int when summed must not slip past the carry
+	// checks, and nothing may change before the move is rejected.
+	g := New(std5)
+	g.Place(White, sq("A1"), Flat)
+	g.Place(Black, sq("B1"), Flat)
+	before := g.TPS()
+	for _, drops := range [][]int{
+		{math.MaxInt, math.MaxInt, 3},
+		{math.MaxInt, 1, 1},
+		{math.MinInt, math.MinInt, 1},
+	} {
+		if err := g.Move(White, sq("B1"), sq("B4"), drops); err == nil {
+			t.Errorf("%v: accepted", drops)
+		}
+	}
+	if g.TPS() != before || g.Ply() != 2 || len(g.Moves()) != 2 {
+		t.Errorf("rejected moves changed the game: %s, ply %d", g.TPS(), g.Ply())
+	}
+}
+
 func TestMoveErrors(t *testing.T) {
 	// White to move. B2 is a white-topped 3-stack, D2 and D3 black, B3 a
 	// white wall, A1 a lone white flat.
@@ -131,10 +153,12 @@ func TestMoveErrors(t *testing.T) {
 		{"C2", "C1", []int{1}, "There is no stack on that square"},
 		{"D2", "D1", []int{1}, "You don't control that stack"},
 		{"B2", "B1", []int{6}, "You can carry at most 5 pieces"},
+		{"B2", "B4", []int{3, 3}, "You can carry at most 5 pieces"},
 		{"B2", "B1", []int{4}, "That stack only has 3 pieces"},
 		{"A1", "A2", []int{2}, "That stack only has 1 piece"},
 		{"B2", "E2", []int{1, 1}, "The number of drops must match the distance moved"},
 		{"B2", "B2", []int{1}, "The number of drops must match the distance moved"},
+		{"B2", "B2", nil, "A move must leave its square"},
 		{"B2", "D2", []int{1, 0}, "Each square moved over must get at least one piece"},
 		{"B2", "B4", []int{1, 1}, "Can't move onto a wall"},
 		{"B2", "B3", []int{1}, "Only a capstone moving alone can flatten a wall"},
