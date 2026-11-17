@@ -31,6 +31,8 @@ const (
 	maxTrackedKeys     = 100_000
 )
 
+// limiters holds the rate limits. A nil limiter means that limit is off; the
+// zero value, before EnableLimits, has every limit off.
 type limiters struct {
 	failuresByIP   *ratelimit.Keyed
 	failuresByName *ratelimit.Keyed // nil when only IPs are limited
@@ -43,7 +45,7 @@ type limiters struct {
 // IPs, at the cost of letting someone lock a name out for a while by
 // failing on purpose. Without it, only per-IP limits apply.
 func (s *Service) EnableLimits(byUsername bool) {
-	l := &limiters{
+	l := limiters{
 		failuresByIP: ratelimit.New(failuresPerIP, time.Minute, maxTrackedKeys),
 		registerByIP: ratelimit.New(registrationsPerIP, time.Hour, maxTrackedKeys),
 		resetByName:  ratelimit.New(resetsPerName, time.Hour, maxTrackedKeys),
@@ -56,9 +58,6 @@ func (s *Service) EnableLimits(byUsername bool) {
 
 // PruneLimits forgets keys whose limits have reset, to keep memory small.
 func (s *Service) PruneLimits() {
-	if s.limits == nil {
-		return
-	}
 	for _, k := range []*ratelimit.Keyed{s.limits.failuresByIP, s.limits.failuresByName, s.limits.registerByIP, s.limits.resetByName} {
 		if k != nil {
 			k.Prune()
@@ -73,9 +72,6 @@ func nameKey(name string) string { return strings.ToLower(name) }
 // *RateLimitError if either has no failures left. Otherwise call finish
 // exactly once, saying whether the login failed.
 func (s *Service) startLogin(name, ip string) (finish func(failed bool), err error) {
-	if s.limits == nil {
-		return func(bool) {}, nil
-	}
 	finishIP, err := s.attempt(s.limits.failuresByIP, "failed logins per IP", ratelimit.IPKey(ip), ip)
 	if err != nil {
 		return nil, err

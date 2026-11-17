@@ -71,7 +71,7 @@ type Service struct {
 	log     *slog.Logger
 	now     func() time.Time
 
-	limits *limiters // nil: no rate limits (see EnableLimits)
+	limits limiters // all off until EnableLimits
 
 	mu          sync.Mutex
 	resetTokens map[string]resetToken // by player name
@@ -117,7 +117,7 @@ func (s *Service) Login(ctx context.Context, name, password, ip string) (players
 	}
 	// A success clears the name's failures, but not the IP's: on a shared
 	// IP, one player logging in mustn't wipe out someone else's guesses.
-	if s.limits != nil && s.limits.failuresByName != nil {
+	if s.limits.failuresByName != nil {
 		s.limits.failuresByName.Reset(nameKey(name))
 	}
 	// Logging in proves the player knows their password.
@@ -130,10 +130,8 @@ func (s *Service) Login(ctx context.Context, name, password, ip string) (players
 // Register creates a player with a random password and emails it to them.
 // Each client IP can register only a few accounts an hour.
 func (s *Service) Register(ctx context.Context, name, email, ip string) (players.Record, error) {
-	if s.limits != nil {
-		if err := s.allow(s.limits.registerByIP, "registrations per IP", ratelimit.IPKey(ip)); err != nil {
-			return players.Record{}, err
-		}
+	if err := s.allow(s.limits.registerByIP, "registrations per IP", ratelimit.IPKey(ip)); err != nil {
+		return players.Record{}, err
 	}
 	switch {
 	case !ValidUsername(name):
@@ -164,10 +162,8 @@ func (s *Service) Register(ctx context.Context, name, email, ip string) (players
 // SendResetToken emails a one-time password reset token, valid for an hour.
 // Only a few are sent per player per hour.
 func (s *Service) SendResetToken(ctx context.Context, name, email string) error {
-	if s.limits != nil {
-		if err := s.allow(s.limits.resetByName, "reset emails per name", nameKey(name)); err != nil {
-			return err
-		}
+	if err := s.allow(s.limits.resetByName, "reset emails per name", nameKey(name)); err != nil {
+		return err
 	}
 	record, err := s.players.ByName(ctx, name)
 	if errors.Is(err, players.ErrNotFound) {

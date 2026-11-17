@@ -304,9 +304,9 @@ safe to run more than once.
   nothing to run by hand. See [Deploying](#deploying).
 - **Local development:** `create_databases.sh` creates fresh databases and
   runs every migration.
-- **Adding a migration:** add the script, then add it to the list in both
-  `deploy/deploy.sh` and `../scripts/development/create_databases.sh`, in
-  date order.
+- **Adding a migration:** add the script, then add it to the end of
+  `../scripts/migrations/run-all.sh`, the one list both `deploy.sh` and
+  `create_databases.sh` run.
 
 At startup the server checks that the players database has had the
 migrations it relies on (the `id` primary key and the `auth_tokens` table)
@@ -439,6 +439,18 @@ The deliberate changes in client-visible behaviour, for release notes:
 - `sudo list` output is sorted, without a trailing comma, and lists each player once.
 - `mod`, `admin` and `bot` say when the player already has, or doesn't have, that role.
 - New: `sudo revoke <name>` (admin only).
+
+**Connections**
+- WebSocket connections end with a close code that says why. Java just closed the socket.
+
+  | Code | When |
+  | --- | --- |
+  | 1000 normal | the client quit |
+  | 1001 going away | nothing received for 60 seconds (Java also dropped these, without a code), or the server is shutting down |
+  | 1008 policy violation | logged in from another window, kicked or banned |
+  | 1011 internal error | a line over 64 KB, or a client too slow to keep up |
+
+- A client that falls 1024 lines behind is disconnected, so one slow connection can't hold up the server. Java kept queuing. Telnet clients are disconnected the same way, without a code.
 
 **Accounts**
 - Java accepted some non-ASCII passwords through a legacy fallback. That fallback is gone, so those players need to reset their password.

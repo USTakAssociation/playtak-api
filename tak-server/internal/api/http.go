@@ -95,7 +95,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &body) {
 		return
 	}
-	record, err := s.auth.Login(r.Context(), body.Username, body.Password, s.ip(r))
+	record, err := s.auth.Login(r.Context(), body.Username, body.Password, s.clientIP.IP(r))
 	if errors.Is(err, auth.ErrAuthFailed) {
 		writeError(w, http.StatusUnauthorized, "invalid_credentials")
 		return
@@ -123,7 +123,7 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &body) {
 		return
 	}
-	record, err := s.auth.Register(r.Context(), body.Username, body.Email, s.ip(r))
+	record, err := s.auth.Register(r.Context(), body.Username, body.Email, s.clientIP.IP(r))
 	switch {
 	case rateLimited(w, err):
 	case err == nil:
@@ -187,12 +187,10 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) ip(r *http.Request) string { return s.clientIP.IP(r) }
-
 // limited refuses requests from an IP that has used up k.
 func (s *Server) limited(k *ratelimit.Keyed, h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ip := s.ip(r)
+		ip := s.clientIP.IP(r)
 		if ok, wait := k.Allow(ratelimit.IPKey(ip)); !ok {
 			s.log.Warn("rate limited", "path", r.URL.Path, "ip", ip, "retry_in", wait.Round(time.Second))
 			tooManyRequests(w, wait)

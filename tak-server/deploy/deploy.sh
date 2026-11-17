@@ -102,12 +102,7 @@ printf '%s\n%s\n' "$players_db" "$games_db" >"$backups/$stamp/paths"
 phase=backed-up
 
 echo "running migrations"
-# shortcut: the order is listed here and in scripts/development/create_databases.sh; keep both in sync when adding one.
-m=$release/migrations
-bash "$m/2026-05-add-increment-scales.sh" "$games_db"
-bash "$m/2026-08-add-nocase-player-indexes.sh" "$games_db"
-bash "$m/2026-09-players-id-primary-key.sh" "$players_db"
-bash "$m/2026-09-add-auth-tokens.sh" "$players_db"
+bash "$release/migrations/run-all.sh" "$players_db" "$games_db"
 
 echo "installing to $app_dir"
 mkdir -p "$app_dir"
