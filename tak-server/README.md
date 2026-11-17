@@ -333,15 +333,17 @@ Safe to run again. On each run it:
 
 1. Stops the Go and Java servers for that environment. If either is still
    running afterwards, it stops there and changes nothing.
-2. Backs up both databases to `/var/backups/tak-server-<env>/<time>/`,
-   keeping the 10 newest. The backup is taken after stopping, so nothing can
-   be written between the backup and the migrations.
+2. Backs up both databases to `/var/backups/tak-server-<env>/<time>/`. The
+   backup is taken after stopping, so nothing can be written between the
+   backup and the migrations.
 3. Runs every migration. Each is safe to run more than once.
 4. Installs the binary and `.env` to `/var/apps/tak-server-<env>/` and the
    unit `tak-server-<env>.service`.
 5. Disables the Java unit (`takserver-<env>.service`), so a reboot can't
    start both, and starts the Go unit.
 6. Checks the server sends `Welcome!` on its telnet port within 30 seconds.
+7. Deletes old backups, keeping the 10 newest. This runs only after a
+   successful deploy, so failed deploys can't push out the last good backup.
 
 If any step after stopping fails, it rolls back to Java and fails the job:
 
@@ -350,6 +352,11 @@ If any step after stopping fails, it rolls back to Java and fails the job:
 | the backup | Start Java. The databases were not touched. |
 | migrations or install | Restore the backup, then start Java. Nothing ran since the backup, so no data is lost, and a half-applied migration is undone. |
 | starting or the health check | Start Java and keep the data. Go may have saved games, and Java runs on the migrated databases. |
+
+If the rollback itself fails, neither server is running. The job log then
+shows `ROLLBACK FAILED` with the command to retry it by hand (the release
+directory is kept after a failure), and the script exits with code 2
+instead of 1.
 
 Games in progress when the server stops end without a result, as with the
 Java server. Warn players first with `sudo broadcast Message ...`.

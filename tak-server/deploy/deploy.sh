@@ -61,10 +61,17 @@ on_failure() {
 	trap - ERR
 	echo "deploy failed at step '$phase'; rolling back to Java" >&2
 	journalctl -u "$go_unit" -n 30 --no-pager >&2 2>/dev/null || true
+	local restore=
 	if [ "$phase" = backed-up ]; then
-		bash "$release/rollback.sh" "$env" --restore-db
-	else
-		bash "$release/rollback.sh" "$env"
+		restore=--restore-db
+	fi
+	if ! bash "$release/rollback.sh" "$env" ${restore:+"$restore"}; then
+		cat >&2 <<-EOF
+			ROLLBACK FAILED: neither server is running.
+			Check: systemctl status $go_unit $java_unit
+			Retry: bash $release/rollback.sh $env $restore
+		EOF
+		exit 2
 	fi
 	exit 1
 }
@@ -93,12 +100,6 @@ sqlite3 "$games_db" ".backup '$backups/$stamp/games.db'"
 # Written last: rollback.sh only restores backups that have it.
 printf '%s\n%s\n' "$players_db" "$games_db" >"$backups/$stamp/paths"
 phase=backed-up
-# Keep the 10 newest backups. Names are timestamps, so the glob sorts oldest
-# first.
-backup_dirs=("$backups"/*/)
-if [ "${#backup_dirs[@]}" -gt 10 ]; then
-	rm -rf "${backup_dirs[@]:0:${#backup_dirs[@]}-10}"
-fi
 
 echo "running migrations"
 # shortcut: the order is listed here and in scripts/development/create_databases.sh; keep both in sync when adding one.
@@ -145,6 +146,15 @@ for _ in $(seq 1 30); do
 	if line=$(timeout 2 bash -c "exec 3<>/dev/tcp/127.0.0.1/$telnet_port && head -n1 <&3" 2>/dev/null) &&
 		[[ $line == Welcome!* ]]; then
 		echo "deployed: $go_unit is running"
+		# Deployed, so nothing below may roll back.
+		trap - ERR
+		# Keep the 10 newest backups, pruning only now so a run of failed
+		# deploys can't push out the last good one. Names are timestamps, so
+		# the glob sorts oldest first.
+		backup_dirs=("$backups"/*/)
+		if [ "${#backup_dirs[@]}" -gt 10 ]; then
+			rm -rf "${backup_dirs[@]:0:${#backup_dirs[@]}-10}" || echo "warning: could not prune old backups in $backups" >&2
+		fi
 		exit 0
 	fi
 	sleep 1
