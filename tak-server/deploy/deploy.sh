@@ -137,7 +137,11 @@ EOF
 
 systemctl daemon-reload
 # Disabled so a reboot can't start both servers on the same ports.
-systemctl disable "$java_unit" 2>/dev/null || true
+systemctl disable "$java_unit" 2>/dev/null || true # fails if there's no Java unit
+if systemctl is-enabled --quiet "$java_unit" 2>/dev/null; then
+	echo "$java_unit is still enabled; a reboot would start both servers" >&2
+	on_failure
+fi
 phase=started
 systemctl enable --now "$go_unit"
 

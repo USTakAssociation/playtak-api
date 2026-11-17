@@ -340,7 +340,7 @@ Safe to run again. On each run it:
 4. Installs the binary and `.env` to `/var/apps/tak-server-<env>/` and the
    unit `tak-server-<env>.service`.
 5. Disables the Java unit (`takserver-<env>.service`), so a reboot can't
-   start both, and starts the Go unit.
+   start both, and checks it really is disabled. Then it starts the Go unit.
 6. Checks the server sends `Welcome!` on its telnet port within 30 seconds.
 7. Deletes old backups, keeping the 10 newest. This runs only after a
    successful deploy, so failed deploys can't push out the last good backup.
