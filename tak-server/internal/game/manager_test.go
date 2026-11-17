@@ -177,6 +177,15 @@ func (e *env) login(version int) (*online.Player, *client) {
 	return p, c
 }
 
+// disconnect drops all of p's connections and then tells g, as a session
+// closing does.
+func (e *env) disconnect(g *Game, p *online.Player) {
+	for _, c := range p.Clients() {
+		e.players.Detach(p, c)
+	}
+	g.Disconnected(context.Background(), p.Name)
+}
+
 // seek posts a seek for p from its connection.
 func (e *env) seek(p *online.Player, c *client, s protocol.GameSettings, opponent string) seek.Seek {
 	e.t.Helper()
@@ -457,7 +466,7 @@ func TestResign(t *testing.T) {
 func TestDisconnectAndAbandon(t *testing.T) {
 	e := newEnv(t, Config{ReconnectTimeout: 1500 * time.Millisecond})
 	g, _, ac, b, bc := e.start()
-	g.Disconnected(context.Background(), b.Name)
+	e.disconnect(g, b)
 	msg := ac.take()
 	if want := (protocol.ServerMessage{Text: b.Name + " has disconnected. They have 1 seconds to reconnect"}); len(msg) != 1 || msg[0] != want {
 		t.Errorf("got %v, want %v (the window rounds down to whole seconds)", msg, want)
@@ -493,7 +502,7 @@ func TestTournamentReconnectWindow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	g.Disconnected(context.Background(), b.Name)
+	e.disconnect(g, b)
 	ac.waitFor(t, func(ev protocol.Event) bool {
 		return ev == protocol.ServerMessage{Text: b.Name + " has disconnected. They have 900 seconds to reconnect"}
 	})
@@ -511,16 +520,17 @@ func TestDisconnectMessageUsesClockOnTheirTurn(t *testing.T) {
 	bc.take()
 
 	// Black isn't to move, so only the window counts.
-	g.Disconnected(context.Background(), b.Name)
+	e.disconnect(g, b)
 	ac.waitFor(t, func(ev protocol.Event) bool {
 		return ev == protocol.ServerMessage{Text: b.Name + " has disconnected. They have 120 seconds to reconnect"}
 	})
 	// Black returns (a disconnected player is sent nothing), then white
 	// leaves: white's clock runs out before the window, rounded up.
+	e.players.Attach(b, bc)
 	if err := g.Reconnected(ctx, b, bc); err != nil {
 		t.Fatal(err)
 	}
-	g.Disconnected(context.Background(), a.Name)
+	e.disconnect(g, a)
 	bc.waitFor(t, func(ev protocol.Event) bool {
 		return ev == protocol.ServerMessage{Text: a.Name + " has disconnected. They have 41 seconds to reconnect"}
 	})
@@ -530,7 +540,7 @@ func TestDisconnectedPlayerIsSentNothing(t *testing.T) {
 	e := newEnv(t, Config{})
 	g, a, ac, b, bc := e.start()
 	ctx := context.Background()
-	g.Disconnected(ctx, b.Name)
+	e.disconnect(g, b)
 	if err := g.Place(ctx, a.Name, "A1", tak.Flat); err != nil {
 		t.Fatal(err)
 	}
@@ -542,6 +552,25 @@ func TestDisconnectedPlayerIsSentNothing(t *testing.T) {
 	}
 }
 
+func TestStaleDisconnectIsIgnored(t *testing.T) {
+	e := newEnv(t, Config{ReconnectTimeout: time.Minute})
+	g, _, ac, b, bc := e.start()
+	// An old session's cleanup reports the disconnect after the player has
+	// already logged in again: still connected, so nothing happens.
+	g.Disconnected(context.Background(), b.Name)
+	if got := ac.take(); len(got) != 0 {
+		t.Errorf("opponent got %v for a player who is online", got)
+	}
+	e.advance(2 * time.Minute)
+	settle(g)
+	if len(e.results.get()) != 0 {
+		t.Fatal("a stale disconnect must not abandon the game")
+	}
+	if got := bc.take(); len(got) != 0 {
+		t.Errorf("the player still connected got %v", got)
+	}
+}
+
 func TestReconnectCancelsAbandon(t *testing.T) {
 	e := newEnv(t, Config{ReconnectTimeout: time.Minute})
 	g, a, ac, b, _ := e.start()
@@ -549,7 +578,7 @@ func TestReconnectCancelsAbandon(t *testing.T) {
 	g.Place(ctx, a.Name, "A1", tak.Flat)
 	ac.take()
 
-	g.Disconnected(context.Background(), b.Name)
+	e.disconnect(g, b)
 	fresh := &client{}
 	if err := g.Reconnected(ctx, b, fresh); err != nil {
 		t.Fatal(err)

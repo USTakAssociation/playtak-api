@@ -207,7 +207,7 @@ func TestOutOfTimeWhileDisconnected(t *testing.T) {
 	g, a, ac, b, _ := e.startWith(blitz)
 	play(t, g, a.Name, b.Name, "A1", "E5", "B1")
 	ac.take()
-	g.Disconnected(context.Background(), b.Name)
+	e.disconnect(g, b)
 	ac.take()
 	e.advance(60 * time.Second)
 	settle(g)
@@ -226,7 +226,7 @@ func TestAbandonBeforeOutOfTime(t *testing.T) {
 	e := newEnv(t, Config{ReconnectTimeout: 30 * time.Second})
 	g, a, ac, b, _ := e.startWith(blitz)
 	play(t, g, a.Name, b.Name, "A1", "E5", "B1")
-	g.Disconnected(context.Background(), b.Name)
+	e.disconnect(g, b)
 	ac.take()
 	e.advance(30 * time.Second)
 	settle(g)
@@ -628,7 +628,7 @@ func TestGiveTimeToDisconnectedOpponent(t *testing.T) {
 	g, a, ac, b, bc := e.start()
 	ctx := context.Background()
 	play(t, g, a.Name, b.Name, "A1", "E5")
-	g.Disconnected(ctx, b.Name)
+	e.disconnect(g, b)
 	ac.take()
 	bc.take()
 	if err := g.GiveTime(ctx, a.Name); err != nil {
@@ -651,7 +651,7 @@ func TestReconnectResendsPendingRequests(t *testing.T) {
 	play(t, g, a.Name, b.Name, "A1")
 	g.OfferDraw(ctx, a.Name)
 	g.RequestUndo(ctx, a.Name)
-	g.Disconnected(ctx, b.Name)
+	e.disconnect(g, b)
 
 	fresh := &client{}
 	if err := g.Reconnected(ctx, b, fresh); err != nil {
@@ -665,7 +665,7 @@ func TestReconnectResendsPendingRequests(t *testing.T) {
 	}
 
 	// The player's own requests aren't sent back to them.
-	g.Disconnected(ctx, a.Name)
+	e.disconnect(g, a)
 	fresh = &client{}
 	g.Reconnected(ctx, a, fresh)
 	got = fresh.take()
