@@ -3,6 +3,7 @@
 package ratelimit
 
 import (
+	"net/netip"
 	"sync"
 	"time"
 
@@ -60,6 +61,14 @@ func (k *Keyed) Blocked(key string) (bool, time.Duration) {
 	defer k.mu.Unlock()
 	b, ok := k.buckets[key]
 	if !ok {
+		// A full table can't record this key's failures, so refusing is the
+		// only way to keep the limit; otherwise a flood of keys switches it off.
+		if len(k.buckets) >= k.maxKeys {
+			k.pruneLocked()
+			if len(k.buckets) >= k.maxKeys {
+				return true, k.refill()
+			}
+		}
 		return false, 0
 	}
 	if tokens := b.TokensAt(k.now()); tokens < 1 {
@@ -121,6 +130,18 @@ func (k *Keyed) bucketLocked(key string) (*rate.Limiter, bool) {
 	b := rate.NewLimiter(k.limit, k.burst)
 	k.buckets[key] = b
 	return b, true
+}
+
+// IPKey is the key to limit ip by. An IPv6 address is limited by its /64,
+// since one machine or home network usually gets a whole /64. Anything that
+// isn't an IP, such as "", is returned unchanged.
+func IPKey(ip string) string {
+	addr, err := netip.ParseAddr(ip)
+	if err != nil || !addr.Is6() || addr.Is4In6() {
+		return ip
+	}
+	prefix, _ := addr.Prefix(64)
+	return prefix.String()
 }
 
 // refill is how long one event takes to come back.

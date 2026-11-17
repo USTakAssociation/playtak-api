@@ -102,8 +102,8 @@ func TestMaxKeys(t *testing.T) {
 		t.Errorf("a third key while full: ok=%v wait=%v", ok, wait)
 	}
 	k.Record("c") // ignored while full
-	if blocked, _ := k.Blocked("c"); blocked {
-		t.Error("an untracked key isn't blocked")
+	if blocked, _ := k.Blocked("c"); !blocked {
+		t.Error("an untracked key is blocked while the table is full")
 	}
 	advance(time.Minute) // a and b refill, so they can be pruned
 	if ok, _ := k.Allow("c"); !ok {
@@ -131,5 +131,39 @@ func TestConcurrentUse(t *testing.T) {
 	wg.Wait()
 	if allowed != 1000 {
 		t.Errorf("%d allowed, want exactly 1000", allowed)
+	}
+}
+
+func TestBlockedWhenTableFull(t *testing.T) {
+	k, advance := clocked(2, time.Minute, 2)
+	k.Record("a")
+	k.Record("b")
+	// A key that can't be tracked is refused, or a flood of keys would
+	// switch the limit off.
+	if blocked, wait := k.Blocked("c"); !blocked || wait != 30*time.Second {
+		t.Fatalf("full table: blocked=%v wait=%v, want blocked for 30s", blocked, wait)
+	}
+	if blocked, _ := k.Blocked("a"); blocked {
+		t.Error("tracked keys are judged on their own bucket")
+	}
+	// Once the buckets refill they're pruned, making room.
+	advance(time.Minute)
+	if blocked, _ := k.Blocked("c"); blocked {
+		t.Error("refilled buckets should be pruned to make room")
+	}
+}
+
+func TestIPKey(t *testing.T) {
+	for in, want := range map[string]string{
+		"203.0.113.7":          "203.0.113.7",
+		"2001:db8:1:2:3:4:5:6": "2001:db8:1:2::/64",
+		"2001:db8:1:2::1":      "2001:db8:1:2::/64",
+		"::ffff:203.0.113.7":   "::ffff:203.0.113.7",
+		"":                     "",
+		"not an ip":            "not an ip",
+	} {
+		if got := IPKey(in); got != want {
+			t.Errorf("IPKey(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

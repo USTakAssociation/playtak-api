@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/ratelimit"
 )
 
 var (
@@ -99,7 +100,7 @@ func NewService(ps PlayerStore, ts TokenStore, mail Mailer, log *slog.Logger) *S
 // Only failures count, so many players behind one IP can all log in.
 func (s *Service) Login(ctx context.Context, name, password, ip string) (players.Record, error) {
 	if s.limits != nil {
-		if err := s.blocked(s.limits.failuresByIP, "failed logins per IP", ip, ip); err != nil {
+		if err := s.blocked(s.limits.failuresByIP, "failed logins per IP", ratelimit.IPKey(ip), ip); err != nil {
 			return players.Record{}, err
 		}
 		if err := s.blocked(s.limits.failuresByName, "failed logins per name", nameKey(name), ip); err != nil {
@@ -136,7 +137,7 @@ func (s *Service) loginFailed(name, ip string) {
 		return
 	}
 	if ip != "" {
-		s.limits.failuresByIP.Record(ip)
+		s.limits.failuresByIP.Record(ratelimit.IPKey(ip))
 	}
 	if s.limits.failuresByName != nil {
 		s.limits.failuresByName.Record(nameKey(name))
@@ -147,7 +148,7 @@ func (s *Service) loginFailed(name, ip string) {
 // Each client IP can register only a few accounts an hour.
 func (s *Service) Register(ctx context.Context, name, email, ip string) (players.Record, error) {
 	if s.limits != nil {
-		if err := s.allow(s.limits.registerByIP, "registrations per IP", ip); err != nil {
+		if err := s.allow(s.limits.registerByIP, "registrations per IP", ratelimit.IPKey(ip)); err != nil {
 			return players.Record{}, err
 		}
 	}

@@ -280,6 +280,11 @@ requests get a `Registration Error:` or `Reset Token Error:` saying to try
 later, so existing clients need no changes. Every refusal is logged at warn
 level. Counters are kept in memory and reset on restart.
 
+"Per IP" means per IPv4 address, or per IPv6 /64, since one machine or home
+network usually gets a whole /64. Each limit tracks up to 100,000 keys. If a
+flood of addresses fills one, new addresses are refused until old entries
+expire (a minute for failed logins), rather than going uncounted.
+
 **Client IPs behind nginx.** The server only sees the address that
 connected to it, which behind nginx is nginx itself. nginx must pass the
 real address in `X-Real-IP` (see [Deploying](#deploying)), and the server

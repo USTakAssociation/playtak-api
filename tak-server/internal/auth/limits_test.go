@@ -111,6 +111,21 @@ func TestFailedLoginsPerIP(t *testing.T) {
 	}
 }
 
+func TestFailedLoginsPerIPv6Network(t *testing.T) {
+	f := limitedFixture(t, false)
+	ctx := context.Background()
+	// Rotating addresses within one /64 shares one limit.
+	for i := range failuresPerIP {
+		f.svc.Login(ctx, "ghost", "x", fmt.Sprintf("2001:db8:1:2::%x", i+1))
+	}
+	if _, err := f.svc.Login(ctx, "ghost", "x", "2001:db8:1:2:ffff::1"); !errors.Is(err, ErrRateLimited) {
+		t.Errorf("same /64: %v", err)
+	}
+	if _, err := f.svc.Login(ctx, "ghost", "x", "2001:db8:1:3::1"); !errors.Is(err, ErrAuthFailed) {
+		t.Errorf("another /64 is unaffected: %v", err)
+	}
+}
+
 func TestRegistrationsPerIP(t *testing.T) {
 	f := limitedFixture(t, true)
 	ctx := context.Background()

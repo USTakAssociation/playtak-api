@@ -193,7 +193,7 @@ func (s *Server) ip(r *http.Request) string { return s.clientIP.IP(r) }
 func (s *Server) limited(k *ratelimit.Keyed, h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ip := s.ip(r)
-		if ok, wait := k.Allow(ip); !ok {
+		if ok, wait := k.Allow(ratelimit.IPKey(ip)); !ok {
 			s.log.Warn("rate limited", "path", r.URL.Path, "ip", ip, "retry_in", wait.Round(time.Second))
 			tooManyRequests(w, wait)
 			return
