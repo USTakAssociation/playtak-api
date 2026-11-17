@@ -196,6 +196,10 @@ main ones:
 | `TAK_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`. |
 | `TAK_TRUSTED_PROXIES` | `127.0.0.1/32,::1/128` | Reverse proxies whose `X-Real-IP` / `X-Forwarded-For` headers are believed. See [Rate limits](#rate-limits). |
 | `TAK_LOGIN_LIMIT` | `username` | `username` counts failed logins per username as well as per IP; `ip` limits per IP only. |
+| `TAK_EVENTS_CSV_URL` | the USTA events sheet | The events Google Sheet, published to the web as CSV. Fetched at most every 30 minutes. |
+| `TAK_PUBLIC_GAMES_DB` | empty | The downloadable copy of the games DB, reported by `GET /v1/games-history/db`. Empty makes that endpoint 404. |
+| `TAK_RATING_CURSOR_FILE` | `previous.txt` beside the games DB | The rating job's cursor: the last game ID it has finished with. Same format as the NestJS job's `previous.txt`. |
+| `TAK_RATING_LIST_FILE` | empty | Where the rating job writes the gzipped list the ratings page loads (`ratinglist.json.gz`). Empty skips it. |
 
 `TAK_EVENT_SUBSCRIBER_URL` is read, but the game update webhooks it
 configures aren't implemented yet.
@@ -254,6 +258,27 @@ with a note, next to their Go versions.
 | `POST /api/auth/logout` | Revoke tokens. |
 | `GET /api/v1/seeks` | List open seeks. |
 | `PUT /api/v1/seeks` | Create a seek (service key required). |
+| `GET /v1/games-history` | Games history, filtered and paginated. Player names match exactly, ignoring case (no wildcards). |
+| `GET /v1/games-history/{id}` | One game. |
+| `GET /v1/games-history/ptn/{id}` | One game as PTN (text). |
+| `GET /v1/games-history/db` | Size and modification time of the downloadable games DB. |
+| `GET /v1/ratings` | Rated players, paginated. |
+| `GET /v1/ratings/{name}` | One player's rating (exact name). |
+| `GET /events` | USTA events, from the events sheet. |
+| `GET /health` | Liveness check. |
+
+The `/v1/...`, `/events` and `/health` paths are the ones the NestJS API
+served on api.playtak.com, so clients don't change. They are public and
+read-only, and send `Access-Control-Allow-Origin: *`.
+
+### Rating job
+
+`tak-server rate` rates the games played since its last run and exits; run
+it from cron (the NestJS job ran hourly). It updates the games and players
+databases in one transaction, then the cursor file and the ratings page
+list. It matches the NestJS job's results; see
+[docs/phase2-api-design.md](docs/phase2-api-design.md). Never run it and the
+NestJS job against the same databases: each would rate the same games.
 
 Tokens are stored only as SHA-256 hashes in the `auth_tokens` table.
 Expired ones are purged hourly. Admins can revoke a player's tokens with
@@ -272,6 +297,8 @@ Logins, registrations and password resets are limited inside
 | Password reset emails per username | 3 per hour |
 | `POST /api/auth/refresh`, `/logout`, `/guest` per IP | 30 per minute, shared |
 | `GET /api/v1/seeks` per IP | 60 per minute |
+| `GET /v1/games-history/*` and `/v1/ratings/*` per IP | 60 per minute, shared |
+| `GET /events` per IP | 30 per minute |
 
 A limited REST request gets `429 Too Many Requests` with a `Retry-After`
 header and `{"error":"rate_limited"}`. Over the text protocol, a limited

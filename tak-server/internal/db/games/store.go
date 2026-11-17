@@ -44,7 +44,7 @@ func NewStore(conn *sql.DB) *Store {
 // Insert records a game that has just started and returns its ID.
 //
 // The row's result is "0-0" with empty notation and rating changes of -1000
-// until Finish runs. The NestJS rating job relies on exactly these values to
+// until Finish runs. The rating job relies on exactly these values to
 // recognise games still in progress.
 func (s *Store) Insert(ctx context.Context, row Row) (int, error) {
 	var id int64

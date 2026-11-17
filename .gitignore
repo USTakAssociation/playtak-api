@@ -6,3 +6,6 @@ run/**
 .idea
 
 tests/test-results.txt
+
+# Node vs Go rating parity tooling, only needed until the NestJS API is removed
+tests/rating-parity/

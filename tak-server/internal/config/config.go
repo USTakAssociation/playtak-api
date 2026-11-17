@@ -56,6 +56,19 @@ type Config struct {
 	// tournament service creating seeks. Empty disables those endpoints.
 	ServiceAPIKey string // TAK_SERVICE_API_KEY
 
+	// RatingCursorFile holds the ID of the last game the rating job has
+	// finished with. Defaults to previous.txt beside the games DB.
+	RatingCursorFile string // TAK_RATING_CURSOR_FILE
+	// RatingListFile is the gzipped JSON list the ratings page loads. Empty
+	// skips writing it.
+	RatingListFile string // TAK_RATING_LIST_FILE
+
+	// EventsCSVURL is the published-to-web CSV of the events Google Sheet.
+	EventsCSVURL string // TAK_EVENTS_CSV_URL
+	// PublicGamesDB is the downloadable copy of the games DB that
+	// /v1/games-history/db reports on. Empty makes that endpoint 404.
+	PublicGamesDB string // TAK_PUBLIC_GAMES_DB
+
 	SMTP SMTP
 }
 
@@ -65,6 +78,9 @@ type SMTP struct {
 	Password string // TAK_SMTP_PASSWORD
 	From     string // TAK_SMTP_FROM
 }
+
+// defaultEventsCSVURL is the USTA event list sheet, published to the web.
+const defaultEventsCSVURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS9VF-NC-aPFU8hRYPgZQzWDQvW7yk1liIZ31RwYV88rmc9gAVSE-IpuevimAY_aNNPSxAbMNavTiMa/pub?output=csv"
 
 // Load reads .env (if present) and then the environment.
 func Load() (*Config, error) {
@@ -134,6 +150,10 @@ func FromEnv(getenv func(string) string) (*Config, error) {
 		ServiceAPIKey:              getenv("TAK_SERVICE_API_KEY"),
 		TrustedProxies:             get("TAK_TRUSTED_PROXIES", "127.0.0.1/32,::1/128"),
 		LoginLimitByUsername:       byUsername,
+		RatingCursorFile:           get("TAK_RATING_CURSOR_FILE", filepath.Join(filepath.Dir(gamesDB), "previous.txt")),
+		RatingListFile:             getenv("TAK_RATING_LIST_FILE"),
+		EventsCSVURL:               get("TAK_EVENTS_CSV_URL", defaultEventsCSVURL),
+		PublicGamesDB:              getenv("TAK_PUBLIC_GAMES_DB"),
 		SMTP: SMTP{
 			Host:     getenv("TAK_SMTP_HOST"),
 			User:     getenv("TAK_SMTP_USER"),

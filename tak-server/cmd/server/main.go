@@ -26,6 +26,7 @@ import (
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/game"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/moderation"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/online"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/rating"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/session"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/transport"
@@ -51,6 +52,14 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	// "tak-server rate" runs the rating job once and exits; cron runs it.
+	if len(os.Args) > 1 && os.Args[1] == "rate" {
+		if err := rate(ctx, settings, log); err != nil {
+			log.Error("rating job failed", "err", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if err := run(ctx, settings, log); err != nil {
 		log.Error("server stopped", "err", err)
 		os.Exit(1)
@@ -114,7 +123,12 @@ func run(ctx context.Context, settings *config.Config, log *slog.Logger) error {
 		return fmt.Errorf("TAK_TRUSTED_PROXIES: %w", err)
 	}
 	authSvc.EnableLimits(settings.LoginLimitByUsername)
-	apiServer := api.NewServer(authSvc, registry, seeks, settings.ServiceAPIKey, clientIP, log)
+	apiServer := api.NewServer(authSvc, registry, seeks, settings.ServiceAPIKey, clientIP, api.PublicData{
+		Games:         gameStore,
+		Players:       playerStore,
+		EventsCSVURL:  settings.EventsCSVURL,
+		PublicGamesDB: settings.PublicGamesDB,
+	}, log)
 
 	telnetLn, err := net.Listen("tcp", settings.TelnetAddr)
 	if err != nil {
@@ -159,6 +173,33 @@ func run(ctx context.Context, settings *config.Config, log *slog.Logger) error {
 	wsSrv.Shutdown(shutdownCtx)
 	apiSrv.Shutdown(shutdownCtx)
 	return err
+}
+
+// rate runs the rating job once over the games since the last run.
+func rate(ctx context.Context, settings *config.Config, log *slog.Logger) error {
+	gamesDB, err := db.Open(ctx, settings.GamesDB)
+	if err != nil {
+		return err
+	}
+	defer gamesDB.Close()
+	conn, err := gamesDB.Conn(ctx) // ATTACH applies to one connection
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if err := rating.AttachPlayers(ctx, conn, settings.PlayersDB); err != nil {
+		return err
+	}
+	if settings.RatingListFile == "" {
+		log.Warn("TAK_RATING_LIST_FILE not set; the ratings page list will not be updated")
+	}
+	start := time.Now()
+	result, err := rating.Run(ctx, conn, rating.Files{Cursor: settings.RatingCursorFile, RatingList: settings.RatingListFile}, start)
+	if err != nil {
+		return err
+	}
+	log.Info("ratings updated", "from_game", result.From, "to_game", result.To, "games_written", result.Games, "took", time.Since(start).Round(time.Millisecond))
+	return nil
 }
 
 // cleanupLoop hourly forgets idle guests and rate-limit counters that have

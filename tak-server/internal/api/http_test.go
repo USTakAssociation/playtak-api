@@ -38,7 +38,7 @@ func newTestServerWithSeeks(t *testing.T) (*httptest.Server, *players.Store, *on
 	authSvc := auth.NewService(store, players.NewTokenStore(conn), email.Log{Logger: log}, log)
 	reg := online.NewRegistry()
 	seeks := seek.NewManager()
-	srv := httptest.NewServer(NewServer(authSvc, reg, seeks, serviceKey, &clientip.Resolver{}, log).Handler())
+	srv := httptest.NewServer(NewServer(authSvc, reg, seeks, serviceKey, &clientip.Resolver{}, PublicData{}, log).Handler())
 	t.Cleanup(srv.Close)
 	return srv, store, reg, seeks
 }
