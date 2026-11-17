@@ -69,17 +69,41 @@ func (s *Service) PruneLimits() {
 // nameKey makes case variants of a name share one limit.
 func nameKey(name string) string { return strings.ToLower(name) }
 
-// blocked returns a *RateLimitError, and logs it, if key has no failures
-// left in k. An empty key (an unknown IP) is never blocked.
-func (s *Service) blocked(k *ratelimit.Keyed, what, key, ip string) error {
+// startLogin starts counting a login against ip and name, returning a
+// *RateLimitError if either has no failures left. Otherwise call finish
+// exactly once, saying whether the login failed.
+func (s *Service) startLogin(name, ip string) (finish func(failed bool), err error) {
+	if s.limits == nil {
+		return func(bool) {}, nil
+	}
+	finishIP, err := s.attempt(s.limits.failuresByIP, "failed logins per IP", ratelimit.IPKey(ip), ip)
+	if err != nil {
+		return nil, err
+	}
+	finishName, err := s.attempt(s.limits.failuresByName, "failed logins per name", nameKey(name), ip)
+	if err != nil {
+		finishIP(false)
+		return nil, err
+	}
+	return func(failed bool) {
+		finishIP(failed)
+		finishName(failed)
+	}, nil
+}
+
+// attempt starts an attempt for key in k, logging and returning a
+// *RateLimitError if it has no failures left. An empty key (an unknown IP)
+// is never limited.
+func (s *Service) attempt(k *ratelimit.Keyed, what, key, ip string) (func(failed bool), error) {
 	if k == nil || key == "" {
-		return nil
+		return func(bool) {}, nil
 	}
-	if blocked, wait := k.Blocked(key); blocked {
+	finish, wait := k.Attempt(key)
+	if finish == nil {
 		s.log.Warn("rate limited", "limit", what, "key", key, "ip", ip, "retry_in", wait.Round(time.Second))
-		return &RateLimitError{RetryAfter: wait}
+		return nil, &RateLimitError{RetryAfter: wait}
 	}
-	return nil
+	return finish, nil
 }
 
 // allow takes an event from k for key, logging and returning a

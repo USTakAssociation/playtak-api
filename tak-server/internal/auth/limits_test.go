@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -108,6 +110,27 @@ func TestFailedLoginsPerIP(t *testing.T) {
 		if _, err := f.svc.Login(ctx, "nobody", "x", ""); errors.Is(err, ErrRateLimited) {
 			t.Fatal("empty IP must not be limited")
 		}
+	}
+}
+
+func TestParallelLoginsCantPassTheLimit(t *testing.T) {
+	f := limitedFixture(t, false)
+	ctx := context.Background()
+	f.addPlayer(t, "alice", "a@example.com", "secret123")
+	// Wrong passwords for a real account, so each check runs bcrypt and the
+	// attempts overlap.
+	var wg sync.WaitGroup
+	var checked atomic.Int32
+	for range 3 * failuresPerIP {
+		wg.Go(func() {
+			if _, err := f.svc.Login(ctx, "alice", "wrong", "203.0.113.7"); errors.Is(err, ErrAuthFailed) {
+				checked.Add(1)
+			}
+		})
+	}
+	wg.Wait()
+	if n := checked.Load(); n > failuresPerIP {
+		t.Errorf("%d passwords checked in parallel, want at most %d", n, failuresPerIP)
 	}
 }
 

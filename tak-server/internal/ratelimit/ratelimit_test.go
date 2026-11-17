@@ -53,32 +53,87 @@ func TestRefusedEventsDontCount(t *testing.T) {
 	}
 }
 
-func TestBlockedAndRecord(t *testing.T) {
+// fail records one failed attempt for key.
+func fail(k *Keyed, key string) {
+	if finish, _ := k.Attempt(key); finish != nil {
+		finish(true)
+	}
+}
+
+// blocked reports whether an attempt for key would be refused, and the wait,
+// without counting one.
+func blocked(k *Keyed, key string) (bool, time.Duration) {
+	finish, wait := k.Attempt(key)
+	if finish != nil {
+		finish(false)
+	}
+	return finish == nil, wait
+}
+
+func TestAttemptCountsFailures(t *testing.T) {
 	k, advance := clocked(3, 15*time.Minute, 100)
-	if blocked, _ := k.Blocked("alice"); blocked {
+	if b, _ := blocked(k, "alice"); b {
 		t.Fatal("unknown key is not blocked")
 	}
 	for range 3 {
-		k.Record("alice")
+		fail(k, "alice")
 	}
-	blocked, wait := k.Blocked("alice")
-	if !blocked || wait != 5*time.Minute {
-		t.Fatalf("blocked=%v wait=%v, want blocked for 5m", blocked, wait)
+	b, wait := blocked(k, "alice")
+	if !b || wait != 5*time.Minute {
+		t.Fatalf("blocked=%v wait=%v, want blocked for 5m", b, wait)
 	}
-	// Recording past the limit pushes the wait out.
-	k.Record("alice")
-	if _, wait := k.Blocked("alice"); wait != 10*time.Minute {
-		t.Errorf("wait %v, want 10m", wait)
+	advance(5 * time.Minute)
+	fail(k, "alice") // uses the one that refilled
+	if _, wait := blocked(k, "alice"); wait != 5*time.Minute {
+		t.Errorf("wait %v, want 5m", wait)
 	}
-	advance(10 * time.Minute)
-	if blocked, _ := k.Blocked("alice"); blocked {
+	advance(15 * time.Minute)
+	if b, _ := blocked(k, "alice"); b {
 		t.Error("should have refilled")
 	}
-	k.Record("alice")
-	k.Record("alice")
+	fail(k, "alice")
+	fail(k, "alice")
 	k.Reset("alice")
-	if blocked, _ := k.Blocked("alice"); blocked || k.Len() != 0 {
+	if b, _ := blocked(k, "alice"); b || k.Len() != 0 {
 		t.Error("Reset should forget the key")
+	}
+}
+
+func TestAttemptSuccessDoesntCount(t *testing.T) {
+	k, _ := clocked(2, time.Minute, 100)
+	for range 10 {
+		finish, _ := k.Attempt("ip")
+		if finish == nil {
+			t.Fatal("successes must not use up the limit")
+		}
+		finish(false)
+	}
+	if k.Len() != 0 {
+		t.Errorf("%d keys tracked after only successes, want 0", k.Len())
+	}
+}
+
+func TestAttemptsInProgressCount(t *testing.T) {
+	k, _ := clocked(2, time.Minute, 100)
+	first, _ := k.Attempt("ip")
+	second, _ := k.Attempt("ip")
+	if first == nil || second == nil {
+		t.Fatal("two attempts fit in a burst of two")
+	}
+	// Both are still in progress, so a third can't start, even though
+	// nothing has failed yet.
+	if third, _ := k.Attempt("ip"); third != nil {
+		t.Fatal("a third parallel attempt got past the limit")
+	}
+	first(false) // a success frees its slot
+	third, _ := k.Attempt("ip")
+	if third == nil {
+		t.Fatal("a finished success should free its slot")
+	}
+	second(true)
+	third(true)
+	if b, _ := blocked(k, "ip"); !b {
+		t.Error("two failures should block")
 	}
 }
 
@@ -101,8 +156,7 @@ func TestMaxKeys(t *testing.T) {
 	if ok, wait := k.Allow("c"); ok || wait != time.Minute {
 		t.Errorf("a third key while full: ok=%v wait=%v", ok, wait)
 	}
-	k.Record("c") // ignored while full
-	if blocked, _ := k.Blocked("c"); !blocked {
+	if b, _ := blocked(k, "c"); !b {
 		t.Error("an untracked key is blocked while the table is full")
 	}
 	advance(time.Minute) // a and b refill, so they can be pruned
@@ -136,19 +190,19 @@ func TestConcurrentUse(t *testing.T) {
 
 func TestBlockedWhenTableFull(t *testing.T) {
 	k, advance := clocked(2, time.Minute, 2)
-	k.Record("a")
-	k.Record("b")
+	fail(k, "a")
+	fail(k, "b")
 	// A key that can't be tracked is refused, or a flood of keys would
 	// switch the limit off.
-	if blocked, wait := k.Blocked("c"); !blocked || wait != 30*time.Second {
-		t.Fatalf("full table: blocked=%v wait=%v, want blocked for 30s", blocked, wait)
+	if b, wait := blocked(k, "c"); !b || wait != 30*time.Second {
+		t.Fatalf("full table: blocked=%v wait=%v, want blocked for 30s", b, wait)
 	}
-	if blocked, _ := k.Blocked("a"); blocked {
+	if b, _ := blocked(k, "a"); b {
 		t.Error("tracked keys are judged on their own bucket")
 	}
 	// Once the buckets refill they're pruned, making room.
 	advance(time.Minute)
-	if blocked, _ := k.Blocked("c"); blocked {
+	if b, _ := blocked(k, "c"); b {
 		t.Error("refilled buckets should be pruned to make room")
 	}
 }

@@ -18,8 +18,9 @@ type Keyed struct {
 	maxKeys int
 	now     func() time.Time
 
-	mu      sync.Mutex
-	buckets map[string]*rate.Limiter
+	mu         sync.Mutex
+	buckets    map[string]*rate.Limiter
+	inProgress map[string]int // attempts started but not finished, per key
 }
 
 // New allows events per period for each key, all at once if they come in a
@@ -27,11 +28,12 @@ type Keyed struct {
 // are refused rather than letting a flood of distinct keys use up memory.
 func New(events int, per time.Duration, maxKeys int) *Keyed {
 	return &Keyed{
-		limit:   rate.Limit(float64(events) / per.Seconds()),
-		burst:   events,
-		maxKeys: maxKeys,
-		now:     time.Now,
-		buckets: make(map[string]*rate.Limiter),
+		limit:      rate.Limit(float64(events) / per.Seconds()),
+		burst:      events,
+		maxKeys:    maxKeys,
+		now:        time.Now,
+		buckets:    make(map[string]*rate.Limiter),
+		inProgress: make(map[string]int),
 	}
 }
 
@@ -53,37 +55,42 @@ func (k *Keyed) Allow(key string) (bool, time.Duration) {
 	return true, 0
 }
 
-// Blocked reports, without taking one, whether key has no events left, and
-// if so how long until it will. It's for counting failures: check Blocked
-// before an attempt and Record after one fails.
-func (k *Keyed) Blocked(key string) (bool, time.Duration) {
+// Attempt starts an attempt for key that uses up an event only if it fails,
+// for limits that count failures. Attempts still in progress count as
+// failures, so many at once can't all get past the limit before the first
+// one fails. If key has no events left, finish is nil and wait says how long
+// until it will; otherwise call finish exactly once with the outcome.
+func (k *Keyed) Attempt(key string) (finish func(failed bool), wait time.Duration) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
-	b, ok := k.buckets[key]
-	if !ok {
+	tokens := float64(k.burst)
+	if b, ok := k.buckets[key]; ok {
+		tokens = b.TokensAt(k.now())
+	} else if len(k.buckets) >= k.maxKeys {
 		// A full table can't record this key's failures, so refusing is the
 		// only way to keep the limit; otherwise a flood of keys switches it off.
+		k.pruneLocked()
 		if len(k.buckets) >= k.maxKeys {
-			k.pruneLocked()
-			if len(k.buckets) >= k.maxKeys {
-				return true, k.refill()
-			}
+			return nil, k.refill()
 		}
-		return false, 0
 	}
-	if tokens := b.TokensAt(k.now()); tokens < 1 {
-		return true, time.Duration((1 - tokens) / float64(k.limit) * float64(time.Second))
+	if left := tokens - float64(k.inProgress[key]); left < 1 {
+		return nil, time.Duration((1 - left) / float64(k.limit) * float64(time.Second))
 	}
-	return false, 0
-}
-
-// Record uses up one event for key, even if none are left.
-func (k *Keyed) Record(key string) {
-	k.mu.Lock()
-	defer k.mu.Unlock()
-	if b, ok := k.bucketLocked(key); ok {
-		b.ReserveN(k.now(), 1)
-	}
+	k.inProgress[key]++
+	return func(failed bool) {
+		k.mu.Lock()
+		defer k.mu.Unlock()
+		if k.inProgress[key]--; k.inProgress[key] <= 0 {
+			delete(k.inProgress, key)
+		}
+		if !failed {
+			return
+		}
+		if b, ok := k.bucketLocked(key); ok {
+			b.ReserveN(k.now(), 1) // may go below zero, pushing the wait out
+		}
+	}, 0
 }
 
 // Reset forgets key, e.g. after a successful login.

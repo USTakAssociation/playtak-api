@@ -99,25 +99,21 @@ func NewService(ps PlayerStore, ts TokenStore, mail Mailer, log *slog.Logger) *S
 // for the name, return a *RateLimitError before the password is checked.
 // Only failures count, so many players behind one IP can all log in.
 func (s *Service) Login(ctx context.Context, name, password, ip string) (players.Record, error) {
-	if s.limits != nil {
-		if err := s.blocked(s.limits.failuresByIP, "failed logins per IP", ratelimit.IPKey(ip), ip); err != nil {
-			return players.Record{}, err
-		}
-		if err := s.blocked(s.limits.failuresByName, "failed logins per name", nameKey(name), ip); err != nil {
-			return players.Record{}, err
-		}
-	}
-	record, err := s.players.ByName(ctx, name)
-	if errors.Is(err, players.ErrNotFound) {
-		s.loginFailed(name, ip)
-		return players.Record{}, ErrAuthFailed
-	}
+	finish, err := s.startLogin(name, ip)
 	if err != nil {
 		return players.Record{}, err
 	}
-	if record.IsBanned || !checkPassword(record.PasswordHash, password) {
-		s.loginFailed(name, ip)
-		return players.Record{}, ErrAuthFailed
+	record, err := s.players.ByName(ctx, name)
+	switch {
+	case errors.Is(err, players.ErrNotFound):
+		err = ErrAuthFailed
+	case err == nil && (record.IsBanned || !checkPassword(record.PasswordHash, password)):
+		err = ErrAuthFailed
+	}
+	// A database error isn't the client's fault, so it doesn't count.
+	finish(errors.Is(err, ErrAuthFailed))
+	if err != nil {
+		return players.Record{}, err
 	}
 	// A success clears the name's failures, but not the IP's: on a shared
 	// IP, one player logging in mustn't wipe out someone else's guesses.
@@ -129,19 +125,6 @@ func (s *Service) Login(ctx context.Context, name, password, ip string) (players
 	delete(s.resetTokens, name)
 	s.mu.Unlock()
 	return record, nil
-}
-
-// loginFailed counts a failed login against name and ip.
-func (s *Service) loginFailed(name, ip string) {
-	if s.limits == nil {
-		return
-	}
-	if ip != "" {
-		s.limits.failuresByIP.Record(ratelimit.IPKey(ip))
-	}
-	if s.limits.failuresByName != nil {
-		s.limits.failuresByName.Record(nameKey(name))
-	}
 }
 
 // Register creates a player with a random password and emails it to them.
