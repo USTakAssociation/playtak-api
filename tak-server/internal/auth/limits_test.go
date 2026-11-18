@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/ratelimit"
 )
 
@@ -115,24 +116,64 @@ func TestFailedLoginsPerIP(t *testing.T) {
 	}
 }
 
+// gatedStore holds every ByName call until n have started, so the logins
+// are sure to overlap.
+type gatedStore struct {
+	PlayerStore
+	n       int32
+	started atomic.Int32
+	open    chan struct{}
+}
+
+func (g *gatedStore) ByName(ctx context.Context, name string) (players.Record, error) {
+	if g.started.Add(1) == g.n {
+		close(g.open)
+	}
+	select {
+	case <-g.open:
+	case <-time.After(5 * time.Second): // fewer got in than the limit
+	}
+	return g.PlayerStore.ByName(ctx, name)
+}
+
 func TestParallelLoginsCantPassTheLimit(t *testing.T) {
 	f := limitedFixture(t, false)
 	ctx := context.Background()
-	f.addPlayer(t, "alice", "a@example.com", "secret123")
-	// Wrong passwords for a real account, so each check runs bcrypt and the
-	// attempts overlap.
+	gate := &gatedStore{PlayerStore: f.store, n: failuresPerIP, open: make(chan struct{})}
+	f.svc.players = gate
 	var wg sync.WaitGroup
-	var checked atomic.Int32
 	for range 3 * failuresPerIP {
-		wg.Go(func() {
-			if _, err := f.svc.Login(ctx, "alice", "wrong", "203.0.113.7"); errors.Is(err, ErrAuthFailed) {
-				checked.Add(1)
-			}
-		})
+		wg.Go(func() { f.svc.Login(ctx, "ghost", "x", "203.0.113.7") })
 	}
 	wg.Wait()
-	if n := checked.Load(); n > failuresPerIP {
-		t.Errorf("%d passwords checked in parallel, want at most %d", n, failuresPerIP)
+	// Once failuresPerIP are being checked, the rest must be refused
+	// without reaching the store, though none has failed yet.
+	if n := gate.started.Load(); n != failuresPerIP {
+		t.Errorf("%d logins checked in parallel, want %d", n, failuresPerIP)
+	}
+}
+
+type panickingStore struct{ PlayerStore }
+
+func (panickingStore) ByName(context.Context, string) (players.Record, error) {
+	panic("store blew up")
+}
+
+// net/http recovers a panicking handler, so a login that panics mustn't
+// leave its attempt counted.
+func TestLoginPanicFreesItsAttempt(t *testing.T) {
+	f := limitedFixture(t, false)
+	ctx := context.Background()
+	f.svc.players = panickingStore{f.store}
+	func() {
+		defer func() { recover() }()
+		f.svc.Login(ctx, "ghost", "x", "203.0.113.7")
+	}()
+	f.svc.players = f.store
+	for i := range failuresPerIP {
+		if _, err := f.svc.Login(ctx, "ghost", "x", "203.0.113.7"); !errors.Is(err, ErrAuthFailed) {
+			t.Fatalf("attempt %d after the panic: %v", i+1, err)
+		}
 	}
 }
 

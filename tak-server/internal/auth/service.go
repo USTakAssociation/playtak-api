@@ -98,11 +98,14 @@ func NewService(ps PlayerStore, ts TokenStore, mail Mailer, log *slog.Logger) *S
 // ErrAuthFailed. Too many recent failures, from the IP or (when enabled)
 // for the name, return a *RateLimitError before the password is checked.
 // Only failures count, so many players behind one IP can all log in.
-func (s *Service) Login(ctx context.Context, name, password, ip string) (players.Record, error) {
+func (s *Service) Login(ctx context.Context, name, password, ip string) (_ players.Record, err error) {
 	finish, err := s.startLogin(name, ip)
 	if err != nil {
 		return players.Record{}, err
 	}
+	// Deferred so no return path, or panic, leaves the attempt counted
+	// forever. A database error isn't the client's fault, so it doesn't count.
+	defer func() { finish(errors.Is(err, ErrAuthFailed)) }()
 	record, err := s.players.ByName(ctx, name)
 	switch {
 	case errors.Is(err, players.ErrNotFound):
@@ -110,8 +113,6 @@ func (s *Service) Login(ctx context.Context, name, password, ip string) (players
 	case err == nil && (record.IsBanned || !checkPassword(record.PasswordHash, password)):
 		err = ErrAuthFailed
 	}
-	// A database error isn't the client's fault, so it doesn't count.
-	finish(errors.Is(err, ErrAuthFailed))
 	if err != nil {
 		return players.Record{}, err
 	}
