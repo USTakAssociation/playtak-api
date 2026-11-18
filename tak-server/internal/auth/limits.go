@@ -56,11 +56,17 @@ func (s *Service) EnableLimits(byUsername bool) {
 	s.limits = l
 }
 
-// PruneLimits forgets keys whose limits have reset, to keep memory small.
+// PruneLimits forgets keys whose limits have reset, to keep memory small,
+// and warns about any limit whose table filled up.
 func (s *Service) PruneLimits() {
-	for _, k := range []*ratelimit.Keyed{s.limits.failuresByIP, s.limits.failuresByName, s.limits.registerByIP, s.limits.resetByName} {
+	for what, k := range map[string]*ratelimit.Keyed{
+		"failed logins per IP":   s.limits.failuresByIP,
+		"failed logins per name": s.limits.failuresByName,
+		"registrations per IP":   s.limits.registerByIP,
+		"reset emails per name":  s.limits.resetByName,
+	} {
 		if k != nil {
-			k.Prune()
+			k.Prune(s.log, what)
 		}
 	}
 }

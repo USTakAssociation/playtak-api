@@ -3,6 +3,7 @@
 package ratelimit
 
 import (
+	"log/slog"
 	"net/netip"
 	"sync"
 	"time"
@@ -21,11 +22,15 @@ type Keyed struct {
 	mu         sync.Mutex
 	buckets    map[string]*rate.Limiter
 	inProgress map[string]int // attempts started but not finished, per key
+	uncounted  int            // events let through because the table was full
+
+	lastFullPrune time.Time
 }
 
 // New allows events per period for each key, all at once if they come in a
-// burst. At most maxKeys keys are tracked; when that many are busy, new keys
-// are refused rather than letting a flood of distinct keys use up memory.
+// burst. At most maxKeys keys are tracked, so a flood of distinct keys can't
+// use up memory. When that many are busy, events for new keys are let through
+// uncounted rather than refused: refusing would lock out every new user.
 func New(events int, per time.Duration, maxKeys int) *Keyed {
 	return &Keyed{
 		limit:      rate.Limit(float64(events) / per.Seconds()),
@@ -44,7 +49,8 @@ func (k *Keyed) Allow(key string) (bool, time.Duration) {
 	defer k.mu.Unlock()
 	b, ok := k.bucketLocked(key)
 	if !ok {
-		return false, k.refill()
+		k.uncounted++
+		return true, 0
 	}
 	now := k.now()
 	r := b.ReserveN(now, 1)
@@ -63,18 +69,14 @@ func (k *Keyed) Allow(key string) (bool, time.Duration) {
 func (k *Keyed) Attempt(key string) (finish func(failed bool), wait time.Duration) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
-	tokens := float64(k.burst)
-	if b, ok := k.buckets[key]; ok {
-		tokens = b.TokensAt(k.now())
-	} else if len(k.buckets) >= k.maxKeys {
-		// A full table can't record this key's failures, so refusing is the
-		// only way to keep the limit; otherwise a flood of keys switches it off.
-		k.pruneLocked()
-		if len(k.buckets) >= k.maxKeys {
-			return nil, k.refill()
-		}
+	// Created now, not on failure, so the table can't fill up in between and
+	// lose the failure.
+	b, ok := k.bucketLocked(key)
+	if !ok {
+		k.uncounted++
+		return func(bool) {}, 0
 	}
-	if left := tokens - float64(k.inProgress[key]); left < 1 {
+	if left := b.TokensAt(k.now()) - float64(k.inProgress[key]); left < 1 {
 		return nil, time.Duration((1 - left) / float64(k.limit) * float64(time.Second))
 	}
 	k.inProgress[key]++
@@ -84,11 +86,15 @@ func (k *Keyed) Attempt(key string) (finish func(failed bool), wait time.Duratio
 		if k.inProgress[key]--; k.inProgress[key] <= 0 {
 			delete(k.inProgress, key)
 		}
-		if !failed {
-			return
-		}
-		if b, ok := k.bucketLocked(key); ok {
+		// Usually b, but Reset may have dropped it meanwhile.
+		b, ok := k.bucketLocked(key)
+		switch {
+		case !ok:
+			k.uncounted++
+		case failed:
 			b.ReserveN(k.now(), 1) // may go below zero, pushing the wait out
+		case k.inProgress[key] == 0 && k.refilled(b):
+			delete(k.buckets, key) // only successes: same as never seen
 		}
 	}, 0
 }
@@ -101,11 +107,17 @@ func (k *Keyed) Reset(key string) {
 }
 
 // Prune forgets keys whose buckets have refilled, which behave the same as
-// keys never seen.
-func (k *Keyed) Prune() {
+// keys never seen. If the table filled up since the last call, it warns on
+// log, naming the limit what: that means a flood of distinct keys, which
+// went uncounted.
+func (k *Keyed) Prune(log *slog.Logger, what string) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 	k.pruneLocked()
+	if k.uncounted > 0 {
+		log.Warn("rate limit table full, events let through uncounted", "limit", what, "count", k.uncounted)
+		k.uncounted = 0
+	}
 }
 
 // Len reports how many keys are tracked.
@@ -115,13 +127,17 @@ func (k *Keyed) Len() int {
 	return len(k.buckets)
 }
 
+// pruneLocked keeps keys with attempts in progress, so their failures land.
 func (k *Keyed) pruneLocked() {
-	now := k.now()
 	for key, b := range k.buckets {
-		if b.TokensAt(now) >= float64(k.burst) {
+		if k.inProgress[key] == 0 && k.refilled(b) {
 			delete(k.buckets, key)
 		}
 	}
+}
+
+func (k *Keyed) refilled(b *rate.Limiter) bool {
+	return b.TokensAt(k.now()) >= float64(k.burst)
 }
 
 func (k *Keyed) bucketLocked(key string) (*rate.Limiter, bool) {
@@ -129,7 +145,12 @@ func (k *Keyed) bucketLocked(key string) (*rate.Limiter, bool) {
 		return b, true
 	}
 	if len(k.buckets) >= k.maxKeys {
-		k.pruneLocked()
+		// A prune scans every key, so while the table stays full it runs at
+		// most once a second, or each request in a flood would pay for one.
+		if now := k.now(); now.Sub(k.lastFullPrune) >= time.Second {
+			k.lastFullPrune = now
+			k.pruneLocked()
+		}
 		if len(k.buckets) >= k.maxKeys {
 			return nil, false
 		}
@@ -149,9 +170,4 @@ func IPKey(ip string) string {
 	}
 	prefix, _ := addr.Prefix(64)
 	return prefix.String()
-}
-
-// refill is how long one event takes to come back.
-func (k *Keyed) refill() time.Duration {
-	return time.Duration(float64(time.Second) / float64(k.limit))
 }

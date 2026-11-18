@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/ratelimit"
 )
 
 func limitedFixture(t *testing.T, byUsername bool) fixture {
@@ -131,6 +133,46 @@ func TestParallelLoginsCantPassTheLimit(t *testing.T) {
 	wg.Wait()
 	if n := checked.Load(); n > failuresPerIP {
 		t.Errorf("%d passwords checked in parallel, want at most %d", n, failuresPerIP)
+	}
+}
+
+// An attacker floods the login limits with made-up names from many IPs,
+// far more than the tables hold.
+func TestLoginFlood(t *testing.T) {
+	f := limitedFixture(t, true)
+	const maxKeys = 50
+	f.svc.limits.failuresByIP = ratelimit.New(failuresPerIP, time.Minute, maxKeys)
+	f.svc.limits.failuresByName = ratelimit.New(failuresPerName, 15*time.Minute, maxKeys)
+	ctx := context.Background()
+	f.addPlayer(t, "alice", "a@example.com", "secret123")
+	f.addPlayer(t, "bobby", "b@example.com", "secret123")
+	// alice was being guessed before the flood, so her name is limited.
+	for i := range failuresPerName {
+		f.svc.Login(ctx, "alice", "wrong", fmt.Sprintf("192.0.2.%d", i))
+	}
+	for i := range 10 * maxKeys {
+		ip := fmt.Sprintf("10.0.%d.%d", i/256, i%256)
+		if _, err := f.svc.Login(ctx, fmt.Sprint("ghost", i), "x", ip); !errors.Is(err, ErrAuthFailed) {
+			t.Fatalf("flood attempt %d: %v", i, err)
+		}
+	}
+	if n := f.svc.limits.failuresByName.Len(); n > maxKeys {
+		t.Errorf("%d names tracked, want at most %d", n, maxKeys)
+	}
+	// New users still get in: a full table doesn't lock them out.
+	if _, err := f.svc.Login(ctx, "bobby", "secret123", "198.51.100.1"); err != nil {
+		t.Errorf("bobby locked out by the flood: %v", err)
+	}
+	// alice's name was tracked before the flood, so it stays limited.
+	if _, err := f.svc.Login(ctx, "alice", "secret123", "198.51.100.2"); !errors.Is(err, ErrRateLimited) {
+		t.Errorf("the flood lifted alice's limit: %v", err)
+	}
+	// The cost: while the tables are full, guesses for a name they don't hold
+	// go uncounted (the attacker's own IPs can still be limited if tracked).
+	for i := range failuresPerName + 1 {
+		if _, err := f.svc.Login(ctx, "carol", "wrong", fmt.Sprintf("198.51.101.%d", i)); errors.Is(err, ErrRateLimited) {
+			t.Fatal("carol's name isn't tracked, so it can't be limited while full")
+		}
 	}
 }
 

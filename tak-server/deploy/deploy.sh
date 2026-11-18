@@ -54,8 +54,10 @@ done
 # What a failure rolls back to depends on how far the deploy got:
 #   stopped:  the databases are untouched; start Java.
 #   backed-up: restore the backup taken after stopping (lossless), start Java.
-#   started:  Go may have saved games; keep the data, start Java (it runs on
-#             the migrated schema).
+#   started:  set before Go starts, not after the health check: once running,
+#             Go may write (registrations, tokens, games) even if it then
+#             fails the check, and a restore would lose that. Keep the data
+#             and start Java, which runs on the migrated schema.
 phase=stopped
 on_failure() {
 	trap - ERR

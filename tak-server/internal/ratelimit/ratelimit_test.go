@@ -1,12 +1,18 @@
 package ratelimit
 
 import (
+	"fmt"
+	"io"
+	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 )
 
 var t0 = time.Unix(1_800_000_000, 0)
+
+var discard = slog.New(slog.NewTextHandler(io.Discard, nil))
 
 // clocked returns a limiter on a fake clock and a function to move it on.
 func clocked(events int, per time.Duration, maxKeys int) (*Keyed, func(time.Duration)) {
@@ -143,25 +149,43 @@ func TestPrune(t *testing.T) {
 	k.Allow("b")
 	k.Allow("b")
 	advance(30 * time.Second) // a is full again, b has one of two
-	k.Prune()
+	k.Prune(discard, "test")
 	if k.Len() != 1 {
 		t.Errorf("%d keys, want only b", k.Len())
 	}
 }
 
-func TestMaxKeys(t *testing.T) {
+func TestFullTableLetsNewKeysThrough(t *testing.T) {
 	k, advance := clocked(1, time.Minute, 2)
 	k.Allow("a")
 	k.Allow("b")
-	if ok, wait := k.Allow("c"); ok || wait != time.Minute {
-		t.Errorf("a third key while full: ok=%v wait=%v", ok, wait)
+	// Refusing would lock out every new key, so it's let through uncounted.
+	for range 3 {
+		if ok, _ := k.Allow("c"); !ok {
+			t.Fatal("a new key is refused while the table is full")
+		}
 	}
-	if b, _ := blocked(k, "c"); !b {
-		t.Error("an untracked key is blocked while the table is full")
+	if k.Len() != 2 {
+		t.Errorf("%d keys tracked, want at most 2", k.Len())
+	}
+	if ok, _ := k.Allow("a"); ok {
+		t.Error("keys already tracked stay limited")
+	}
+	var log strings.Builder
+	k.Prune(slog.New(slog.NewTextHandler(&log, nil)), "test limit")
+	if !strings.Contains(log.String(), "count=3") || !strings.Contains(log.String(), `limit="test limit"`) {
+		t.Errorf("want a warning counting 3 uncounted events, got %q", log.String())
+	}
+	log.Reset()
+	k.Prune(slog.New(slog.NewTextHandler(&log, nil)), "test limit")
+	if log.Len() != 0 {
+		t.Errorf("warned again with nothing new: %q", log.String())
 	}
 	advance(time.Minute) // a and b refill, so they can be pruned
-	if ok, _ := k.Allow("c"); !ok {
-		t.Error("a new key should fit once old ones are pruned")
+	k.Allow("c")
+	k.Allow("c")
+	if ok, _ := k.Allow("c"); ok {
+		t.Error("a new key is counted once old ones are pruned")
 	}
 }
 
@@ -188,22 +212,59 @@ func TestConcurrentUse(t *testing.T) {
 	}
 }
 
-func TestBlockedWhenTableFull(t *testing.T) {
-	k, advance := clocked(2, time.Minute, 2)
+func TestAttemptWhenTableFull(t *testing.T) {
+	k, _ := clocked(2, time.Minute, 2)
+	fail(k, "a")
 	fail(k, "a")
 	fail(k, "b")
-	// A key that can't be tracked is refused, or a flood of keys would
-	// switch the limit off.
-	if b, wait := blocked(k, "c"); !b || wait != 30*time.Second {
-		t.Fatalf("full table: blocked=%v wait=%v, want blocked for 30s", b, wait)
-	}
-	if b, _ := blocked(k, "a"); b {
-		t.Error("tracked keys are judged on their own bucket")
-	}
-	// Once the buckets refill they're pruned, making room.
-	advance(time.Minute)
 	if b, _ := blocked(k, "c"); b {
-		t.Error("refilled buckets should be pruned to make room")
+		t.Fatal("a new key is refused while the table is full")
+	}
+	fail(k, "c")
+	fail(k, "c")
+	if b, _ := blocked(k, "c"); b {
+		t.Error("failures for an untracked key can't be counted")
+	}
+	if b, _ := blocked(k, "a"); !b {
+		t.Error("keys already tracked stay limited")
+	}
+}
+
+func TestFailureCountsIfTableFillsDuringAttempt(t *testing.T) {
+	k, _ := clocked(1, time.Minute, 1)
+	finish, _ := k.Attempt("a")
+	// a's bucket is still full, but its attempt is in progress, so pruning
+	// keeps it and the table stays full.
+	k.Prune(discard, "test")
+	fail(k, "b")
+	finish(true)
+	if b, _ := blocked(k, "a"); !b {
+		t.Error("the failure was lost when the table filled during the attempt")
+	}
+}
+
+// An attacker with far more addresses than the table holds: memory stays
+// bounded, a victim already limited stays limited, and new users get in.
+func TestFlood(t *testing.T) {
+	const maxKeys = 1000
+	k, _ := clocked(20, time.Minute, maxKeys)
+	for range 20 {
+		fail(k, "victim")
+	}
+	for i := range 50 * maxKeys {
+		fail(k, fmt.Sprint("attacker", i))
+	}
+	if k.Len() > maxKeys {
+		t.Errorf("%d keys tracked, want at most %d", k.Len(), maxKeys)
+	}
+	if b, _ := blocked(k, "victim"); !b {
+		t.Error("the flood freed a limited key")
+	}
+	if b, _ := blocked(k, "newcomer"); b {
+		t.Error("the flood locked out a new key")
+	}
+	if ok, _ := k.Allow("newcomer"); !ok {
+		t.Error("the flood locked out a new key")
 	}
 }
 

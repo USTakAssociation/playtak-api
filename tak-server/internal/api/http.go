@@ -53,8 +53,8 @@ func NewServer(authSvc *auth.Service, players *online.Registry, seeks *seek.Mana
 
 // PruneLimits forgets IPs whose limits have reset.
 func (s *Server) PruneLimits() {
-	s.tokenCalls.Prune()
-	s.seekLists.Prune()
+	s.tokenCalls.Prune(s.log, "token calls per IP")
+	s.seekLists.Prune(s.log, "seek lists per IP")
 }
 
 func (s *Server) Handler() http.Handler {

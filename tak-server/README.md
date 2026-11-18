@@ -281,9 +281,11 @@ later, so existing clients need no changes. Every refusal is logged at warn
 level. Counters are kept in memory and reset on restart.
 
 "Per IP" means per IPv4 address, or per IPv6 /64, since one machine or home
-network usually gets a whole /64. Each limit tracks up to 100,000 keys. If a
-flood of addresses fills one, new addresses are refused until old entries
-expire (a minute for failed logins), rather than going uncounted.
+network usually gets a whole /64. Each limit tracks up to 100,000 keys
+(about 12 MB). If a flood of addresses or names fills one, keys it already
+tracks stay limited, but new ones are let through uncounted until old entries
+expire (a minute for failed logins), rather than locking out every new user.
+The hourly cleanup logs a warning with how many went uncounted.
 
 **Client IPs behind nginx.** The server only sees the address that
 connected to it, which behind nginx is nginx itself. nginx must pass the
