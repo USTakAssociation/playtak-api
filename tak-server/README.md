@@ -292,7 +292,7 @@ Logins, registrations and password resets are limited inside
 | What | Limit |
 | --- | --- |
 | Failed logins per username (unless `TAK_LOGIN_LIMIT=ip`) | 10 per 15 minutes; a successful login resets it |
-| Failed logins per IP | 20 per minute; successful logins don't count, so many players behind one IP can all log in |
+| Failed logins per IP | 20 per minute; successful logins don't count, so many players behind one IP can all log in. Logins still being checked count, so parallel attempts can't get past either login limit |
 | Registrations per IP | 5 per hour |
 | Password reset emails per username | 3 per hour |
 | `POST /api/auth/refresh`, `/logout`, `/guest` per IP | 30 per minute, shared |
@@ -306,6 +306,13 @@ login gets the usual `Authentication failure`, and registration and reset
 requests get a `Registration Error:` or `Reset Token Error:` saying to try
 later, so existing clients need no changes. Every refusal is logged at warn
 level. Counters are kept in memory and reset on restart.
+
+"Per IP" means per IPv4 address, or per IPv6 /64, since one machine or home
+network usually gets a whole /64. Each limit tracks up to 100,000 keys
+(about 12 MB). If a flood of addresses or names fills one, keys it already
+tracks stay limited, but new ones are let through uncounted until old entries
+expire (a minute for failed logins), rather than locking out every new user.
+The hourly cleanup logs a warning with how many went uncounted.
 
 **Client IPs behind nginx.** The server only sees the address that
 connected to it, which behind nginx is nginx itself. nginx must pass the
@@ -326,9 +333,9 @@ safe to run more than once.
   nothing to run by hand. See [Deploying](#deploying).
 - **Local development:** `create_databases.sh` creates fresh databases and
   runs every migration.
-- **Adding a migration:** add the script, then add it to the list in both
-  `deploy/deploy.sh` and `../scripts/development/create_databases.sh`, in
-  date order.
+- **Adding a migration:** add the script, then add it to the end of
+  `../scripts/migrations/run-all.sh`, the one list both `deploy.sh` and
+  `create_databases.sh` run.
 
 At startup the server checks that the players database has had the
 migrations it relies on (the `id` primary key and the `auth_tokens` table)
@@ -355,15 +362,17 @@ Safe to run again. On each run it:
 
 1. Stops the Go and Java servers for that environment. If either is still
    running afterwards, it stops there and changes nothing.
-2. Backs up both databases to `/var/backups/tak-server-<env>/<time>/`,
-   keeping the 10 newest. The backup is taken after stopping, so nothing can
-   be written between the backup and the migrations.
+2. Backs up both databases to `/var/backups/tak-server-<env>/<time>/`. The
+   backup is taken after stopping, so nothing can be written between the
+   backup and the migrations.
 3. Runs every migration. Each is safe to run more than once.
 4. Installs the binary and `.env` to `/var/apps/tak-server-<env>/` and the
    unit `tak-server-<env>.service`.
 5. Disables the Java unit (`takserver-<env>.service`), so a reboot can't
-   start both, and starts the Go unit.
+   start both, and checks it really is disabled. Then it starts the Go unit.
 6. Checks the server sends `Welcome!` on its telnet port within 30 seconds.
+7. Deletes old backups, keeping the 10 newest. This runs only after a
+   successful deploy, so failed deploys can't push out the last good backup.
 
 If any step after stopping fails, it rolls back to Java and fails the job:
 
@@ -372,6 +381,11 @@ If any step after stopping fails, it rolls back to Java and fails the job:
 | the backup | Start Java. The databases were not touched. |
 | migrations or install | Restore the backup, then start Java. Nothing ran since the backup, so no data is lost, and a half-applied migration is undone. |
 | starting or the health check | Start Java and keep the data. Go may have saved games, and Java runs on the migrated databases. |
+
+If the rollback itself fails, neither server is running. The job log then
+shows `ROLLBACK FAILED` with the command to retry it by hand (the release
+directory is kept after a failure), and the script exits with code 2
+instead of 1.
 
 Games in progress when the server stops end without a result, as with the
 Java server. Warn players first with `sudo broadcast Message ...`.
@@ -454,6 +468,18 @@ The deliberate changes in client-visible behaviour, for release notes:
 - `sudo list` output is sorted, without a trailing comma, and lists each player once.
 - `mod`, `admin` and `bot` say when the player already has, or doesn't have, that role.
 - New: `sudo revoke <name>` (admin only).
+
+**Connections**
+- WebSocket connections end with a close code that says why. Java just closed the socket.
+
+  | Code | When |
+  | --- | --- |
+  | 1000 normal | the client quit |
+  | 1001 going away | nothing received for 60 seconds (Java also dropped these, without a code), or the server is shutting down |
+  | 1008 policy violation | logged in from another window, kicked or banned |
+  | 1011 internal error | a line over 64 KB, or a client too slow to keep up |
+
+- A client that falls 1024 lines behind is disconnected, so one slow connection can't hold up the server. Java kept queuing. Telnet clients are disconnected the same way, without a code.
 
 **Accounts**
 - Java accepted some non-ASCII passwords through a legacy fallback. That fallback is gone, so those players need to reset their password.

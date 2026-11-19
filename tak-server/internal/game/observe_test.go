@@ -109,7 +109,7 @@ func TestObserverReceivesGameEvents(t *testing.T) {
 	}
 
 	// Disconnect and reconnect notices.
-	g.Disconnected(ctx, b.Name)
+	e.disconnect(g, b)
 	g.Reconnected(ctx, b, bc)
 	want := []protocol.Event{
 		protocol.ServerMessage{Text: b.Name + " has disconnected. They have 60 seconds to reconnect"},
@@ -132,7 +132,7 @@ func TestObserverToldOfAbandon(t *testing.T) {
 	e := newEnv(t, Config{ReconnectTimeout: time.Minute})
 	g, _, _, b, _ := e.start()
 	_, obs := e.watch(1)
-	g.Disconnected(context.Background(), b.Name)
+	e.disconnect(g, b)
 	e.advance(time.Minute)
 	settle(g)
 	got := obs.take()

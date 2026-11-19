@@ -39,7 +39,7 @@ if [ "$restore" = "--restore-db" ]; then
 			latest=$dir
 		fi
 	done
-	[ -n "$latest" ] && [ -f "$latest/paths" ] || { echo "no backup found in $backups" >&2; exit 1; }
+	[ -n "$latest" ] || { echo "no backup found in $backups" >&2; exit 1; }
 	{ read -r players_db && read -r games_db; } <"$latest/paths"
 	# Nothing may hold the files while they're replaced.
 	if systemctl is-active --quiet "$java_unit"; then

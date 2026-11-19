@@ -26,6 +26,10 @@ func (g *Game) Disconnected(ctx context.Context, name string) error {
 			return
 		}
 		seat := g.seats[color]
+		// Stale: the player logged in again before this disconnect arrived.
+		if seat.player.Online() {
+			return
+		}
 		seat.connected = false
 		seat.away++
 		away := seat.away

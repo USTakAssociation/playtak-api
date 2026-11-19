@@ -588,9 +588,22 @@ Two rules apply to all of it:
 - **Game commands:** `game.decline_draw` and `game.decline_undo` are new,
   with `NO_OPEN_OFFER`.
 - **Chat:** the `global` room maps to today's Shout, and `game:<id>` rooms
-  map to game rooms. `chat.tell` goes to both players. Room names are 1 to
-  64 characters with no spaces, and `global` and `game:` are reserved. New
-  `chat.joined` and `chat.left` events.
+  map to game rooms. Room names are 1 to 64 characters with no spaces, and
+  `global`, `game:` and `private:` are reserved. New `chat.joined` and
+  `chat.left` events.
+- **Private rooms** replace `chat.tell`. They live in memory in
+  `chat.Service`, next to the open rooms:
+  - room ID (`private:<n>`, from a counter) → the members' lowercased
+    usernames. Members are players, not sessions: delivery looks up each
+    member's online sessions, so every connection of both players gets the
+    message, the sender's included.
+  - sorted pair of lowercased usernames → room ID, so opening a room with
+    the same player returns the same room. A text-protocol `Tell` uses the
+    same lookup, and its `Tell`/`Told` lines are the formatter's view of a
+    private room, so text and JSON players share one room.
+  - A room is removed when none of its members is online. Nothing goes to
+    the database until chat history is built; then rooms, members and
+    messages become tables and these maps become a cache.
 - **REST:** move to `/api/v1/`, require `X-Client-Name`, open CORS, and add
   the new endpoints: password reset and change, bot API keys, bot owner,
   admin set password. Guest tokens last 8 hours after the last activity.

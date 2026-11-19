@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/ratelimit"
 )
 
 var (
@@ -70,7 +71,7 @@ type Service struct {
 	log     *slog.Logger
 	now     func() time.Time
 
-	limits *limiters // nil: no rate limits (see EnableLimits)
+	limits limiters // all off until EnableLimits
 
 	mu          sync.Mutex
 	resetTokens map[string]resetToken // by player name
@@ -97,30 +98,27 @@ func NewService(ps PlayerStore, ts TokenStore, mail Mailer, log *slog.Logger) *S
 // ErrAuthFailed. Too many recent failures, from the IP or (when enabled)
 // for the name, return a *RateLimitError before the password is checked.
 // Only failures count, so many players behind one IP can all log in.
-func (s *Service) Login(ctx context.Context, name, password, ip string) (players.Record, error) {
-	if s.limits != nil {
-		if err := s.blocked(s.limits.failuresByIP, "failed logins per IP", ip, ip); err != nil {
-			return players.Record{}, err
-		}
-		if err := s.blocked(s.limits.failuresByName, "failed logins per name", nameKey(name), ip); err != nil {
-			return players.Record{}, err
-		}
+func (s *Service) Login(ctx context.Context, name, password, ip string) (_ players.Record, err error) {
+	finish, err := s.startLogin(name, ip)
+	if err != nil {
+		return players.Record{}, err
 	}
+	// Deferred so no return path, or panic, leaves the attempt counted
+	// forever. A database error isn't the client's fault, so it doesn't count.
+	defer func() { finish(errors.Is(err, ErrAuthFailed)) }()
 	record, err := s.players.ByName(ctx, name)
-	if errors.Is(err, players.ErrNotFound) {
-		s.loginFailed(name, ip)
-		return players.Record{}, ErrAuthFailed
+	switch {
+	case errors.Is(err, players.ErrNotFound):
+		err = ErrAuthFailed
+	case err == nil && (record.IsBanned || !checkPassword(record.PasswordHash, password)):
+		err = ErrAuthFailed
 	}
 	if err != nil {
 		return players.Record{}, err
 	}
-	if record.IsBanned || !checkPassword(record.PasswordHash, password) {
-		s.loginFailed(name, ip)
-		return players.Record{}, ErrAuthFailed
-	}
 	// A success clears the name's failures, but not the IP's: on a shared
 	// IP, one player logging in mustn't wipe out someone else's guesses.
-	if s.limits != nil && s.limits.failuresByName != nil {
+	if s.limits.failuresByName != nil {
 		s.limits.failuresByName.Reset(nameKey(name))
 	}
 	// Logging in proves the player knows their password.
@@ -130,26 +128,11 @@ func (s *Service) Login(ctx context.Context, name, password, ip string) (players
 	return record, nil
 }
 
-// loginFailed counts a failed login against name and ip.
-func (s *Service) loginFailed(name, ip string) {
-	if s.limits == nil {
-		return
-	}
-	if ip != "" {
-		s.limits.failuresByIP.Record(ip)
-	}
-	if s.limits.failuresByName != nil {
-		s.limits.failuresByName.Record(nameKey(name))
-	}
-}
-
 // Register creates a player with a random password and emails it to them.
 // Each client IP can register only a few accounts an hour.
 func (s *Service) Register(ctx context.Context, name, email, ip string) (players.Record, error) {
-	if s.limits != nil {
-		if err := s.allow(s.limits.registerByIP, "registrations per IP", ip); err != nil {
-			return players.Record{}, err
-		}
+	if err := s.allow(s.limits.registerByIP, "registrations per IP", ratelimit.IPKey(ip)); err != nil {
+		return players.Record{}, err
 	}
 	switch {
 	case !ValidUsername(name):
@@ -180,10 +163,8 @@ func (s *Service) Register(ctx context.Context, name, email, ip string) (players
 // SendResetToken emails a one-time password reset token, valid for an hour.
 // Only a few are sent per player per hour.
 func (s *Service) SendResetToken(ctx context.Context, name, email string) error {
-	if s.limits != nil {
-		if err := s.allow(s.limits.resetByName, "reset emails per name", nameKey(name)); err != nil {
-			return err
-		}
+	if err := s.allow(s.limits.resetByName, "reset emails per name", nameKey(name)); err != nil {
+		return err
 	}
 	record, err := s.players.ByName(ctx, name)
 	if errors.Is(err, players.ErrNotFound) {

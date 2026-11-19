@@ -31,6 +31,8 @@ const (
 	maxTrackedKeys     = 100_000
 )
 
+// limiters holds the rate limits. A nil limiter means that limit is off; the
+// zero value, before EnableLimits, has every limit off.
 type limiters struct {
 	failuresByIP   *ratelimit.Keyed
 	failuresByName *ratelimit.Keyed // nil when only IPs are limited
@@ -43,7 +45,7 @@ type limiters struct {
 // IPs, at the cost of letting someone lock a name out for a while by
 // failing on purpose. Without it, only per-IP limits apply.
 func (s *Service) EnableLimits(byUsername bool) {
-	l := &limiters{
+	l := limiters{
 		failuresByIP: ratelimit.New(failuresPerIP, time.Minute, maxTrackedKeys),
 		registerByIP: ratelimit.New(registrationsPerIP, time.Hour, maxTrackedKeys),
 		resetByName:  ratelimit.New(resetsPerName, time.Hour, maxTrackedKeys),
@@ -54,14 +56,17 @@ func (s *Service) EnableLimits(byUsername bool) {
 	s.limits = l
 }
 
-// PruneLimits forgets keys whose limits have reset, to keep memory small.
+// PruneLimits forgets keys whose limits have reset, to keep memory small,
+// and warns about any limit whose table filled up.
 func (s *Service) PruneLimits() {
-	if s.limits == nil {
-		return
-	}
-	for _, k := range []*ratelimit.Keyed{s.limits.failuresByIP, s.limits.failuresByName, s.limits.registerByIP, s.limits.resetByName} {
+	for what, k := range map[string]*ratelimit.Keyed{
+		"failed logins per IP":   s.limits.failuresByIP,
+		"failed logins per name": s.limits.failuresByName,
+		"registrations per IP":   s.limits.registerByIP,
+		"reset emails per name":  s.limits.resetByName,
+	} {
 		if k != nil {
-			k.Prune()
+			k.Prune(s.log, what)
 		}
 	}
 }
@@ -69,17 +74,38 @@ func (s *Service) PruneLimits() {
 // nameKey makes case variants of a name share one limit.
 func nameKey(name string) string { return strings.ToLower(name) }
 
-// blocked returns a *RateLimitError, and logs it, if key has no failures
-// left in k. An empty key (an unknown IP) is never blocked.
-func (s *Service) blocked(k *ratelimit.Keyed, what, key, ip string) error {
+// startLogin starts counting a login against ip and name, returning a
+// *RateLimitError if either has no failures left. Otherwise call finish
+// exactly once, saying whether the login failed.
+func (s *Service) startLogin(name, ip string) (finish func(failed bool), err error) {
+	finishIP, err := s.attempt(s.limits.failuresByIP, "failed logins per IP", ratelimit.IPKey(ip), ip)
+	if err != nil {
+		return nil, err
+	}
+	finishName, err := s.attempt(s.limits.failuresByName, "failed logins per name", nameKey(name), ip)
+	if err != nil {
+		finishIP(false)
+		return nil, err
+	}
+	return func(failed bool) {
+		finishIP(failed)
+		finishName(failed)
+	}, nil
+}
+
+// attempt starts an attempt for key in k, logging and returning a
+// *RateLimitError if it has no failures left. An empty key (an unknown IP)
+// is never limited.
+func (s *Service) attempt(k *ratelimit.Keyed, what, key, ip string) (func(failed bool), error) {
 	if k == nil || key == "" {
-		return nil
+		return func(bool) {}, nil
 	}
-	if blocked, wait := k.Blocked(key); blocked {
+	finish, wait := k.Attempt(key)
+	if finish == nil {
 		s.log.Warn("rate limited", "limit", what, "key", key, "ip", ip, "retry_in", wait.Round(time.Second))
-		return &RateLimitError{RetryAfter: wait}
+		return nil, &RateLimitError{RetryAfter: wait}
 	}
-	return nil
+	return finish, nil
 }
 
 // allow takes an event from k for key, logging and returning a

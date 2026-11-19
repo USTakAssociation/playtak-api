@@ -52,7 +52,7 @@ open wss://playtak.com/ws with the subprotocol playtak.json.v1
 
 -> {"cmd":"session.login","id":"2","token":"<access token from POST /api/v1/auth/login>"}
 <- {"evt":"ack","id":"2"}
-<- {"evt":"session.welcome","username":"alice","roles":[],"games":[]}
+<- {"evt":"session.welcome","username":"alice","roles":[],"games":[],"private_rooms":[]}
 <- {"evt":"seek.list","seeks":[{"seek":498, ...}]}
 <- {"evt":"game.list","games":[...]}
 <- {"evt":"session.online","count":87,"usernames":[...]}
@@ -220,7 +220,7 @@ reconnect, see [session.closed](#sessionclosed-event).
 ```json
 {"cmd":"game.move","id":"r9","game":1043,"move":"3c3>12"}
 {"evt":"ack","id":"r9","ts":1791234567000}
-{"evt":"game.state","game":1043,"ply":24,"change":"move","last":"3c3>12","tps":"x6/x6/x2,1,x3/x6/x6/x6 2 12","turn":"black","white_time":598000,"black_time":587900,"clock_running":true,"status":"playing","ts":1791234567001}
+{"evt":"game.state","game":1043,"ply":24,"change":"move","last":"3c3>12","tps":"x6/x6/x2,1,x3/x6/x6/x6 2 12","turn":"black","white_time":598000,"black_time":587900,"clock_running":true,"ts":1791234567001}
 ```
 
 ### Value conventions
@@ -347,7 +347,7 @@ lists them. Send `game.attach` for each one you want on this connection.
 ### session.welcome (event)
 
 ```json
-{"evt":"session.welcome","username":"alice","roles":["mod"],"games":[1043],"ts":1791234560100}
+{"evt":"session.welcome","username":"alice","roles":["mod"],"games":[1043],"private_rooms":[{"room":"private:7","members":["alice","bob"]}],"ts":1791234560100}
 ```
 
 | Field | Type | Req. | Meaning |
@@ -355,6 +355,7 @@ lists them. Send `game.attach` for each one you want on this connection.
 | `username` | string | yes | Your username. Guest names start with `Guest`, and registered names cannot contain "guest". |
 | `roles` | list of string | yes | Any of `mod`, `admin`, `bot`. Empty for most players. |
 | `games` | list of integer | yes | Your games in progress. Empty if none. Attach to one with `game.attach`. |
+| `private_rooms` | list of object | yes | Your [private rooms](#private-rooms), each with `room` and `members` as in `chat.room`. Empty if none. |
 
 ### session.games (event)
 
@@ -527,11 +528,11 @@ connections and what does not.
 | --- | --- |
 | Your games in progress. `session.welcome` lists them. Send `game.attach` for each one. | Your seeks, if your last connection closed. Post them again. |
 | Your account, roles, and any open draw offers or undo requests in your games | Games you were observing. Send `game.observe` again. |
-| | Chat rooms other than `global`. Send `chat.join` again. |
+| Your private rooms, while the other player is still online. `session.welcome` lists them. | Chat rooms you joined with `chat.join`. Send `chat.join` again. |
 
 ### Guests
 
-Guests can play, observe, chat and send `chat.tell`. They cannot create or
+Guests can play, observe, chat and open private rooms. They cannot create or
 accept rated or tournament seeks. Those get `PERMISSION_DENIED`.
 
 ## 4. Players
@@ -626,9 +627,8 @@ send seek.create
 
 on session.games:  send game.attach for each game you have not attached
 on game.start:     note your color (the "color" field)
-on game.state:
-    if status is "playing" and turn is your color: think, then send game.move
-    if status is "over": send seek.create again
+on game.state:     if turn is your color: think, then send game.move
+on game.over:      send seek.create again
 on ILLEGAL_MOVE or NOT_YOUR_TURN: send game.sync, then think again
 on session.closed or a dropped connection: reconnect (see When to reconnect)
 ```
@@ -959,13 +959,14 @@ fixed details and the full history. A `game.state` follows right after.
 
 ### game.state (event)
 
-Sent after every change: a move, an undo, an offer, a clock change, or the
-end of the game. It goes to every connection attached to the game, for both
-players, and to every observer. It always has the full live position, so
-you never need to compare states.
+Sent after every change while the game is in progress: a move, an undo, an
+offer, or a clock change. It goes to every connection attached to the game,
+for both players, and to every observer. It always has the full live
+position, so you never need to compare states. The end of the game is a
+separate event, [game.over](#gameover-event).
 
 ```json
-{"evt":"game.state","game":1043,"ply":24,"change":"move","last":"3c3>12","tps":"x6/x6/x2,1,x3/x6/x6/x6 2 12","turn":"black","white_time":598000,"black_time":587900,"clock_running":true,"status":"playing","ts":1791234567001}
+{"evt":"game.state","game":1043,"ply":24,"change":"move","last":"3c3>12","tps":"x6/x6/x2,1,x3/x6/x6/x6 2 12","turn":"black","white_time":598000,"black_time":587900,"clock_running":true,"ts":1791234567001}
 ```
 
 | Field | Type | Req. | Meaning |
@@ -978,11 +979,7 @@ you never need to compare states.
 | `turn` | string | yes | `"white"` or `"black"` |
 | `white_time`, `black_time` | integer | yes | Time left at `ts`, ms |
 | `clock_running` | boolean | yes | Whether the clock of the side to move is counting down. See below. |
-| `status` | string | yes | `"playing"` or `"over"` |
 | `draw_offer`, `undo_offer` | string | no | Username of the player with an open offer. Left out if none. |
-| `result` | string | no | When over, in PTN result notation: `"R-0"` or `"0-R"` for a road, `"F-0"` or `"0-F"` for flats, `"1/2-1/2"` for any draw, and `"1-0"` or `"0-1"` for every other win (`resign`, `time`, `abandon`, `ban`). The first character is white's result. |
-| `reason` | string | no | When over: why. See the table below. |
-| `winner` | string | no | When over and not a draw: the winner's username |
 
 What changed:
 
@@ -993,8 +990,35 @@ What changed:
 | `draw_offer` | A draw offer was made, withdrawn or declined. The `draw_offer` field shows who has one open, or is left out. |
 | `undo_offer` | An undo request was made, withdrawn or declined. The `undo_offer` field shows who has one open, or is left out. |
 | `time_given` | A player gave their opponent time |
-| `over` | The game ended. See `result`, `reason` and `winner`. |
 | `sync` | Nothing changed. This is the state sent right after `game.start`. |
+
+**Showing the clocks.** white_time and black_time are the time left when the server sent the message. Count down the side to move from when you receive it, while clock_running is true. Your display can be off by about the network delay, usually well under a second. Each game.state gives the exact time again. The server's clock is the one that counts.
+
+`clock_running` is `false` before the first move and on a move that ends
+the game. Do not work it out from `ply`: once the clock has started, it
+keeps running even if every move is undone back to ply 0.
+
+**Staying in sync.** If `ply` moves by more than one from what you expect,
+send `game.sync`. You get a fresh `game.start` and `game.state`.
+
+### game.over (event)
+
+Sent once when the game ends, to every connection attached to the game and
+to every observer. When a move ends the game (a road or flats), the
+`game.state` for that move comes first, so you always see the final move.
+Any other ending (resign, time, abandon, agreement, ban) sends only
+`game.over`.
+
+```json
+{"evt":"game.over","game":1043,"result":"R-0","reason":"road","winner":"alice","ts":1791234599000}
+```
+
+| Field | Type | Req. | Meaning |
+| --- | --- | --- | --- |
+| `game` | integer | yes | Game ID |
+| `result` | string | yes | In PTN result notation: `"R-0"` or `"0-R"` for a road, `"F-0"` or `"0-F"` for flats, `"1/2-1/2"` for any draw, and `"1-0"` or `"0-1"` for every other win (`resign`, `time`, `abandon`, `ban`). The first character is white's result. |
+| `reason` | string | yes | Why. See the table below. |
+| `winner` | string | no | The winner's username. Left out for a draw. |
 
 Reasons a game ends:
 
@@ -1008,15 +1032,6 @@ Reasons a game ends:
 | `agreement` | Both players agreed to a draw |
 | `no_progress` | A draw after 50 plies with no placement and no wall flattened |
 | `ban` | A player was banned during the game |
-
-**Showing the clocks.** white_time and black_time are the time left when the server sent the message. Count down the side to move from when you receive it, while clock_running is true. Your display can be off by about the network delay, usually well under a second. Each game.state gives the exact time again. The server's clock is the one that counts.
-
-`clock_running` is `false` before the first move and after the game ends.
-Do not work it out from `ply`: once the clock has started, it keeps running
-even if every move is undone back to ply 0.
-
-**Staying in sync.** If `ply` moves by more than one from what you expect,
-send `game.sync`. You get a fresh `game.start` and `game.state`.
 
 ### Moves
 
@@ -1075,7 +1090,7 @@ Every command here takes `game` (integer, required): the game ID.
 | Command | Other fields | Reply and result | Errors |
 | --- | --- | --- | --- |
 | `game.move` | `move` (string, required): the move in PTN | `ack`, then `game.state` with `change: "move"` | `NOT_FOUND`, `NOT_IN_GAME`, `NOT_YOUR_TURN`, `ILLEGAL_MOVE` |
-| `game.resign` | | `ack`, then `game.state` with `status: "over"` | `NOT_FOUND`, `NOT_IN_GAME` |
+| `game.resign` | | `ack`, then `game.over` | `NOT_FOUND`, `NOT_IN_GAME` |
 | `game.offer_draw` | | Offers a draw, or accepts the opponent's offer | `NOT_FOUND`, `NOT_IN_GAME` |
 | `game.withdraw_draw` | | Withdraws your offer | `NOT_FOUND`, `NOT_IN_GAME`, `NO_OPEN_OFFER` |
 | `game.decline_draw` | | Declines the opponent's draw offer | `NOT_FOUND`, `NOT_IN_GAME`, `NO_OPEN_OFFER` |
@@ -1104,8 +1119,8 @@ ends when a move is played. To decline, send `game.decline_draw` or
 15 seconds, and not before the first move.
 
 **When a game ends,** every attached connection and every observer gets the
-final `game.state` (`status: "over"`), then is detached or stops observing
-automatically. The server sends no other event. Rematches (`seek.rematch`) and the
+`game.over`, then is detached or stops observing automatically. The server
+sends no other event. Rematches (`seek.rematch`) and the
 game's chat room keep working after this. A finished game is read from the
 [game history](#addresses), not attached to.
 
@@ -1158,13 +1173,14 @@ To come back, log in again and send `game.attach` for the game.
 | --- | --- |
 | `global` | Everyone. Joined at login. |
 | `game:1043` | Anyone who joins. The server creates it when game 1043 starts. |
+| `private:7` | Two players chatting privately. See [Private rooms](#private-rooms). |
 | any other name | Players who joined it |
 
 Room names:
 
 - A name is 1 to 64 characters, with no spaces.
-- `global` and names that start with `game:` are reserved. You cannot
-  create them.
+- `global` and names that start with `game:` or `private:` are reserved.
+  You cannot create them with `chat.join`.
 - Joining any other name creates the room if it does not exist. The server
   removes a room when its last member leaves.
 - Room names are not filtered. Moderators can kick players who misuse
@@ -1179,19 +1195,51 @@ The client decides whether to join, for example automatically when it
 attaches to or observes a game. A game's room stays open after the game
 ends, for post-game chat, until its last member leaves.
 
+### Private rooms
+
+A private room is a conversation between two players. It works like any
+other room for sending and receiving (`chat.send` and `chat.message`), so
+you show each message in the room's tab and never compare usernames. It
+differs in who is in it and how long it lasts:
+
+- **Opening.** Send `chat.open` with the other player's username. The `ack`
+  has the room ID, which the server makes. Opening a room with the same
+  player again gives the same room.
+- **Members are players, not connections.** Every connection of both
+  players gets the room's messages, including the sender's other tabs and
+  devices. You do not `chat.join` a private room, and you cannot leave
+  one: to hide it, close its tab in your client.
+- **Finding out about a room.** When a room is created, every connection
+  of both players gets `chat.room`. A new connection finds its rooms in
+  `session.welcome`.
+- **Offline players.** If the other player is not online, `chat.send` gets
+  `NOT_ONLINE` and the message is not kept. The room stays while either
+  player is online. Once both are offline, the server removes it, and a
+  later `chat.open` makes a new room with a new ID.
+- **Privacy.** Only the two players can see a private room. Moderators
+  cannot, and message text is not logged. Gags apply as in other rooms.
+
+Text protocol players can be in private rooms too. They see the room as
+`Tell` and `Told` lines, and their `Tell` goes to the same room, so text
+and JSON players can chat privately.
+
 ### Commands
 
 | Command | Fields | Reply | Errors |
 | --- | --- | --- | --- |
-| `chat.join` | `room` (string, required) | `ack`, then `chat.joined` to the room | `INVALID_FIELD` (bad room name), `PERMISSION_DENIED` (a reserved name), `NOT_FOUND` (a game room for a game that does not exist) |
-| `chat.leave` | `room` (string, required) | `ack`, then `chat.left` to the room | `NOT_IN_ROOM` |
-| `chat.send` | `room` (string, required), `text` (string, required) | `ack`, then `chat.message` to the room | `NOT_IN_ROOM`, `INVALID_FIELD`, `PERMISSION_DENIED` (you are gagged) |
-| `chat.tell` | `username` (string, required), `text` (string, required) | `ack`, then `chat.tell` to both of you | `NOT_ONLINE`, `INVALID_FIELD`, `PERMISSION_DENIED` (you are gagged) |
+| `chat.join` | `room` (string, required) | `ack`, then `chat.joined` to the room | `INVALID_FIELD` (bad room name), `PERMISSION_DENIED` (a reserved name, including a private room), `NOT_FOUND` (a game room for a game that does not exist) |
+| `chat.leave` | `room` (string, required) | `ack`, then `chat.left` to the room | `NOT_IN_ROOM` (including a private room) |
+| `chat.send` | `room` (string, required), `text` (string, required) | `ack`, then `chat.message` to the room | `NOT_IN_ROOM`, `NOT_ONLINE` (a private room whose other player is offline), `INVALID_FIELD`, `PERMISSION_DENIED` (you are gagged) |
+| `chat.open` | `username` (string, required) | `ack` with `room`. If the room is new, `chat.room` to both players. | `NOT_ONLINE`, `INVALID_FIELD` (including your own username) |
 
 ```json
 {"cmd":"chat.send","id":"r19","room":"game:1043","text":"nice road"}
 {"evt":"chat.message","room":"game:1043","username":"alice","text":"nice road","ts":1791234590000}
-{"evt":"chat.tell","from_username":"bob","to_username":"alice","text":"gg","ts":1791234591000}
+{"cmd":"chat.open","id":"r20","username":"alice"}
+{"evt":"ack","id":"r20","room":"private:7","ts":1791234590500}
+{"evt":"chat.room","room":"private:7","members":["alice","bob"],"ts":1791234590500}
+{"cmd":"chat.send","id":"r21","room":"private:7","text":"gg"}
+{"evt":"chat.message","room":"private:7","username":"bob","text":"gg","ts":1791234591000}
 {"evt":"chat.joined","room":"game:1043","username":"carol","ts":1791234592000}
 {"evt":"chat.left","room":"game:1043","username":"carol","ts":1791234593000}
 ```
@@ -1201,9 +1249,9 @@ ends, for post-game chat, until its last member leaves.
 | Event | Fields | Sent to |
 | --- | --- | --- |
 | `chat.message` | `room` (string), `username` (string): the sender, `text` (string) | Everyone in the room |
-| `chat.tell` | `from_username` (string), `to_username` (string), `text` (string) | The sender and the receiver |
-| `chat.joined` | `room` (string), `username` (string) | Everyone in the room, including the player who joined. Not sent for `global`. |
-| `chat.left` | `room` (string), `username` (string) | Everyone in the room, including the player who left. Not sent for `global`. |
+| `chat.room` | `room` (string), `members` (list of string): both players | Every connection of both players, when a private room is created |
+| `chat.joined` | `room` (string), `username` (string) | Everyone in the room, including the player who joined. Not sent for `global` or private rooms. |
+| `chat.left` | `room` (string), `username` (string) | Everyone in the room, including the player who left. Not sent for `global` or private rooms. |
 
 Messages are limited to 256 characters. Chat is not filtered; moderators
 handle abuse with gag, kick and ban.
@@ -1358,7 +1406,7 @@ client that supports it.
 **The v1 core.** These never change while v1 exists:
 `session.init`, `session.login`, `session.welcome`, `session.games`,
 `session.ping`, `session.closed`, `seek.list`, `seek.create`,
-`seek.accept`, `game.attach`, `game.start`, `game.state`, `game.move`,
+`seek.accept`, `game.attach`, `game.start`, `game.state`, `game.over`, `game.move`,
 `ack` and `error`. A client or bot that uses only these keeps working.
 
 ### Example: a new game rule
@@ -1937,7 +1985,13 @@ curl -X POST https://beta.playtak.com/api/v1/admin/users/alice/password \
 Not part of v1, but the design leaves room for them:
 
 - **Chat history.** Reading back messages after a disconnect, sending
-  messages to offline players, and room member lists.
+  messages to offline players, and room member lists. Private rooms would
+  then be kept, not removed when both players go offline.
+- **Group private rooms.** `chat.invite` to add players to a private room.
+  A two-player room stays two players: inviting a third makes a new room.
+  Text protocol players cannot be invited, since `Tell` only reaches one
+  player. Leaving a private room comes with this.
+- **Blocking.** Stop a player from opening private rooms with you.
 - **Bot management on the website.** A page where bot owners manage their
   bot's settings and key, instead of asking a moderator.
 - **Give time settings.** A seek setting to turn giving time off, which

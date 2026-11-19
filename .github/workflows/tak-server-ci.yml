@@ -33,4 +33,5 @@ jobs:
         run: |
           bash -n tak-server/deploy/deploy.sh
           bash -n tak-server/deploy/rollback.sh
-          shellcheck tak-server/deploy/deploy.sh tak-server/deploy/rollback.sh
+          bash -n scripts/migrations/run-all.sh
+          shellcheck tak-server/deploy/deploy.sh tak-server/deploy/rollback.sh scripts/migrations/run-all.sh

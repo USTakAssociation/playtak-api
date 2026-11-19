@@ -83,7 +83,8 @@ func TestSudoKickThroughProtocol(t *testing.T) {
 	m := loginAs(h, "mona")
 	m.send("sudo kick PATTY")
 	m.expect("sudoReply > sudo kick PATTY")
-	m.expect("sudoReply patty kicked")
+	// patty's disconnect can broadcast "Online 1" before the reply.
+	m.drainUntil("sudoReply patty kicked")
 	p.expectClosed(transport.CloseKicked)
 	// Wait for patty's session to finish cleaning up, so they're offline.
 	<-ps.Done()
@@ -108,7 +109,7 @@ func TestSudoBanEndsGameAndKicks(t *testing.T) {
 	m.send("sudo ban bobby abusive chat")
 	m.expect("sudoReply > sudo ban bobby abusive chat")
 	m.drainUntil("sudoReply bobby kicked") // after the game list update
-	m.expect("sudoReply bobby banned")
+	m.drainUntil("sudoReply bobby banned")
 	// The game ends at once as a loss for bobby, with no reconnect window.
 	a.drainUntil("Game#1 Over 1-0")
 	b.drainUntil("Game#1 Over 1-0")

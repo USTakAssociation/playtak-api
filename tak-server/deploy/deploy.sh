@@ -54,17 +54,26 @@ done
 # What a failure rolls back to depends on how far the deploy got:
 #   stopped:  the databases are untouched; start Java.
 #   backed-up: restore the backup taken after stopping (lossless), start Java.
-#   started:  Go may have saved games; keep the data, start Java (it runs on
-#             the migrated schema).
+#   started:  set before Go starts, not after the health check: once running,
+#             Go may write (registrations, tokens, games) even if it then
+#             fails the check, and a restore would lose that. Keep the data
+#             and start Java, which runs on the migrated schema.
 phase=stopped
 on_failure() {
 	trap - ERR
 	echo "deploy failed at step '$phase'; rolling back to Java" >&2
 	journalctl -u "$go_unit" -n 30 --no-pager >&2 2>/dev/null || true
+	local restore=
 	if [ "$phase" = backed-up ]; then
-		bash "$release/rollback.sh" "$env" --restore-db
-	else
-		bash "$release/rollback.sh" "$env"
+		restore=--restore-db
+	fi
+	if ! bash "$release/rollback.sh" "$env" ${restore:+"$restore"}; then
+		cat >&2 <<-EOF
+			ROLLBACK FAILED: neither server is running.
+			Check: systemctl status $go_unit $java_unit
+			Retry: bash $release/rollback.sh $env $restore
+		EOF
+		exit 2
 	fi
 	exit 1
 }
@@ -93,20 +102,9 @@ sqlite3 "$games_db" ".backup '$backups/$stamp/games.db'"
 # Written last: rollback.sh only restores backups that have it.
 printf '%s\n%s\n' "$players_db" "$games_db" >"$backups/$stamp/paths"
 phase=backed-up
-# Keep the 10 newest backups. Names are timestamps, so the glob sorts oldest
-# first.
-backup_dirs=("$backups"/*/)
-if [ "${#backup_dirs[@]}" -gt 10 ]; then
-	rm -rf "${backup_dirs[@]:0:${#backup_dirs[@]}-10}"
-fi
 
 echo "running migrations"
-# shortcut: the order is listed here and in scripts/development/create_databases.sh; keep both in sync when adding one.
-m=$release/migrations
-bash "$m/2026-05-add-increment-scales.sh" "$games_db"
-bash "$m/2026-08-add-nocase-player-indexes.sh" "$games_db"
-bash "$m/2026-09-players-id-primary-key.sh" "$players_db"
-bash "$m/2026-09-add-auth-tokens.sh" "$players_db"
+bash "$release/migrations/run-all.sh" "$players_db" "$games_db"
 
 echo "installing to $app_dir"
 mkdir -p "$app_dir"
@@ -136,7 +134,11 @@ EOF
 
 systemctl daemon-reload
 # Disabled so a reboot can't start both servers on the same ports.
-systemctl disable "$java_unit" 2>/dev/null || true
+systemctl disable "$java_unit" 2>/dev/null || true # fails if there's no Java unit
+if systemctl is-enabled --quiet "$java_unit" 2>/dev/null; then
+	echo "$java_unit is still enabled; a reboot would start both servers" >&2
+	on_failure
+fi
 phase=started
 systemctl enable --now "$go_unit"
 
@@ -145,6 +147,15 @@ for _ in $(seq 1 30); do
 	if line=$(timeout 2 bash -c "exec 3<>/dev/tcp/127.0.0.1/$telnet_port && head -n1 <&3" 2>/dev/null) &&
 		[[ $line == Welcome!* ]]; then
 		echo "deployed: $go_unit is running"
+		# Deployed, so nothing below may roll back.
+		trap - ERR
+		# Keep the 10 newest backups, pruning only now so a run of failed
+		# deploys can't push out the last good one. Names are timestamps, so
+		# the glob sorts oldest first.
+		backup_dirs=("$backups"/*/)
+		if [ "${#backup_dirs[@]}" -gt 10 ]; then
+			rm -rf "${backup_dirs[@]:0:${#backup_dirs[@]}-10}" || echo "warning: could not prune old backups in $backups" >&2
+		fi
 		exit 0
 	fi
 	sleep 1
