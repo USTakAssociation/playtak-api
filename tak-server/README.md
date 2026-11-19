@@ -467,9 +467,10 @@ The deliberate changes in client-visible behaviour, for release notes:
 **Moderation**
 - Ranks are enforced: a moderator acts only on players, an admin on players and moderators, and nobody acts on themselves. Java let a moderator act on an admin who wasn't also flagged mod.
 - Banning someone offline replies `<name> banned`. A ban also revokes the player's REST tokens and ends their game right away as a loss. Guests can only be kicked.
-- `sudo set password` hides the password in the echo and the logs, and revokes the player's tokens.
+- `sudo set password` hides the password in the echo and the logs, and revokes the player's tokens (as do password resets and changes).
 - `sudo list` output is sorted, without a trailing comma, and lists each player once.
 - `mod`, `admin` and `bot` say when the player already has, or doesn't have, that role.
+- `mod`, `admin` and `bot` (and their `un` forms) can't target an admin, including yourself; Java let any admin demote any other. Removing an admin takes a database change.
 - New: `sudo revoke <name>` (admin only).
 
 **Connections**
@@ -483,6 +484,8 @@ The deliberate changes in client-visible behaviour, for release notes:
   | 1011 internal error | a line over 64 KB, or a client too slow to keep up |
 
 - A client that falls 1024 lines behind is disconnected, so one slow connection can't hold up the server. Java kept queuing. Telnet clients are disconnected the same way, without a code.
+- Each IP may hold `TAK_MAX_CONNECTIONS_PER_IP` (default 100) connections open at once. Java had no cap.
+- Chat is limited to 10 messages per 10 seconds per player. Java had no limit.
 
 **Accounts**
 - Java accepted some non-ASCII passwords through a legacy fallback. That fallback is gone, so those players need to reset their password.
