@@ -335,6 +335,11 @@ func (s *Service) setRole(ctx context.Context, actor *online.Player, name string
 	if strings.EqualFold(record.Name, actor.Name) {
 		return "You can't change your own roles"
 	}
+	// As for every other command, nobody acts on their own rank or above, so
+	// one admin can't demote another; that takes a database change.
+	if rankOf(record.IsAdmin, record.IsMod) >= rankOf(actor.IsAdmin(), actor.IsMod()) {
+		return noRights
+	}
 	has := map[players.Flag]bool{players.FlagMod: record.IsMod, players.FlagAdmin: record.IsAdmin, players.FlagBot: record.IsBot}[flag]
 	article := "a "
 	if role == "admin" {
