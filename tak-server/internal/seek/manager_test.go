@@ -172,3 +172,25 @@ func TestRematch(t *testing.T) {
 		t.Errorf("unrelated rematch: %+v", res)
 	}
 }
+
+// A third player can't post a rematch of someone else's game and have it
+// accepted in place of the real opponent's.
+func TestRematchIgnoresOtherCreators(t *testing.T) {
+	m := NewManager()
+	alice, bob, mallory := &listener{}, &listener{}, &listener{}
+
+	hijack, _ := m.Rematch(mallory, 42, Request{Creator: "mallory", Opponent: "bob", Settings: std5})
+	res, err := m.Rematch(bob, 42, Request{Creator: "bob", Opponent: "alice", Settings: std5})
+	if err != nil || res.AcceptID != 0 || res.Created.ID == 0 {
+		t.Fatalf("bob should post his own rematch, not accept mallory's: %+v, %v", res, err)
+	}
+
+	// Alice, the real opponent, still matches bob's seek.
+	res, _ = m.Rematch(alice, 42, Request{Creator: "alice", Opponent: "bob", Settings: std5})
+	if s, ok := m.Get(res.AcceptID); !ok || s.Creator != "bob" {
+		t.Errorf("alice should be told to accept bob's seek, got %+v", res)
+	}
+	if _, ok := m.Get(hijack.Created.ID); !ok {
+		t.Error("mallory's seek is a plain private seek and should stay open")
+	}
+}

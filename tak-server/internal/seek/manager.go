@@ -123,8 +123,10 @@ type RematchResult struct {
 }
 
 // Rematch offers a rematch of gameID, replacing owner's seek. If a rematch
-// seek for that game is already addressed to the requester, it is left for
-// them to accept instead of posting a second one.
+// seek for that game is already addressed to the requester by the opponent
+// they named, it is left for them to accept instead of posting a second one.
+// Matching the creator too stops a third player from posting a rematch of
+// someone else's game and having it auto-accepted in place of the real one.
 func (m *Manager) Rematch(owner Listener, gameID int, request Request) (RematchResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -133,7 +135,8 @@ func (m *Manager) Rematch(owner Listener, gameID int, request Request) (RematchR
 	}
 	m.removeOwnerLocked(owner)
 	for _, s := range m.seeks {
-		if s.RematchOf == gameID && strings.EqualFold(s.Opponent, request.Creator) {
+		if s.RematchOf == gameID && strings.EqualFold(s.Opponent, request.Creator) &&
+			strings.EqualFold(s.Creator, request.Opponent) {
 			return RematchResult{AcceptID: s.ID}, nil
 		}
 	}
