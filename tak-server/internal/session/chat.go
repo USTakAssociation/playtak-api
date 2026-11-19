@@ -15,7 +15,9 @@ func (s *Session) shout(player *online.Player, command protocol.PostShout) {
 	for _, other := range s.manager.readySessions() {
 		everyone = append(everyone, other)
 	}
-	s.manager.chat.Shout(s.chatSender(player), everyone, command.Text)
+	if err := s.manager.chat.Shout(s.chatSender(player), everyone, command.Text); err != nil {
+		s.Send(protocol.CommandFailed{Reason: err.Error()})
+	}
 }
 
 func (s *Session) tell(player *online.Player, command protocol.SendTell) {

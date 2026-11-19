@@ -1462,6 +1462,7 @@ instead.
 | Message size, client to server | 64 KB. A larger message closes the connection with `message_too_big`. |
 | Idle timeout | 60 seconds without traffic |
 | Chat message | 256 characters |
+| Chat messages per player | 10 per 10 seconds, shouts, room shouts and tells together |
 | Commands per connection | 20 per second, with bursts up to 40 (proposed). Over the limit, you get `RATE_LIMITED`. |
 | Failed logins per username | 10 per 15 minutes. A successful login resets it. |
 | Failed logins per IP | 20 per minute. Successful logins do not count. |

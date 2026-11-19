@@ -106,12 +106,13 @@ func run(ctx context.Context, settings *config.Config, log *slog.Logger) error {
 		CommandTimeout:             settings.GameCommandTimeout,
 		AllowMultipleSessions:      settings.AllowMultipleSessions,
 	}, gameStore, playerStore, results, seeks, registry, log)
+	chatSvc := chat.NewService(log)
 	sessions := session.NewManager(ctx, session.Services{
 		Auth:       authSvc,
 		Players:    registry,
 		Seeks:      seeks,
 		Games:      gameManager,
-		Chat:       chat.NewService(log),
+		Chat:       chatSvc,
 		Moderation: moderation.NewService(playerStore, authSvc, gameManager, registry, mailer, log),
 	}, session.Config{AllowMultipleSessions: settings.AllowMultipleSessions}, log)
 	if settings.ServiceAPIKey == "" {
@@ -158,7 +159,7 @@ func run(ctx context.Context, settings *config.Config, log *slog.Logger) error {
 		log.Info("http api listening", "addr", settings.HTTPAddr)
 		errc <- ignoreClosed(apiSrv.ListenAndServe())
 	}()
-	go cleanupLoop(ctx, authSvc, apiServer, registry, log)
+	go cleanupLoop(ctx, authSvc, apiServer, chatSvc, registry, log)
 
 	select {
 	case <-ctx.Done():
@@ -204,7 +205,7 @@ func rate(ctx context.Context, settings *config.Config, log *slog.Logger) error 
 
 // cleanupLoop hourly forgets idle guests and rate-limit counters that have
 // reset, and deletes expired API tokens.
-func cleanupLoop(ctx context.Context, authSvc *auth.Service, apiServer *api.Server, registry *online.Registry, log *slog.Logger) {
+func cleanupLoop(ctx context.Context, authSvc *auth.Service, apiServer *api.Server, chatSvc *chat.Service, registry *online.Registry, log *slog.Logger) {
 	t := time.NewTicker(cleanupInterval)
 	defer t.Stop()
 	for {
@@ -215,6 +216,7 @@ func cleanupLoop(ctx context.Context, authSvc *auth.Service, apiServer *api.Serv
 		}
 		authSvc.PruneLimits()
 		apiServer.PruneLimits()
+		chatSvc.PruneLimits()
 		if n := registry.PruneGuests(guestIdleTimeout); n > 0 {
 			log.Info("pruned idle guests", "count", n)
 		}

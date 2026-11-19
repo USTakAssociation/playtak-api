@@ -243,3 +243,45 @@ func TestConcurrentRooms(t *testing.T) {
 		t.Errorf("%d rooms left", n)
 	}
 }
+
+// Shouts, room shouts and tells share one limit per player, so switching
+// between them doesn't get around it, and one player's flood doesn't limit
+// anyone else.
+func TestMessagesRateLimitedPerPlayer(t *testing.T) {
+	s, _ := newService()
+	a, b := &member{}, &member{}
+	alice := Sender{Name: "alice", Session: a}
+	s.Join("room", a)
+	a.take()
+
+	for i := range messagesPerPlayer {
+		var err error
+		switch i % 3 {
+		case 0:
+			err = s.Shout(alice, []Member{a, b}, "hi")
+		case 1:
+			err = s.ShoutRoom(alice, "room", "hi")
+		case 2:
+			err = s.Tell(alice, "bob", b, "hi")
+		}
+		if err != nil {
+			t.Fatalf("message %d: %v", i, err)
+		}
+	}
+	b.take()
+	if err := s.Shout(alice, []Member{a, b}, "spam"); !errors.Is(err, ErrTooFast) {
+		t.Errorf("shout over the limit: got %v, want ErrTooFast", err)
+	}
+	if err := s.ShoutRoom(alice, "room", "spam"); !errors.Is(err, ErrTooFast) {
+		t.Errorf("room shout over the limit: got %v, want ErrTooFast", err)
+	}
+	if err := s.Tell(alice, "bob", b, "spam"); !errors.Is(err, ErrTooFast) {
+		t.Errorf("tell over the limit: got %v, want ErrTooFast", err)
+	}
+	if got := b.take(); len(got) != 0 {
+		t.Errorf("limited messages were delivered: %v", got)
+	}
+	if err := s.Shout(Sender{Name: "bob", Session: b}, []Member{a, b}, "hi"); err != nil {
+		t.Errorf("bob is limited by alice's flood: %v", err)
+	}
+}

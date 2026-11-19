@@ -144,3 +144,18 @@ func TestDisconnectLeavesRooms(t *testing.T) {
 	a.expect("ShoutRoom lobby <Guest1> anyone")
 	a.expectNothing()
 }
+
+func TestShoutFloodRefused(t *testing.T) {
+	h := newHarness(t, Config{})
+	a := loginGuestWith(h, "")
+	b := loginGuestWith(h, "")
+	a.drainUntil("OnlinePlayers")
+	for range 10 {
+		a.send("Shout hi")
+		a.expect("Shout <Guest1> hi")
+		b.expect("Shout <Guest1> hi")
+	}
+	a.send("Shout spam")
+	a.expect("Error:You are sending messages too fast")
+	b.expectNothing()
+}

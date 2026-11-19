@@ -7,8 +7,10 @@ import (
 	"log/slog"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/protocol"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/ratelimit"
 )
 
 // MaxMessage is the longest message in characters; longer ones are cut, as
@@ -19,11 +21,23 @@ const MaxMessage = 256
 // so they aren't told their messages go nowhere.
 const mutedNotice = "<Server: You have been muted for inappropriate chat behavior.>"
 
+// Each player may send messagesPerPlayer messages (shouts, room shouts and
+// tells together) per messagesPeriod, all at once if they like. One shout
+// reaches every session, so a flood could otherwise fill slow clients' send
+// queues and get them disconnected.
+const (
+	messagesPerPlayer = 10
+	messagesPeriod    = 10 * time.Second
+	maxTrackedPlayers = 100_000
+)
+
 var (
 	// ErrNotOnline means the player to tell isn't logged in.
 	ErrNotOnline = errors.New("Player is not online")
 	// ErrNotInRoom means the sender hasn't joined the room.
 	ErrNotInRoom = errors.New("You are not in that room")
+	// ErrTooFast means the sender has used up their messages for now.
+	ErrTooFast = errors.New("You are sending messages too fast")
 )
 
 // Member is a session that can receive chat.
@@ -41,28 +55,48 @@ type Sender struct {
 // Service delivers chat. Every message passes through it, which is where
 // chat history would be recorded.
 type Service struct {
-	log *slog.Logger
+	log   *slog.Logger
+	limit *ratelimit.Keyed // messages per player name
 
 	mu    sync.Mutex
 	rooms map[string]map[Member]struct{}
 }
 
 func NewService(log *slog.Logger) *Service {
-	return &Service{log: log, rooms: make(map[string]map[Member]struct{})}
+	return &Service{
+		log:   log,
+		limit: ratelimit.New(messagesPerPlayer, messagesPeriod, maxTrackedPlayers),
+		rooms: make(map[string]map[Member]struct{}),
+	}
+}
+
+// PruneLimits forgets players whose message limits have reset.
+func (s *Service) PruneLimits() { s.limit.Prune(s.log, "chat messages per player") }
+
+// allow takes one message from the sender's limit, or returns ErrTooFast.
+func (s *Service) allow(from Sender) error {
+	if ok, _ := s.limit.Allow(from.Name); !ok {
+		return ErrTooFast
+	}
+	return nil
 }
 
 // Shout sends text to everyone, or only back to a gagged sender.
-func (s *Service) Shout(from Sender, everyone []Member, text string) {
+func (s *Service) Shout(from Sender, everyone []Member, text string) error {
+	if err := s.allow(from); err != nil {
+		return err
+	}
 	text = truncate(text)
 	s.log.Info("shout", "player", from.Name, "gagged", from.Gagged, "text", text)
 	if from.Gagged {
 		from.Session.Send(protocol.Shout{From: from.Name, Text: mutedNotice})
-		return
+		return nil
 	}
 	event := protocol.Shout{From: from.Name, Text: text}
 	for _, m := range everyone {
 		m.Send(event)
 	}
+	return nil
 }
 
 // Join adds m to room, creating it if needed.
@@ -128,6 +162,9 @@ func (s *Service) ShoutRoom(from Sender, room, text string) error {
 	if !member {
 		return ErrNotInRoom
 	}
+	if err := s.allow(from); err != nil {
+		return err
+	}
 	s.log.Info("room shout", "player", from.Name, "room", room, "gagged", from.Gagged, "text", text)
 	if from.Gagged {
 		from.Session.Send(protocol.RoomShout{Room: room, From: from.Name, Text: mutedNotice})
@@ -151,6 +188,9 @@ type Recipient interface {
 func (s *Service) Tell(from Sender, to string, target Recipient, text string) error {
 	if target == nil {
 		return ErrNotOnline
+	}
+	if err := s.allow(from); err != nil {
+		return err
 	}
 	text = truncate(text)
 	s.log.Info("tell", "player", from.Name, "to", to, "gagged", from.Gagged)

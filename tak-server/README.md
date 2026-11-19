@@ -299,6 +299,7 @@ Logins, registrations and password resets are limited inside
 | `GET /api/v1/seeks` per IP | 60 per minute |
 | `GET /v1/games-history/*` and `/v1/ratings/*` per IP | 60 per minute, shared |
 | `GET /events` per IP | 30 per minute |
+| Chat messages per player (shouts, room shouts and tells together) | 10 per 10 seconds; over it the client gets `Error:You are sending messages too fast` |
 
 A limited REST request gets `429 Too Many Requests` with a `Retry-After`
 header and `{"error":"rate_limited"}`. Over the text protocol, a limited
