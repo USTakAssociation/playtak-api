@@ -113,6 +113,11 @@ mv -f "$app_dir/tak-server.new" "$app_dir/tak-server"
 install -m 0600 "$release/.env" "$app_dir/.env"
 install -m 0755 "$release/rollback.sh" "$app_dir/rollback.sh"
 
+# TODO: the server runs as root with no sandboxing, so any remote code
+# execution bug is root on the host. Once the NodeJS API and the Java server
+# are retired, run tak-server in a rootless podman container instead (or at
+# least a dedicated user plus NoNewPrivileges, ProtectSystem=strict,
+# ReadWritePaths= for the DB directory and PrivateTmp).
 cat >"/etc/systemd/system/$go_unit" <<EOF
 [Unit]
 Description=PlayTak Go server ($env)
