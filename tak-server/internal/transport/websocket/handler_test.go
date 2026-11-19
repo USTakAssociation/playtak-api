@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/clientip"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/transport"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/transport/transporttest"
 )
 
@@ -158,4 +159,32 @@ func TestClientIPWithoutResolver(t *testing.T) {
 	if err != nil || !strings.HasPrefix(string(data), "addr:127.0.0.1:") {
 		t.Errorf("got %q %v, want the connection address", data, err)
 	}
+}
+
+func TestConnectionsPerIPCapped(t *testing.T) {
+	resolver, _ := clientip.NewResolver("127.0.0.1/32,::1/128")
+	limit, _ := transport.NewConnLimit(1, "")
+	h := &Handler{Acceptor: transporttest.NewEcho(), Log: slog.New(slog.NewTextHandler(io.Discard, nil)), ClientIP: resolver, Limit: limit}
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+	url := "ws" + strings.TrimPrefix(srv.URL, "http")
+	from := func(ip string) (*websocket.Conn, *http.Response, error) {
+		return websocket.DefaultDialer.Dial(url, http.Header{"X-Real-IP": {ip}})
+	}
+
+	ws, _, err := from("198.51.100.9")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	expect(t, ws, "hello")
+	// Judged by the client IP the proxy reports, not the proxy's own.
+	if _, resp, err := from("198.51.100.9"); err == nil || resp == nil || resp.StatusCode != http.StatusTooManyRequests {
+		t.Errorf("second connection from the same client: want 429, got %v %v", resp, err)
+	}
+	other, _, err := from("198.51.100.10")
+	if err != nil {
+		t.Fatalf("another client behind the same proxy should connect: %v", err)
+	}
+	other.Close()
 }

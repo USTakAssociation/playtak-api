@@ -123,6 +123,10 @@ func run(ctx context.Context, settings *config.Config, log *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("TAK_TRUSTED_PROXIES: %w", err)
 	}
+	connLimit, err := transport.NewConnLimit(settings.MaxConnectionsPerIP, settings.ConnectionLimitExempt)
+	if err != nil {
+		return fmt.Errorf("TAK_CONNECTION_LIMIT_EXEMPT: %w", err)
+	}
 	authSvc.EnableLimits(settings.LoginLimitByUsername)
 	apiServer := api.NewServer(authSvc, registry, seeks, settings.ServiceAPIKey, clientIP, api.PublicData{
 		Games:         gameStore,
@@ -137,7 +141,7 @@ func run(ctx context.Context, settings *config.Config, log *slog.Logger) error {
 	}
 	wsSrv := &http.Server{
 		Addr:              settings.WSAddr,
-		Handler:           &websocket.Handler{Acceptor: sessions, Log: log, ClientIP: clientIP},
+		Handler:           &websocket.Handler{Acceptor: sessions, Log: log, ClientIP: clientIP, Limit: connLimit},
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	apiSrv := &http.Server{
@@ -149,7 +153,7 @@ func run(ctx context.Context, settings *config.Config, log *slog.Logger) error {
 	errc := make(chan error, 3)
 	go func() {
 		log.Info("telnet listening", "addr", settings.TelnetAddr)
-		errc <- (&telnet.Server{Acceptor: sessions, Log: log}).Serve(ctx, telnetLn)
+		errc <- (&telnet.Server{Acceptor: sessions, Log: log, Limit: connLimit}).Serve(ctx, telnetLn)
 	}()
 	go func() {
 		log.Info("websocket listening", "addr", settings.WSAddr)

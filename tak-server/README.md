@@ -195,6 +195,8 @@ main ones:
 | `TAK_SERVICE_API_KEY` | empty | Shared secret for service-to-service calls such as `PUT /api/v1/seeks`. Empty disables them. |
 | `TAK_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`. |
 | `TAK_TRUSTED_PROXIES` | `127.0.0.1/32,::1/128` | Reverse proxies whose `X-Real-IP` / `X-Forwarded-For` headers are believed. See [Rate limits](#rate-limits). |
+| `TAK_MAX_CONNECTIONS_PER_IP` | `100` | Open telnet and WebSocket connections allowed per client IP (an IPv6 /64 counts as one). Over it, telnet connections are closed and WebSocket upgrades get `429`. `0` turns it off. |
+| `TAK_CONNECTION_LIMIT_EXEMPT` | (empty) | IPs or CIDRs, comma-separated, with no connection cap, e.g. a host running many bots. |
 | `TAK_LOGIN_LIMIT` | `username` | `username` counts failed logins per username as well as per IP; `ip` limits per IP only. |
 | `TAK_EVENTS_CSV_URL` | the USTA events sheet | The events Google Sheet, published to the web as CSV. Fetched at most every 30 minutes. |
 | `TAK_PUBLIC_GAMES_DB` | empty | The downloadable copy of the games DB, reported by `GET /v1/games-history/db`. Empty makes that endpoint 404. |

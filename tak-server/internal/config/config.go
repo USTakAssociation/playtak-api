@@ -48,6 +48,13 @@ type Config struct {
 	// anywhere else are judged by their connection address.
 	TrustedProxies string // TAK_TRUSTED_PROXIES
 
+	// MaxConnectionsPerIP caps open telnet and WebSocket connections per
+	// client IP; 0 means no cap.
+	MaxConnectionsPerIP int // TAK_MAX_CONNECTIONS_PER_IP
+	// ConnectionLimitExempt lists IPs (CIDRs, comma-separated) with no
+	// connection cap, e.g. a host running many bots.
+	ConnectionLimitExempt string // TAK_CONNECTION_LIMIT_EXEMPT
+
 	// LoginLimitByUsername counts failed logins per username as well as per
 	// IP. TAK_LOGIN_LIMIT: "username" (default) or "ip" for per-IP only.
 	LoginLimitByUsername bool
@@ -120,6 +127,11 @@ func FromEnv(getenv func(string) string) (*Config, error) {
 		return nil, fmt.Errorf("TAK_ALLOW_MULTIPLE_SESSIONS: %w", err)
 	}
 
+	maxConns, err := strconv.Atoi(get("TAK_MAX_CONNECTIONS_PER_IP", "100"))
+	if err != nil || maxConns < 0 {
+		return nil, fmt.Errorf("TAK_MAX_CONNECTIONS_PER_IP: %q is not a non-negative number", getenv("TAK_MAX_CONNECTIONS_PER_IP"))
+	}
+
 	var byUsername bool
 	switch mode := get("TAK_LOGIN_LIMIT", "username"); mode {
 	case "username":
@@ -149,6 +161,8 @@ func FromEnv(getenv func(string) string) (*Config, error) {
 		LogLevel:                   level,
 		ServiceAPIKey:              getenv("TAK_SERVICE_API_KEY"),
 		TrustedProxies:             get("TAK_TRUSTED_PROXIES", "127.0.0.1/32,::1/128"),
+		MaxConnectionsPerIP:        maxConns,
+		ConnectionLimitExempt:      getenv("TAK_CONNECTION_LIMIT_EXEMPT"),
 		LoginLimitByUsername:       byUsername,
 		RatingCursorFile:           get("TAK_RATING_CURSOR_FILE", filepath.Join(filepath.Dir(gamesDB), "previous.txt")),
 		RatingListFile:             getenv("TAK_RATING_LIST_FILE"),

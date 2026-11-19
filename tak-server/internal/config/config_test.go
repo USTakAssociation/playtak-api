@@ -39,6 +39,9 @@ func TestFromEnvDefaults(t *testing.T) {
 	if cfg.TrustedProxies != "127.0.0.1/32,::1/128" || !cfg.LoginLimitByUsername {
 		t.Errorf("TrustedProxies = %q, LoginLimitByUsername = %v", cfg.TrustedProxies, cfg.LoginLimitByUsername)
 	}
+	if cfg.MaxConnectionsPerIP != 100 || cfg.ConnectionLimitExempt != "" {
+		t.Errorf("MaxConnectionsPerIP = %d, ConnectionLimitExempt = %q", cfg.MaxConnectionsPerIP, cfg.ConnectionLimitExempt)
+	}
 }
 
 func TestFromEnvOverrides(t *testing.T) {
@@ -51,6 +54,8 @@ func TestFromEnvOverrides(t *testing.T) {
 		"TAK_LOG_LEVEL":               "debug",
 		"TAK_TRUSTED_PROXIES":         "10.0.0.0/8",
 		"TAK_LOGIN_LIMIT":             "ip",
+		"TAK_MAX_CONNECTIONS_PER_IP":  "0",
+		"TAK_CONNECTION_LIMIT_EXEMPT": "10.0.0.5",
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -70,6 +75,9 @@ func TestFromEnvOverrides(t *testing.T) {
 	if cfg.TrustedProxies != "10.0.0.0/8" || cfg.LoginLimitByUsername {
 		t.Errorf("TrustedProxies = %q, LoginLimitByUsername = %v", cfg.TrustedProxies, cfg.LoginLimitByUsername)
 	}
+	if cfg.MaxConnectionsPerIP != 0 || cfg.ConnectionLimitExempt != "10.0.0.5" {
+		t.Errorf("MaxConnectionsPerIP = %d, ConnectionLimitExempt = %q", cfg.MaxConnectionsPerIP, cfg.ConnectionLimitExempt)
+	}
 }
 
 func TestFromEnvInvalidValues(t *testing.T) {
@@ -79,6 +87,7 @@ func TestFromEnvInvalidValues(t *testing.T) {
 		"TAK_LOG_LEVEL":               "loud",
 		"TAK_GAME_COMMAND_TIMEOUT":    "soon",
 		"TAK_LOGIN_LIMIT":             "account",
+		"TAK_MAX_CONNECTIONS_PER_IP":  "-1",
 	} {
 		if _, err := FromEnv(env(map[string]string{k: v})); err == nil {
 			t.Errorf("%s=%q: expected error", k, v)
