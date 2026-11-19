@@ -364,12 +364,10 @@ func (s *Service) setPassword(ctx context.Context, me rank, name, password strin
 	if rankOf(record.IsAdmin, record.IsMod) >= me {
 		return noRights
 	}
+	// SetPassword also revokes the player's API tokens.
 	if err := s.accounts.SetPassword(ctx, record.Name, password); err != nil {
 		s.log.Error("set password", "player", record.Name, "err", err)
 		return serverError
-	}
-	if _, err := s.accounts.RevokeAll(ctx, record.Name); err != nil {
-		s.log.Error("revoke tokens after password set", "player", record.Name, "err", err)
 	}
 	return "Password set"
 }

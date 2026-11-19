@@ -240,12 +240,21 @@ func (s *Service) SetPassword(ctx context.Context, name, password string) error 
 	return s.setPassword(ctx, record.ID, password)
 }
 
+// setPassword replaces the password and revokes every API token the player
+// holds, so a stolen token stops working once the password changes.
 func (s *Service) setPassword(ctx context.Context, id int, password string) error {
 	hash, err := hashPassword(password)
 	if err != nil {
 		return fmt.Errorf("hash password: %w", err)
 	}
-	return s.players.SetPassword(ctx, id, hash)
+	if err := s.players.SetPassword(ctx, id, hash); err != nil {
+		return err
+	}
+	// The password has changed either way, so this doesn't fail the call.
+	if _, err := s.tokens.DeleteForPlayer(ctx, id); err != nil {
+		s.log.Error("revoke tokens after password change", "player_id", id, "err", err)
+	}
+	return nil
 }
 
 // NewGuestToken returns a token that rejoins the same guest when passed to

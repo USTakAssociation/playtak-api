@@ -381,8 +381,9 @@ func TestRoles(t *testing.T) {
 func TestSetPassword(t *testing.T) {
 	e := newEnv(t)
 	want(t, e.run("ada", "sudo set password Pat ******", protocol.SudoSetPassword, "Pat", "n3wpassword"), "Password set")
-	if e.accounts.passwords["pat"] != "n3wpassword" || !slices.Equal(e.accounts.revoked, []string{"pat"}) {
-		t.Errorf("passwords %v, revoked %v", e.accounts.passwords, e.accounts.revoked)
+	// Revoking the player's tokens is SetPassword's job (tested in auth).
+	if e.accounts.passwords["pat"] != "n3wpassword" {
+		t.Errorf("passwords %v", e.accounts.passwords)
 	}
 	want(t, e.run("ada", "", protocol.SudoSetPassword, "mona", "n3wpassword"), "Password set")
 	want(t, e.run("ada", "", protocol.SudoSetPassword, "abe", "n3wpassword"), "You don't have rights")

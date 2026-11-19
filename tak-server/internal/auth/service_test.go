@@ -237,3 +237,47 @@ func TestNewGuestToken(t *testing.T) {
 		t.Errorf("tokens %q, %q", a, b)
 	}
 }
+
+// Every way of changing a password revokes the player's API tokens, so a
+// stolen token stops working once the password changes.
+func TestPasswordChangeRevokesTokens(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name   string
+		change func(f fixture) error
+	}{
+		{"change", func(f fixture) error { return f.svc.ChangePassword(ctx, "alice", "oldpass1", "newpass1") }},
+		{"admin set", func(f fixture) error { return f.svc.SetPassword(ctx, "alice", "newpass1") }},
+		{"reset", func(f fixture) error {
+			if err := f.svc.SendResetToken(ctx, "alice", "a@example.com"); err != nil {
+				return err
+			}
+			token := strings.TrimPrefix(f.mail.next(t).body, "Your reset token is ")
+			return f.svc.ResetPassword(ctx, "alice", token, "newpass1")
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t)
+			alice := f.addPlayer(t, "alice", "a@example.com", "oldpass1")
+			bob := f.addPlayer(t, "bobby", "b@example.com", "oldpass1")
+			stolen, err := f.svc.IssueTokens(ctx, alice.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			bobs, _ := f.svc.IssueTokens(ctx, bob.ID)
+
+			if err := tc.change(f); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.svc.Authenticate(ctx, stolen.AccessToken); !errors.Is(err, ErrAuthFailed) {
+				t.Errorf("access token still works: %v", err)
+			}
+			if _, err := f.svc.Refresh(ctx, stolen.RefreshToken); !errors.Is(err, ErrAuthFailed) {
+				t.Errorf("refresh token still works: %v", err)
+			}
+			if _, err := f.svc.Authenticate(ctx, bobs.AccessToken); err != nil {
+				t.Errorf("another player's tokens were revoked: %v", err)
+			}
+		})
+	}
+}
