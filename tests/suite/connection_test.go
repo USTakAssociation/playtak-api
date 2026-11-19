@@ -39,7 +39,8 @@ func TestConnectionQuitAfterLogin(t *testing.T) {
 	client.LoginGuest(t, c)
 	c.DrainUntil("OnlinePlayers ")
 	c.Send("quit")
-	c.ExpectNoMessage(time.Second)
+	// Another test's player logging out can broadcast presence meanwhile.
+	c.ExpectNoMessageExcept(time.Second, "Online ", "OnlinePlayers ")
 }
 
 func TestConnectionUnknownCommandPreAuth(t *testing.T) {

@@ -1,0 +1,248 @@
+package games
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io/fs"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"sync"
+	"time"
+)
+
+// Finisher records a finished game.
+type Finisher interface {
+	Finish(ctx context.Context, id int, notation, result string) error
+}
+
+// Result is a finished game waiting to be written to the database.
+type Result struct {
+	ID       int    `json:"id"`
+	Notation string `json:"notation"`
+	Result   string `json:"result"`
+}
+
+const (
+	minRetry = 5 * time.Second
+	maxRetry = 5 * time.Minute
+)
+
+// Results writes finished games to the database without ever losing one.
+// Save first appends the result to a file and returns; a background loop
+// writes pending results to the database and removes them from the file,
+// retrying with backoff while the database is unavailable. Results still in
+// the file when the server stops are written on the next start.
+type Results struct {
+	store Finisher
+	path  string
+	log   *slog.Logger
+
+	mu   sync.Mutex // guards the file
+	wake chan struct{}
+}
+
+func NewResults(store Finisher, path string, log *slog.Logger) *Results {
+	return &Results{store: store, path: path, log: log, wake: make(chan struct{}, 1)}
+}
+
+// Save durably records r for writing.
+func (r *Results) Save(result Result) error {
+	line, err := json.Marshal(result)
+	if err != nil {
+		return err
+	}
+	r.mu.Lock()
+	err = appendSync(r.path, append(line, '\n'))
+	r.mu.Unlock()
+	if err != nil {
+		return fmt.Errorf("save result of game %d: %w", result.ID, err)
+	}
+	select {
+	case r.wake <- struct{}{}:
+	default:
+	}
+	return nil
+}
+
+// Run writes pending results until ctx is cancelled, starting with any left
+// from a previous run.
+func (r *Results) Run(ctx context.Context) {
+	retry := minRetry
+	for {
+		remaining := r.flush(ctx)
+		var timer <-chan time.Time
+		if remaining > 0 {
+			r.log.Warn("game results not yet saved, will retry", "pending", remaining, "retry_in", retry)
+			timer = time.After(retry)
+			retry = min(retry*2, maxRetry)
+		} else {
+			retry = minRetry
+		}
+		select {
+		case <-ctx.Done():
+			if remaining > 0 {
+				r.log.Warn("stopping with unsaved game results; they will be saved on the next start",
+					"pending", remaining, "file", r.path)
+			}
+			return
+		case <-r.wake:
+		case <-timer:
+		}
+	}
+}
+
+// flush writes every pending result it can and returns how many are left.
+func (r *Results) flush(ctx context.Context) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	pending, err := r.read()
+	if err != nil {
+		r.log.Error("read pending game results", "file", r.path, "err", err)
+		return 1
+	}
+	if len(pending) == 0 {
+		return 0
+	}
+	var left []Result
+	for _, p := range pending {
+		wctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		err := r.store.Finish(wctx, p.ID, p.Notation, p.Result)
+		cancel()
+		if err != nil {
+			r.log.Error("save game result", "game", p.ID, "err", err)
+			left = append(left, p)
+		}
+	}
+	if err := r.write(left); err != nil {
+		r.log.Error("rewrite pending game results", "file", r.path, "err", err)
+	}
+	return len(left)
+}
+
+func (r *Results) read() ([]Result, error) {
+	data, err := os.ReadFile(r.path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var out []Result
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	scanner.Buffer(nil, 16<<20) // notation for very long games
+	for scanner.Scan() {
+		if len(bytes.TrimSpace(scanner.Bytes())) == 0 {
+			continue
+		}
+		var result Result
+		if err := json.Unmarshal(scanner.Bytes(), &result); err != nil {
+			// A line cut short by a crash mid-write; nothing to recover.
+			r.log.Error("skipping unreadable pending game result", "line", scanner.Text(), "err", err)
+			continue
+		}
+		out = append(out, result)
+	}
+	return out, scanner.Err()
+}
+
+// write replaces the file with results, removing it if there are none.
+func (r *Results) write(results []Result) error {
+	if len(results) == 0 {
+		err := os.Remove(r.path)
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	var buf bytes.Buffer
+	for _, result := range results {
+		line, _ := json.Marshal(result)
+		buf.Write(line)
+		buf.WriteByte('\n')
+	}
+	tmp := r.path + ".tmp"
+	if err := writeSync(tmp, buf.Bytes()); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, r.path); err != nil {
+		return err
+	}
+	return syncDir(r.path)
+}
+
+// appendSync appends data and syncs. If a crash left the file without a
+// final newline, data starts on a new line, so the torn fragment stays on its
+// own line (which read skips) instead of swallowing this record.
+func appendSync(path string, data []byte) error {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
+	if err != nil {
+		return err
+	}
+	info, err := file.Stat()
+	if err != nil {
+		file.Close()
+		return err
+	}
+	created := info.Size() == 0
+	if size := info.Size(); size > 0 {
+		last := make([]byte, 1)
+		if _, err := file.ReadAt(last, size-1); err != nil {
+			file.Close()
+			return err
+		}
+		if last[0] != '\n' {
+			data = append([]byte{'\n'}, data...)
+		}
+	}
+	if _, err := file.Write(data); err != nil {
+		file.Close()
+		return err
+	}
+	if err := file.Sync(); err != nil {
+		file.Close()
+		return err
+	}
+	if err := file.Close(); err != nil {
+		return err
+	}
+	// A new file's directory entry is only durable once the directory is synced.
+	if created {
+		return syncDir(path)
+	}
+	return nil
+}
+
+// syncDir syncs the directory holding path, making a newly created or
+// renamed entry in it durable.
+func syncDir(path string) error {
+	dir, err := os.Open(filepath.Dir(path))
+	if err != nil {
+		return err
+	}
+	if err := dir.Sync(); err != nil {
+		dir.Close()
+		return err
+	}
+	return dir.Close()
+}
+
+func writeSync(path string, data []byte) error {
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	if _, err := file.Write(data); err != nil {
+		file.Close()
+		return err
+	}
+	if err := file.Sync(); err != nil {
+		file.Close()
+		return err
+	}
+	return file.Close()
+}

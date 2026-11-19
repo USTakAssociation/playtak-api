@@ -1,0 +1,37 @@
+name: Tak Server (Go) CI
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+    paths:
+      - "tak-server/**"
+      - "scripts/migrations/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: tak-server/go.mod
+          cache-dependency-path: tak-server/go.sum
+
+      - name: Vet
+        working-directory: ./tak-server
+        run: go vet ./...
+
+      - name: Test
+        working-directory: ./tak-server
+        run: go test -race ./...
+
+      # They run as root and change production databases, so lint them too.
+      - name: Check deploy scripts
+        run: |
+          bash -n tak-server/deploy/deploy.sh
+          bash -n tak-server/deploy/rollback.sh
+          bash -n scripts/migrations/run-all.sh
+          shellcheck tak-server/deploy/deploy.sh tak-server/deploy/rollback.sh scripts/migrations/run-all.sh

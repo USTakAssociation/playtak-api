@@ -160,6 +160,29 @@ func (c *Client) ExpectNoMessage(window time.Duration) {
 	}
 }
 
+// ExpectNoMessageExcept is ExpectNoMessage, but skips lines starting with
+// any of ignore, such as presence broadcasts caused by other tests.
+func (c *Client) ExpectNoMessageExcept(window time.Duration, ignore ...string) {
+	c.t.Helper()
+	deadline := time.Now().Add(window)
+	for {
+		c.conn.SetReadDeadline(deadline)
+		line, err := c.reader.ReadString('\n')
+		if err != nil {
+			return // timeout or closed: nothing else arrived
+		}
+		line = strings.TrimRight(line, "\r\n")
+		skip := false
+		for _, p := range ignore {
+			skip = skip || strings.HasPrefix(line, p)
+		}
+		if !skip {
+			c.t.Errorf("client: expected no message but received %q", line)
+			return
+		}
+	}
+}
+
 // ExpectNoMessageWithPrefix reads all messages for the given window and fails
 // if any of them start with prefix. Use this instead of ExpectNoMessage when
 // the server may send unrelated messages (e.g. OnlinePlayers broadcasts) but

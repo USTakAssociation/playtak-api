@@ -1,0 +1,71 @@
+name: Tak Server (Go) CD Beta
+
+on:
+  push:
+    branches: [ "dev" ]
+    paths:
+      - 'tak-server/**'
+      - 'scripts/migrations/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    # One deploy at a time per environment: deploy.sh stops services, migrates
+    # and swaps the binary, which must not interleave. Queued runs wait.
+    concurrency:
+      group: tak-server-beta
+      cancel-in-progress: false
+
+    environment: Beta
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
+      with:
+        go-version-file: tak-server/go.mod
+        cache-dependency-path: tak-server/go.sum
+
+    - name: Test
+      working-directory: ./tak-server
+      run: go test ./...
+
+    - name: Build
+      working-directory: ./tak-server
+      run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o dist/tak-server ./cmd/server
+
+    - name: Prep Artifact
+      env:
+        TAK_ENV: ${{ secrets.TAK_ENV }}
+      run: |
+        dist=tak-server/dist
+        (umask 077 && printf '%s\n' "${TAK_ENV}" > $dist/.env)
+        cp tak-server/deploy/deploy.sh tak-server/deploy/rollback.sh $dist/
+        mkdir $dist/migrations
+        cp scripts/migrations/*.sh $dist/migrations/
+        (umask 077 && tar -czf tak-server-beta.tar.gz -C $dist .)
+
+    - name: Deploy
+      env:
+        PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+        HOSTNAME: ${{ secrets.HOSTNAME }}
+        USER_NAME: ${{ secrets.USER_NAME }}
+        SSH_PORT: ${{ secrets.SSH_PORT }}
+        KNOWN_HOSTS: ${{ secrets.KNOWN_HOSTS }}
+      run: |
+        [ -n "$KNOWN_HOSTS" ] || { echo "KNOWN_HOSTS secret is not set" >&2; exit 1; }
+        printf '%s\n' "$KNOWN_HOSTS" > known_hosts
+        echo "$PRIVATE_KEY" > private_key.pem && chmod 0400 private_key.pem
+        scp -P ${SSH_PORT} -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_hosts -p -i private_key.pem tak-server-beta.tar.gz ${USER_NAME}@${HOSTNAME}:~
+        ssh -p ${SSH_PORT} -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_hosts -i private_key.pem ${USER_NAME}@${HOSTNAME} '
+          set -e
+          rm -rf tak-server-beta-release
+          mkdir -m 700 tak-server-beta-release
+          tar -xzf tak-server-beta.tar.gz -C tak-server-beta-release
+          chmod 700 tak-server-beta-release
+          sudo bash tak-server-beta-release/deploy.sh beta
+          # Reached only if the deploy succeeded; a failed deploy leaves both
+          # behind (owner-only) to see why.
+          rm -rf tak-server-beta.tar.gz tak-server-beta-release
+        '
