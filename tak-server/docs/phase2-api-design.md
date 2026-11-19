@@ -143,7 +143,7 @@ the first if it matters.
 | Change | Why |
 | --- | --- |
 | Rate limits: 60/min per IP for games history and ratings, 30/min for events | Node's limits were configured as `ttl: 60`, which @nestjs/throttler v6 reads as milliseconds, so there was effectively no limit. |
-| Games pages are capped at 1000 rows | `limit` was unbounded, and every row includes the full move list. |
+| Games and ratings pages are capped at 1000 rows; `id`/`date` lists at 100 values | `limit` was unbounded, every games row includes the full move list, and each listed value is a SQL parameter. |
 | Unknown `sort`, bad `order`, unparseable filters return 400 | Node put `sort` and `type` straight into SQL. |
 | Missing game: 404 (was 200 with an empty body). Missing player rating: 404 (was 500). Events failure: 502 (was 200 with an error object). | |
 | Errors are `{"error": "<code>"}` | The format the rest of tak-server uses (Node used `{statusCode, message, error}`). |

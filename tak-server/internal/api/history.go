@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -15,9 +16,12 @@ import (
 
 const (
 	defaultPageSize = 50
-	// maxGamesPageSize bounds a games history page; each row carries the
-	// whole move list.
-	maxGamesPageSize = 1000
+	// maxPageSize bounds a games history or ratings page; each games row
+	// carries the whole move list. Clients ask for at most 100.
+	maxPageSize = 1000
+	// maxFilterValues bounds an "id=1,2,3" or "date=..." list, which
+	// becomes one SQL parameter per value.
+	maxFilterValues = 100
 )
 
 // page is the paginated list shape the history and ratings endpoints return.
@@ -30,13 +34,11 @@ type page[T any] struct {
 }
 
 // pagination reads limit, page and skip as the NestJS API did: page counts
-// from 0, and skip is used only when page is 0 or missing.
-func pagination(q url.Values, maxLimit int) (limit, pageNum, offset int) {
-	limit = positiveInt(q.Get("limit"), defaultPageSize)
-	if maxLimit > 0 {
-		limit = min(limit, maxLimit)
-	}
-	pageNum = positiveInt(q.Get("page"), 0)
+// from 0, and skip is used only when page is 0 or missing. limit is capped
+// at maxPageSize, and page so that limit*page can't overflow.
+func pagination(q url.Values) (limit, pageNum, offset int) {
+	limit = min(positiveInt(q.Get("limit"), defaultPageSize), maxPageSize)
+	pageNum = min(positiveInt(q.Get("page"), 0), math.MaxInt/limit)
 	offset = limit * pageNum
 	if offset == 0 {
 		offset = positiveInt(q.Get("skip"), 0)
@@ -97,6 +99,9 @@ func intFilter(s string) (games.IntFilter, bool) {
 		f.Max = n
 		return f, ok
 	case strings.Contains(s, ","):
+		if strings.Count(s, ",") >= maxFilterValues {
+			return f, false
+		}
 		for v := range strings.SplitSeq(s, ",") {
 			n, ok := parse(v)
 			if !ok {
@@ -126,7 +131,7 @@ var gameEqualParams = []string{"size", "timertime", "timerinc", "komi", "extra_t
 
 func (s *Server) listGames(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	limit, pageNum, offset := pagination(q, maxGamesPageSize)
+	limit, pageNum, offset := pagination(q)
 	sort, desc, ok := sortOrder(q, "id", games.SortColumns)
 	if !ok {
 		writeError(w, http.StatusBadRequest, "invalid_sort")
@@ -231,7 +236,7 @@ func (s *Server) publicGamesDBInfo(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) listRatings(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	limit, pageNum, offset := pagination(q, 0)
+	limit, pageNum, offset := pagination(q)
 	sort, desc, ok := sortOrder(q, "participation_rating", players.RatingSortColumns)
 	if !ok {
 		writeError(w, http.StatusBadRequest, "invalid_sort")

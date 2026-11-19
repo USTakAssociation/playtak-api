@@ -127,10 +127,18 @@ func TestGamesHistoryPagingAndErrors(t *testing.T) {
 		t.Errorf("mirrored page 1 = %+v", body)
 	}
 	getJSON(t, srv, "/v1/games-history?limit=999999", &body)
-	if body.PerPage != maxGamesPageSize {
-		t.Errorf("perPage = %d, want the cap %d", body.PerPage, maxGamesPageSize)
+	if body.PerPage != maxPageSize {
+		t.Errorf("perPage = %d, want the cap %d", body.PerPage, maxPageSize)
 	}
-	for _, query := range []string{"?sort=password", "?sort=id%3BDROP%20TABLE%20games", "?order=sideways", "?id=abc", "?date=>x", "?size=big", "?type=secret"} {
+	// A page so far out that limit*page would overflow is just empty.
+	if code := getJSON(t, srv, "/v1/games-history?limit=1000&page=9223372036854775807", &body); code != http.StatusOK || len(body.Items) != 0 {
+		t.Errorf("huge page: %d %+v", code, body)
+	}
+	ids := strings.Repeat("1,", maxFilterValues-1) + "2"
+	if code := getJSON(t, srv, "/v1/games-history?id="+ids, &body); code != http.StatusOK || body.Total != 2 {
+		t.Errorf("%d ids: %d, total %d", maxFilterValues, code, body.Total)
+	}
+	for _, query := range []string{"?sort=password", "?sort=id%3BDROP%20TABLE%20games", "?order=sideways", "?id=abc", "?date=>x", "?size=big", "?type=secret", "?id=" + ids + ",3"} {
 		if code := getJSON(t, srv, "/v1/games-history"+query, nil); code != http.StatusBadRequest {
 			t.Errorf("%q: status %d, want 400", query, code)
 		}
@@ -232,6 +240,10 @@ func TestRatings(t *testing.T) {
 	getJSON(t, srv, "/v1/ratings?name=ALICE&sort=rating&order=ASC", &list)
 	if len(list.Items) != 2 || list.Items[0].Name != "Alice" {
 		t.Errorf("name search = %+v", list.Items)
+	}
+	getJSON(t, srv, "/v1/ratings?limit=999999", &list)
+	if list.PerPage != maxPageSize {
+		t.Errorf("ratings perPage = %d, want the cap %d", list.PerPage, maxPageSize)
 	}
 	if code := getJSON(t, srv, "/v1/ratings?sort=email", nil); code != http.StatusBadRequest {
 		t.Errorf("bad sort: %d", code)
