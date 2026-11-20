@@ -2,6 +2,7 @@ package api
 
 import (
 	"crypto/subtle"
+	"errors"
 	"math"
 	"net/http"
 	"slices"
@@ -149,8 +150,12 @@ func (s *Server) createSeek(w http.ResponseWriter, r *http.Request) {
 	created, err := s.seeks.Post(owner, seek.Request{
 		Creator: player.Name, Bot: player.IsBot(), Opponent: opponent, Settings: settings, PNTID: pntID,
 	})
-	if err != nil {
+	if errors.Is(err, seek.ErrIncompatible) {
 		writeError(w, http.StatusUnprocessableEntity, "incompatible_protocol")
+		return
+	}
+	if err != nil {
+		s.internalError(w, "post seek", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, newSeekDTO(created))
