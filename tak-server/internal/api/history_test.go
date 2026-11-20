@@ -389,3 +389,21 @@ func TestEventsFetchIgnoresRequestCancel(t *testing.T) {
 		t.Errorf("fetch with a cancelled request: %v, %v", list, err)
 	}
 }
+
+func TestEventLinksMustBeHTTP(t *testing.T) {
+	for in, want := range map[string]bool{
+		"https://ustak.org/a":    true,
+		"HTTP://example.com":     true,
+		"httpfoo:alert(1)":       false,
+		"http:/example.com":      false,
+		"javascript:alert(1)":    false,
+		"https":                  false,
+		" https://leading.space": false,
+		"TBA":                    false,
+		"":                       false,
+	} {
+		if got := link(in) != nil; got != want {
+			t.Errorf("link(%q) = %v, want %v", in, got, want)
+		}
+	}
+}

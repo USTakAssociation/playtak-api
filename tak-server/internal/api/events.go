@@ -143,8 +143,11 @@ func nonEmpty(s string) *string {
 	return &s
 }
 
+// link returns s if it's an http(s) URL, else nil, so clients can put it in
+// an href without risking javascript: or similar schemes.
 func link(s string) *string {
-	if !strings.HasPrefix(s, "http") {
+	lower := strings.ToLower(s)
+	if !strings.HasPrefix(lower, "https://") && !strings.HasPrefix(lower, "http://") {
 		return nil
 	}
 	return &s
