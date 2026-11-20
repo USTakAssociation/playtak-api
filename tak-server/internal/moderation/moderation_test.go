@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/dbtest"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/auth"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/online"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/protocol"
@@ -24,6 +25,9 @@ type fakeAccounts struct {
 }
 
 func (a *fakeAccounts) SetPassword(_ context.Context, name, pw string) error {
+	if !auth.ValidPassword(pw) { // as the real one checks
+		return auth.ErrInvalidPassword
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.passwords[name] = pw
@@ -418,6 +422,12 @@ func TestSetPassword(t *testing.T) {
 	want(t, e.run("ada", "", protocol.SudoSetPassword, "abe", "n3wpassword"), "You don't have rights")
 	want(t, e.run("ada", "", protocol.SudoSetPassword, "ada", "n3wpassword"), "You don't have rights")
 	want(t, e.run("ada", "", protocol.SudoSetPassword, "nobody", "n3wpassword"), "No such player")
+	// The sudo parser allows up to 100 characters; the password rules allow 50.
+	long := strings.Repeat("x", 51)
+	want(t, e.run("ada", "", protocol.SudoSetPassword, "pat", long), "Invalid password: 6 to 50 characters, no spaces")
+	if e.accounts.passwords["pat"] != "n3wpassword" {
+		t.Error("an invalid password replaced the old one")
+	}
 	if strings.Contains(e.log.String(), "n3wpassword") {
 		t.Errorf("password logged: %s", e.log.String())
 	}

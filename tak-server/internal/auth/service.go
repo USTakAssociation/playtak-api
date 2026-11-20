@@ -237,8 +237,11 @@ func (s *Service) ChangePassword(ctx context.Context, name, current, next string
 }
 
 // SetPassword replaces a player's password without checking the current one,
-// for admin use.
+// for admin use. The new password must still be valid.
 func (s *Service) SetPassword(ctx context.Context, name, password string) error {
+	if !ValidPassword(password) {
+		return ErrInvalidPassword
+	}
 	record, err := s.players.ByName(ctx, name)
 	if errors.Is(err, players.ErrNotFound) {
 		return ErrNoSuchPlayer

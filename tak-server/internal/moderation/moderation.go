@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/auth"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/online"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/protocol"
@@ -370,7 +371,11 @@ func (s *Service) setPassword(ctx context.Context, me rank, name, password strin
 		return noRights
 	}
 	// SetPassword also revokes the player's API tokens.
-	if err := s.accounts.SetPassword(ctx, record.Name, password); err != nil {
+	err := s.accounts.SetPassword(ctx, record.Name, password)
+	if errors.Is(err, auth.ErrInvalidPassword) {
+		return "Invalid password: 6 to 50 characters, no spaces"
+	}
+	if err != nil {
 		s.log.Error("set password", "player", record.Name, "err", err)
 		return serverError
 	}

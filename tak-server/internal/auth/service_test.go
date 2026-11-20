@@ -377,3 +377,17 @@ func (l lockedWriter) Write(p []byte) (int, error) {
 	defer l.mu.Unlock()
 	return l.w.Write(p)
 }
+
+func TestAdminSetPasswordValidates(t *testing.T) {
+	ctx := context.Background()
+	f := newFixture(t)
+	f.addPlayer(t, "alice", "a@example.com", "oldpass1")
+	for _, pw := range []string{"short", strings.Repeat("x", 51), "has space"} {
+		if err := f.svc.SetPassword(ctx, "alice", pw); !errors.Is(err, ErrInvalidPassword) {
+			t.Errorf("%q: %v, want ErrInvalidPassword", pw, err)
+		}
+	}
+	if _, err := f.svc.Login(ctx, "alice", "oldpass1", ""); err != nil {
+		t.Errorf("old password should still work: %v", err)
+	}
+}
