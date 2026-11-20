@@ -163,7 +163,7 @@ func (s *Service) Register(ctx context.Context, name, email, ip string) (players
 	if err != nil {
 		return players.Record{}, err
 	}
-	s.sendMail(email, "playtak.com password",
+	s.sendMail(name, email, "playtak.com password",
 		fmt.Sprintf("Hello %s, your password is %s You can change it on playtak.com.", name, password))
 	return record, nil
 }
@@ -186,7 +186,7 @@ func (s *Service) SendResetToken(ctx context.Context, name, email string) error 
 	s.mu.Lock()
 	s.resetTokens[name] = resetToken{token: token, expires: s.now().Add(resetTokenTTL)}
 	s.mu.Unlock()
-	s.sendMail(email, "playtak.com reset password", "Your reset token is "+token)
+	s.sendMail(name, email, "playtak.com reset password", "Your reset token is "+token)
 	return nil
 }
 
@@ -277,13 +277,14 @@ func NewGuestToken() string {
 	return string(b)
 }
 
-// sendMail sends in the background so callers aren't held up by SMTP.
-func (s *Service) sendMail(to, subject, body string) {
+// sendMail sends to player's address in the background so callers aren't
+// held up by SMTP. A failure is logged by player name, never by address.
+func (s *Service) sendMail(player, to, subject, body string) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 		if err := s.mail.Send(ctx, to, subject, body); err != nil {
-			s.log.Error("send email", "to", to, "subject", subject, "err", err)
+			s.log.Error("send email", "player", player, "subject", subject, "err", err)
 		}
 	}()
 }

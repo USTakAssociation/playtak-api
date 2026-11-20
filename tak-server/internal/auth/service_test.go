@@ -1,12 +1,14 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
 	"log/slog"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -326,4 +328,52 @@ func TestLoginUnknownNameTakesAsLongAsWrongPassword(t *testing.T) {
 	if unknown < known/2 {
 		t.Errorf("unknown name took %v, wrong password %v", unknown, known)
 	}
+}
+
+type failingMailer struct{ done chan struct{} }
+
+func (m failingMailer) Send(context.Context, string, string, string) error {
+	defer close(m.done)
+	return errors.New("smtp down")
+}
+
+// A failed send is logged by player name, without the recipient's address.
+func TestFailedEmailLogOmitsAddress(t *testing.T) {
+	var log bytes.Buffer
+	var mu sync.Mutex
+	conn := dbtest.NewPlayersDB(t)
+	mail := failingMailer{done: make(chan struct{})}
+	svc := NewService(players.NewStore(conn), players.NewTokenStore(conn), mail,
+		slog.New(slog.NewTextHandler(lockedWriter{&mu, &log}, nil)))
+	if _, err := svc.Register(context.Background(), "newbie", "secret.person@example.com", ""); err != nil {
+		t.Fatal(err)
+	}
+	<-mail.done
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		mu.Lock()
+		out := log.String()
+		mu.Unlock()
+		if strings.Contains(out, "send email") {
+			if strings.Contains(out, "secret.person") || !strings.Contains(out, "player=newbie") {
+				t.Errorf("want the name and not the address: %s", out)
+			}
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("no send failure logged: %s", out)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+type lockedWriter struct {
+	mu *sync.Mutex
+	w  io.Writer
+}
+
+func (l lockedWriter) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.w.Write(p)
 }
