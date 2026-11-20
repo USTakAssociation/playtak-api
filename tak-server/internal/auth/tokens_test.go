@@ -24,18 +24,21 @@ func TestTokenPairLifecycle(t *testing.T) {
 	if _, err := f.svc.Authenticate(ctx, pair.RefreshToken); !errors.Is(err, ErrAuthFailed) {
 		t.Errorf("refresh token accepted as access token: %v", err)
 	}
-	if _, err := f.svc.Refresh(ctx, pair.AccessToken); !errors.Is(err, ErrAuthFailed) {
+	if _, _, err := f.svc.Refresh(ctx, pair.AccessToken); !errors.Is(err, ErrAuthFailed) {
 		t.Errorf("access token accepted as refresh token: %v", err)
 	}
 
-	next, err := f.svc.Refresh(ctx, pair.RefreshToken)
+	record, next, err := f.svc.Refresh(ctx, pair.RefreshToken)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if record.ID != alice.ID || record.Name != "alice" {
+		t.Errorf("Refresh returned player %+v, want alice", record)
 	}
 	if next.AccessToken == pair.AccessToken || next.RefreshToken == pair.RefreshToken {
 		t.Error("refresh must issue new tokens")
 	}
-	if _, err := f.svc.Refresh(ctx, pair.RefreshToken); !errors.Is(err, ErrAuthFailed) {
+	if _, _, err := f.svc.Refresh(ctx, pair.RefreshToken); !errors.Is(err, ErrAuthFailed) {
 		t.Errorf("refresh token reused: %v", err)
 	}
 	if _, err := f.svc.Authenticate(ctx, next.AccessToken); err != nil {
@@ -48,7 +51,7 @@ func TestTokenPairLifecycle(t *testing.T) {
 	if _, err := f.svc.Authenticate(ctx, next.AccessToken); !errors.Is(err, ErrAuthFailed) {
 		t.Errorf("access token works after logout: %v", err)
 	}
-	if _, err := f.svc.Refresh(ctx, next.RefreshToken); !errors.Is(err, ErrAuthFailed) {
+	if _, _, err := f.svc.Refresh(ctx, next.RefreshToken); !errors.Is(err, ErrAuthFailed) {
 		t.Errorf("refresh token works after logout: %v", err)
 	}
 }
@@ -63,7 +66,7 @@ func TestAccessTokenExpires(t *testing.T) {
 	if _, err := f.svc.Authenticate(ctx, pair.AccessToken); !errors.Is(err, ErrAuthFailed) {
 		t.Errorf("expired access token: %v", err)
 	}
-	if _, err := f.svc.Refresh(ctx, pair.RefreshToken); err != nil {
+	if _, _, err := f.svc.Refresh(ctx, pair.RefreshToken); err != nil {
 		t.Errorf("refresh token should still work: %v", err)
 	}
 }
@@ -78,7 +81,7 @@ func TestBannedPlayerTokensStopWorking(t *testing.T) {
 	if _, err := f.svc.Authenticate(ctx, pair.AccessToken); !errors.Is(err, ErrAuthFailed) {
 		t.Errorf("banned player authenticated: %v", err)
 	}
-	if _, err := f.svc.Refresh(ctx, pair.RefreshToken); !errors.Is(err, ErrAuthFailed) {
+	if _, _, err := f.svc.Refresh(ctx, pair.RefreshToken); !errors.Is(err, ErrAuthFailed) {
 		t.Errorf("banned player refreshed: %v", err)
 	}
 }

@@ -293,7 +293,7 @@ func TestPasswordChangeRevokesTokens(t *testing.T) {
 			if _, err := f.svc.Authenticate(ctx, stolen.AccessToken); !errors.Is(err, ErrAuthFailed) {
 				t.Errorf("access token still works: %v", err)
 			}
-			if _, err := f.svc.Refresh(ctx, stolen.RefreshToken); !errors.Is(err, ErrAuthFailed) {
+			if _, _, err := f.svc.Refresh(ctx, stolen.RefreshToken); !errors.Is(err, ErrAuthFailed) {
 				t.Errorf("refresh token still works: %v", err)
 			}
 			if _, err := f.svc.Authenticate(ctx, bobs.AccessToken); err != nil {

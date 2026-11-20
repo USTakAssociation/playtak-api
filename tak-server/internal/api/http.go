@@ -188,18 +188,13 @@ func (s *Server) refresh(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &body) {
 		return
 	}
-	pair, err := s.auth.Refresh(r.Context(), body.RefreshToken)
+	record, pair, err := s.auth.Refresh(r.Context(), body.RefreshToken)
 	if errors.Is(err, auth.ErrAuthFailed) {
 		writeError(w, http.StatusUnauthorized, "invalid_token")
 		return
 	}
 	if err != nil {
 		s.internalError(w, "refresh", err)
-		return
-	}
-	record, err := s.auth.Authenticate(r.Context(), pair.AccessToken)
-	if err != nil {
-		s.internalError(w, "load refreshed player", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, newTokenResponse(record.Name, pair))
