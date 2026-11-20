@@ -221,13 +221,18 @@ func (m *Manager) sortedLocked() []Seek {
 	return out
 }
 
-// normalize clamps settings to what the server supports.
+// normalize clamps settings to what the server supports. The text protocol
+// only sends non-negative numbers; the REST API could send negative ones.
 func normalize(g protocol.GameSettings) protocol.GameSettings {
 	if g.Size < 3 || g.Size > 8 {
 		g.Size = defaultSize
 	}
-	g.Komi = min(g.Komi, 8)
+	g.Komi = max(min(g.Komi, 8), 0)
 	g.Pieces = max(min(g.Pieces, 80), 10)
-	g.Capstones = min(g.Capstones, 5)
+	g.Capstones = max(min(g.Capstones, 5), 0)
+	g.Time = max(g.Time, 0)
+	g.Increment = max(g.Increment, 0)
+	g.ExtraTimeTrigger = max(g.ExtraTimeTrigger, 0)
+	g.ExtraTimeAmount = max(g.ExtraTimeAmount, 0)
 	return g
 }

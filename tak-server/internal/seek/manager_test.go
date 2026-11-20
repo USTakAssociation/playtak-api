@@ -140,6 +140,13 @@ func TestNormalize(t *testing.T) {
 	if s.Size != 3 || s.Pieces != 10 {
 		t.Errorf("minimums: %+v", s.GameSettings)
 	}
+	s, _ = m.Post(&listener{}, Request{Creator: "x", Settings: protocol.GameSettings{
+		Size: 5, Pieces: 21, Komi: -4, Capstones: -1, Time: -60, Increment: -5, ExtraTimeTrigger: -1, ExtraTimeAmount: -300,
+	}})
+	g = s.GameSettings
+	if g.Komi != 0 || g.Capstones != 0 || g.Time != 0 || g.Increment != 0 || g.ExtraTimeTrigger != 0 || g.ExtraTimeAmount != 0 {
+		t.Errorf("negatives not clamped to 0: %+v", g)
+	}
 }
 
 func TestRematch(t *testing.T) {
