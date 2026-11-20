@@ -139,16 +139,8 @@ func run(ctx context.Context, settings *config.Config, log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	wsSrv := &http.Server{
-		Addr:              settings.WSAddr,
-		Handler:           &websocket.Handler{Acceptor: sessions, Log: log, ClientIP: clientIP, Limit: connLimit},
-		ReadHeaderTimeout: 10 * time.Second,
-	}
-	apiSrv := &http.Server{
-		Addr:              settings.HTTPAddr,
-		Handler:           apiServer.Handler(),
-		ReadHeaderTimeout: 10 * time.Second,
-	}
+	wsSrv := websocketHTTPServer(settings.WSAddr, &websocket.Handler{Acceptor: sessions, Log: log, ClientIP: clientIP, Limit: connLimit})
+	apiSrv := apiHTTPServer(settings.HTTPAddr, apiServer.Handler())
 
 	errc := make(chan error, 3)
 	go func() {
@@ -229,6 +221,31 @@ func cleanupLoop(ctx context.Context, authSvc *auth.Service, apiServer *api.Serv
 		} else if n > 0 {
 			log.Info("purged expired tokens", "count", n)
 		}
+	}
+}
+
+// apiHTTPServer serves the REST API. Timeouts cover the whole request, so a
+// client can't hold a connection open by sending its body slowly.
+func apiHTTPServer(addr string, h http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           h,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       2 * time.Minute,
+	}
+}
+
+// websocketHTTPServer serves WebSocket upgrades. No ReadTimeout or
+// WriteTimeout: they would cut long-lived sessions, which set their own
+// deadlines per message after the upgrade.
+func websocketHTTPServer(addr string, h http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           h,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       2 * time.Minute,
 	}
 }
 
