@@ -5,6 +5,7 @@ package auth
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -199,7 +200,7 @@ func (s *Service) ResetPassword(ctx context.Context, name, token, password strin
 	}
 	s.mu.Lock()
 	rt, ok := s.resetTokens[name]
-	valid := ok && rt.token == token && s.now().Before(rt.expires)
+	valid := ok && subtle.ConstantTimeCompare([]byte(rt.token), []byte(token)) == 1 && s.now().Before(rt.expires)
 	if valid {
 		delete(s.resetTokens, name)
 	}
