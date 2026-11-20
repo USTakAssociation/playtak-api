@@ -490,3 +490,4 @@ The deliberate changes in client-visible behaviour, for release notes:
 **Accounts**
 - Java accepted some non-ASCII passwords through a legacy fallback. That fallback is gone, so those players need to reset their password.
 - Logins, registrations and password resets are rate limited (see [Rate limits](#rate-limits)). Java had no limits.
+- `SendResetToken` answers `Reset Token Error: Username or email address is invalid` for both an unknown name and a wrong email (Java said which), and `ResetPassword` with an unknown name answers `Wrong token`, so neither reveals which names are registered. Logins with an unknown name take as long as a wrong password.

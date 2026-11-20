@@ -25,9 +25,11 @@ var (
 	ErrGuestName       = errors.New("username contains guest")
 	ErrNameTaken       = errors.New("username is already taken")
 	ErrNoSuchPlayer    = errors.New("no such player")
-	ErrEmailMismatch   = errors.New("email does not match")
-	ErrWrongToken      = errors.New("wrong or expired token")
-	ErrWrongPassword   = errors.New("wrong password")
+	// ErrBadNameOrEmail covers both an unknown name and the wrong email, so
+	// the reply doesn't reveal which names are registered.
+	ErrBadNameOrEmail = errors.New("username or email is invalid")
+	ErrWrongToken     = errors.New("wrong or expired token")
+	ErrWrongPassword  = errors.New("wrong password")
 )
 
 var (
@@ -70,6 +72,9 @@ type Service struct {
 	mail    Mailer
 	log     *slog.Logger
 	now     func() time.Time
+	// dummyHash is checked against for unknown names; tests swap in a
+	// cheap one.
+	dummyHash func() string
 
 	limits limiters // all off until EnableLimits
 
@@ -89,6 +94,7 @@ func NewService(ps PlayerStore, ts TokenStore, mail Mailer, log *slog.Logger) *S
 		mail:        mail,
 		log:         log,
 		now:         time.Now,
+		dummyHash:   dummyHash,
 		resetTokens: make(map[string]resetToken),
 	}
 }
@@ -109,8 +115,10 @@ func (s *Service) Login(ctx context.Context, name, password, ip string) (_ playe
 	record, err := s.players.ByName(ctx, name)
 	switch {
 	case errors.Is(err, players.ErrNotFound):
+		// Hash anyway, so an unknown name takes as long as a wrong password.
+		checkPassword(s.dummyHash(), password)
 		err = ErrAuthFailed
-	case err == nil && (record.IsBanned || !checkPassword(record.PasswordHash, password)):
+	case err == nil && (!checkPassword(record.PasswordHash, password) || record.IsBanned):
 		err = ErrAuthFailed
 	}
 	if err != nil {
@@ -161,20 +169,18 @@ func (s *Service) Register(ctx context.Context, name, email, ip string) (players
 }
 
 // SendResetToken emails a one-time password reset token, valid for an hour.
-// Only a few are sent per player per hour.
+// Only a few are sent per player per hour. An unknown name and the wrong
+// email both return ErrBadNameOrEmail.
 func (s *Service) SendResetToken(ctx context.Context, name, email string) error {
 	if err := s.allow(s.limits.resetByName, "reset emails per name", nameKey(name)); err != nil {
 		return err
 	}
 	record, err := s.players.ByName(ctx, name)
-	if errors.Is(err, players.ErrNotFound) {
-		return ErrNoSuchPlayer
+	if errors.Is(err, players.ErrNotFound) || (err == nil && record.Email != email) {
+		return ErrBadNameOrEmail
 	}
 	if err != nil {
 		return err
-	}
-	if record.Email != email {
-		return ErrEmailMismatch
 	}
 	token := rand.Text()
 	s.mu.Lock()
@@ -184,15 +190,10 @@ func (s *Service) SendResetToken(ctx context.Context, name, email string) error 
 	return nil
 }
 
-// ResetPassword sets a new password using a token from SendResetToken.
+// ResetPassword sets a new password using a token from SendResetToken. An
+// unknown name gets ErrWrongToken, like a wrong token, so the reply doesn't
+// reveal which names are registered.
 func (s *Service) ResetPassword(ctx context.Context, name, token, password string) error {
-	record, err := s.players.ByName(ctx, name)
-	if errors.Is(err, players.ErrNotFound) {
-		return ErrNoSuchPlayer
-	}
-	if err != nil {
-		return err
-	}
 	if !ValidPassword(password) {
 		return ErrInvalidPassword
 	}
@@ -205,6 +206,13 @@ func (s *Service) ResetPassword(ctx context.Context, name, token, password strin
 	s.mu.Unlock()
 	if !valid {
 		return ErrWrongToken
+	}
+	record, err := s.players.ByName(ctx, name)
+	if errors.Is(err, players.ErrNotFound) {
+		return ErrWrongToken // deleted since the token was sent
+	}
+	if err != nil {
+		return err
 	}
 	return s.setPassword(ctx, record.ID, password)
 }

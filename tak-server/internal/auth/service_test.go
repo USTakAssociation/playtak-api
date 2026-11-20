@@ -12,6 +12,7 @@ import (
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/dbtest"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type sentMail struct{ to, subject, body string }
@@ -34,6 +35,11 @@ func (m fakeMailer) next(t *testing.T) sentMail {
 	}
 }
 
+var cheapHash = func() string {
+	h, _ := bcrypt.GenerateFromPassword([]byte("dummy"), bcrypt.MinCost)
+	return string(h)
+}()
+
 type fixture struct {
 	svc   *Service
 	store *players.Store
@@ -47,6 +53,9 @@ func newFixture(t *testing.T) fixture {
 	mail := make(fakeMailer, 10)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	svc := NewService(store, players.NewTokenStore(conn), mail, log)
+	// Unknown-name logins hash at the lowest cost, so tests that make many
+	// stay fast; TestLoginUnknownNameTakesAsLongAsWrongPassword restores it.
+	svc.dummyHash = func() string { return cheapHash }
 	return fixture{svc: svc, store: store, mail: mail}
 }
 
@@ -156,11 +165,21 @@ func TestPasswordReset(t *testing.T) {
 	f := newFixture(t)
 	f.addPlayer(t, "alice", "a@example.com", "oldpass1")
 
-	if err := f.svc.SendResetToken(ctx, "nobody", "a@example.com"); !errors.Is(err, ErrNoSuchPlayer) {
+	// An unknown name and a wrong email get the same error and no email, so
+	// the reply doesn't reveal which accounts exist.
+	if err := f.svc.SendResetToken(ctx, "nobody", "a@example.com"); !errors.Is(err, ErrBadNameOrEmail) {
 		t.Errorf("unknown player: %v", err)
 	}
-	if err := f.svc.SendResetToken(ctx, "alice", "other@example.com"); !errors.Is(err, ErrEmailMismatch) {
+	if err := f.svc.SendResetToken(ctx, "alice", "other@example.com"); !errors.Is(err, ErrBadNameOrEmail) {
 		t.Errorf("wrong email: %v", err)
+	}
+	select {
+	case m := <-f.mail:
+		t.Errorf("email sent for a bad request: %+v", m)
+	case <-time.After(100 * time.Millisecond):
+	}
+	if err := f.svc.ResetPassword(ctx, "nobody", "badtoken", "newpass1"); !errors.Is(err, ErrWrongToken) {
+		t.Errorf("unknown player reset: %v, want ErrWrongToken", err)
 	}
 	if err := f.svc.SendResetToken(ctx, "alice", "a@example.com"); err != nil {
 		t.Fatal(err)
@@ -279,5 +298,32 @@ func TestPasswordChangeRevokesTokens(t *testing.T) {
 				t.Errorf("another player's tokens were revoked: %v", err)
 			}
 		})
+	}
+}
+
+// An unknown name is hashed like a wrong password, so login time doesn't
+// reveal which names are registered.
+func TestLoginUnknownNameTakesAsLongAsWrongPassword(t *testing.T) {
+	ctx := context.Background()
+	f := newFixture(t)
+	f.addPlayer(t, "alice", "a@example.com", "secret123")
+	f.svc.dummyHash = dummyHash
+	dummyHash() // made once, not timed
+	timeIt := func(name string) time.Duration {
+		best := time.Hour
+		for range 3 {
+			start := time.Now()
+			if _, err := f.svc.Login(ctx, name, "wrongpass", ""); !errors.Is(err, ErrAuthFailed) {
+				t.Fatalf("%s: %v", name, err)
+			}
+			best = min(best, time.Since(start))
+		}
+		return best
+	}
+	known, unknown := timeIt("alice"), timeIt("nobody")
+	// bcrypt dominates both; without the dummy hash, unknown names return
+	// in well under a tenth of the time.
+	if unknown < known/2 {
+		t.Errorf("unknown name took %v, wrong password %v", unknown, known)
 	}
 }

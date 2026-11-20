@@ -66,8 +66,6 @@ func Format(event protocol.Event, version int) ([]string, error) {
 		return line("Password is changed")
 	case protocol.PasswordResetFailed:
 		switch ev.Reason {
-		case protocol.ResetPasswordNoSuchPlayer:
-			return line("No such player")
 		case protocol.ResetPasswordWrongToken:
 			return line("Wrong token")
 		}
@@ -137,9 +135,8 @@ var registrationErrors = map[protocol.RegistrationError]string{
 }
 
 var resetTokenErrors = map[protocol.ResetTokenError]string{
-	protocol.ResetTokenNoSuchPlayer:  "No such player",
-	protocol.ResetTokenEmailMismatch: "Email address does not match",
-	protocol.ResetTokenRateLimited:   "Too many requests, please try again later",
+	protocol.ResetTokenBadNameOrEmail: "Username or email address is invalid",
+	protocol.ResetTokenRateLimited:    "Too many requests, please try again later",
 }
 
 // quotedList renders names the way Java prints a list of pre-quoted strings:
