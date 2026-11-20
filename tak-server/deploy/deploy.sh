@@ -96,9 +96,13 @@ trap on_failure ERR
 
 stamp=$(date +%Y%m%d-%H%M%S)
 echo "backing up databases to $backups/$stamp"
+# Owner-only: the backups hold password hashes and emails. chmod as well as
+# mkdir -m, so a directory made by an older deploy is locked down too.
 mkdir -p "$backups/$stamp"
+chmod 700 "$backups" "$backups/$stamp"
 sqlite3 "$players_db" ".backup '$backups/$stamp/players.db'"
 sqlite3 "$games_db" ".backup '$backups/$stamp/games.db'"
+chmod 600 "$backups/$stamp/players.db" "$backups/$stamp/games.db"
 # Written last: rollback.sh only restores backups that have it.
 printf '%s\n%s\n' "$players_db" "$games_db" >"$backups/$stamp/paths"
 phase=backed-up
