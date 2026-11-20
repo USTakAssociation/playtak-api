@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -324,5 +325,67 @@ func TestEventsFallsBackToStaleCopy(t *testing.T) {
 	empty := newEventsFeed(sheet.URL, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if _, err := empty.get(t.Context()); err == nil {
 		t.Error("no cache and a failing sheet should be an error")
+	}
+}
+
+// While the sheet is down, requests don't each wait out a fetch: a failure
+// is remembered for eventsRetryAfter.
+func TestEventsFailureIsRemembered(t *testing.T) {
+	var fetches atomic.Int32
+	var fail atomic.Bool
+	fail.Store(true)
+	sheet := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fetches.Add(1)
+		if fail.Load() {
+			http.Error(w, "down", http.StatusInternalServerError)
+			return
+		}
+		io.WriteString(w, eventsCSV)
+	}))
+	defer sheet.Close()
+	feed := newEventsFeed(sheet.URL, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	for range 3 {
+		if _, err := feed.get(t.Context()); err == nil {
+			t.Fatal("want an error while the sheet is down")
+		}
+	}
+	if n := fetches.Load(); n != 1 {
+		t.Errorf("fetched %d times, want 1 within the retry window", n)
+	}
+	// After the window it tries again, and a success clears the failure.
+	fail.Store(false)
+	feed.failedAt = feed.failedAt.Add(-eventsRetryAfter)
+	if list, err := feed.get(t.Context()); err != nil || len(list.Data) != 3 {
+		t.Fatalf("after the window: %v, %v", list, err)
+	}
+	if !feed.failedAt.IsZero() || fetches.Load() != 2 {
+		t.Errorf("failedAt %v, fetches %d", feed.failedAt, fetches.Load())
+	}
+
+	// With a stale copy, a failure serves it without refetching per request.
+	fail.Store(true)
+	feed.fetched = feed.fetched.Add(-2 * eventsCacheFor)
+	for range 3 {
+		if list, err := feed.get(t.Context()); err != nil || len(list.Data) != 3 {
+			t.Fatalf("stale copy: %v, %v", list, err)
+		}
+	}
+	if n := fetches.Load(); n != 3 {
+		t.Errorf("fetched %d times, want 3", n)
+	}
+}
+
+// A client hanging up doesn't abort the fetch other requests are waiting on.
+func TestEventsFetchIgnoresRequestCancel(t *testing.T) {
+	sheet := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, eventsCSV)
+	}))
+	defer sheet.Close()
+	feed := newEventsFeed(sheet.URL, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if list, err := feed.get(ctx); err != nil || len(list.Data) != 3 {
+		t.Errorf("fetch with a cancelled request: %v, %v", list, err)
 	}
 }

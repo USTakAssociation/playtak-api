@@ -17,6 +17,10 @@ import (
 // again.
 const eventsCacheFor = 30 * time.Minute
 
+// eventsRetryAfter is how long a failed fetch is remembered before trying
+// again, so requests don't each wait out the timeout while the sheet is down.
+const eventsRetryAfter = time.Minute
+
 type event struct {
 	Name         string  `json:"name"`
 	Event        string  `json:"event"`
@@ -40,9 +44,11 @@ type eventsFeed struct {
 	client *http.Client
 	log    *slog.Logger
 
-	mu      sync.Mutex
-	cached  *eventList
-	fetched time.Time
+	mu       sync.Mutex
+	cached   *eventList
+	fetched  time.Time
+	failedAt time.Time // the last failed fetch, zero after a success
+	failErr  error
 }
 
 func newEventsFeed(url string, log *slog.Logger) *eventsFeed {
@@ -50,23 +56,35 @@ func newEventsFeed(url string, log *slog.Logger) *eventsFeed {
 }
 
 // get returns the events, fetching them if the cache has expired. If the
-// fetch fails it falls back to the expired copy, if there is one.
+// fetch fails it falls back to the expired copy, if there is one, and
+// doesn't try again for eventsRetryAfter.
 func (f *eventsFeed) get(ctx context.Context) (*eventList, error) {
 	f.mu.Lock() // also makes concurrent requests share one fetch
 	defer f.mu.Unlock()
 	if f.cached != nil && time.Since(f.fetched) < eventsCacheFor {
 		return f.cached, nil
 	}
-	list, err := f.fetch(ctx)
-	if err != nil {
-		if f.cached != nil {
-			f.log.Warn("events fetch failed; serving the cached copy", "err", err, "age", time.Since(f.fetched).Round(time.Second))
-			return f.cached, nil
-		}
-		return nil, err
+	if !f.failedAt.IsZero() && time.Since(f.failedAt) < eventsRetryAfter {
+		return f.fallback(f.failErr)
 	}
-	f.cached, f.fetched = list, time.Now()
+	// Not the request's context: one client hanging up mustn't abort the
+	// fetch the others are waiting on. The client's timeout still bounds it.
+	list, err := f.fetch(context.WithoutCancel(ctx))
+	if err != nil {
+		f.failedAt, f.failErr = time.Now(), err
+		f.log.Warn("events fetch failed", "err", err, "have_cached_copy", f.cached != nil)
+		return f.fallback(err)
+	}
+	f.cached, f.fetched, f.failedAt, f.failErr = list, time.Now(), time.Time{}, nil
 	return list, nil
+}
+
+// fallback serves the expired copy if there is one, or err.
+func (f *eventsFeed) fallback(err error) (*eventList, error) {
+	if f.cached != nil {
+		return f.cached, nil
+	}
+	return nil, err
 }
 
 func (f *eventsFeed) fetch(ctx context.Context) (*eventList, error) {
