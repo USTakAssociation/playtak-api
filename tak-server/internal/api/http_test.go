@@ -138,6 +138,21 @@ func TestGuest(t *testing.T) {
 	}
 }
 
+// Every response, including errors and unknown paths, forbids MIME sniffing.
+func TestNoSniff(t *testing.T) {
+	srv, _, _ := newTestServer(t)
+	for _, path := range []string{"/health", "/api/auth/login", "/no-such-path"} {
+		resp, err := http.Get(srv.URL + path) // GET on login: 405
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if got := resp.Header.Get("X-Content-Type-Options"); got != "nosniff" {
+			t.Errorf("%s: X-Content-Type-Options = %q", path, got)
+		}
+	}
+}
+
 func TestInvalidJSON(t *testing.T) {
 	srv, _, _ := newTestServer(t)
 	resp, err := http.Post(srv.URL+"/api/auth/login", "application/json", bytes.NewBufferString("{not json"))

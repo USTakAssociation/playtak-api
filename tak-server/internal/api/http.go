@@ -106,7 +106,16 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/ratings/{name}", public(s.historyRead, s.getRating))
 	mux.HandleFunc("GET /events", public(s.eventReads, s.listEvents))
 	mux.HandleFunc("GET /health", health)
-	return mux
+	return noSniff(mux)
+}
+
+// noSniff stops browsers guessing a response's type, so JSON or plain text
+// that echoes request data can't be run as HTML or script.
+func noSniff(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		h.ServeHTTP(w, r)
+	})
 }
 
 type tokenResponse struct {
