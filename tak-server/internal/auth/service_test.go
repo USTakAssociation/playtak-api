@@ -61,14 +61,15 @@ func newFixture(t *testing.T) fixture {
 	return fixture{svc: svc, store: store, mail: mail}
 }
 
-// addPlayer creates a player with a known password.
+// addPlayer creates a player with a known password, hashed at the lowest
+// cost so tests that fail many logins stay fast (and within limit windows).
 func (f fixture) addPlayer(t *testing.T, name, email, password string) players.Record {
 	t.Helper()
-	hash, err := hashPassword(password)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.MinCost)
 	if err != nil {
 		t.Fatal(err)
 	}
-	rec, err := f.store.Create(context.Background(), name, email, hash)
+	rec, err := f.store.Create(context.Background(), name, email, string(hash))
 	if err != nil {
 		t.Fatal(err)
 	}

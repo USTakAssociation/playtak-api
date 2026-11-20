@@ -128,6 +128,7 @@ func (s *Service) Login(ctx context.Context, name, password, ip string) (_ playe
 	// A success clears the name's failures, but not the IP's: on a shared
 	// IP, one player logging in mustn't wipe out someone else's guesses.
 	if s.limits.failuresByName != nil {
+		s.limits.failuresByNameIP.Reset(nameIPKey(name, ip))
 		s.limits.failuresByName.Reset(nameKey(name))
 	}
 	// Logging in proves the player knows their password.

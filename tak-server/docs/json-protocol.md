@@ -1464,7 +1464,8 @@ instead.
 | Chat message | 256 characters |
 | Chat messages per player | 10 per 10 seconds, shouts, room shouts and tells together |
 | Commands per connection | 20 per second, with bursts up to 40 (proposed). Over the limit, you get `RATE_LIMITED`. |
-| Failed logins per username | 10 per 15 minutes. A successful login resets it. |
+| Failed logins per username from one IP | 10 per 15 minutes. A successful login resets it. |
+| Failed logins per username from all IPs | 100 per hour. A successful login resets it. |
 | Failed logins per IP | 20 per minute. Successful logins do not count. |
 | Registrations per IP | 5 per hour |
 | Password reset emails per username | 3 per hour |

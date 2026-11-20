@@ -293,7 +293,8 @@ Logins, registrations and password resets are limited inside
 
 | What | Limit |
 | --- | --- |
-| Failed logins per username (unless `TAK_LOGIN_LIMIT=ip`) | 10 per 15 minutes; a successful login resets it |
+| Failed logins per username from one IP (unless `TAK_LOGIN_LIMIT=ip`) | 10 per 15 minutes; a successful login resets it |
+| Failed logins per username from all IPs (unless `TAK_LOGIN_LIMIT=ip`) | 100 per hour; a successful login resets it |
 | Failed logins per IP | 20 per minute; successful logins don't count, so many players behind one IP can all log in. Logins still being checked count, so parallel attempts can't get past either login limit |
 | Registrations per IP | 5 per hour |
 | Password reset emails per username | 3 per hour |

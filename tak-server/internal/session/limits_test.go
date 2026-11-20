@@ -18,7 +18,7 @@ func TestSocketLoginRateLimited(t *testing.T) {
 		c.expect("Authentication failure")
 	}
 	c := h.connect()
-	c.send("Login alice password") // right password, but the name is locked
+	c.send("Login alice password") // right password, but the name is locked for this IP
 	c.expect("Authentication failure")
 	c.expectNothing()
 }

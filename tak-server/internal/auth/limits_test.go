@@ -23,31 +23,57 @@ func limitedFixture(t *testing.T, byUsername bool) fixture {
 // ip returns a distinct address per attempt, so per-IP limits don't interfere.
 func ip(i int) string { return fmt.Sprintf("198.51.100.%d", i) }
 
-func TestFailedLoginsPerUsername(t *testing.T) {
+func TestFailedLoginsPerUsernameAndIP(t *testing.T) {
 	f := limitedFixture(t, true)
 	ctx := context.Background()
 	f.addPlayer(t, "alice", "a@example.com", "secret123")
 	f.addPlayer(t, "bobby", "b@example.com", "secret123")
+	const attacker = "203.0.113.66"
+	for i := range failuresPerNameIP {
+		if _, err := f.svc.Login(ctx, "alice", "wrong", attacker); !errors.Is(err, ErrAuthFailed) {
+			t.Fatalf("attempt %d: %v", i+1, err)
+		}
+	}
+	// From that IP the name is now locked, even with the right password and
+	// in another case.
+	for _, name := range []string{"alice", "ALICE"} {
+		_, err := f.svc.Login(ctx, name, "secret123", attacker)
+		var rl *RateLimitError
+		if !errors.As(err, &rl) || rl.RetryAfter <= 0 || rl.RetryAfter > 2*time.Minute {
+			t.Errorf("%s after %d failures: %v", name, failuresPerNameIP, err)
+		}
+	}
+	// The attacker can't lock alice out from anywhere else.
+	if _, err := f.svc.Login(ctx, "alice", "secret123", "198.51.100.1"); err != nil {
+		t.Errorf("alice locked out by another IP's failures: %v", err)
+	}
+	if _, err := f.svc.Login(ctx, "bobby", "secret123", attacker); err != nil {
+		t.Errorf("other names from that IP are unaffected: %v", err)
+	}
+}
+
+func TestFailedLoginsPerUsernameAcrossIPs(t *testing.T) {
+	f := limitedFixture(t, true)
+	ctx := context.Background()
+	f.addPlayer(t, "alice", "a@example.com", "secret123")
+	f.addPlayer(t, "bobby", "b@example.com", "secret123")
+	// One guess per IP stays under every per-IP limit.
 	for i := range failuresPerName {
 		if _, err := f.svc.Login(ctx, "alice", "wrong", ip(i)); !errors.Is(err, ErrAuthFailed) {
 			t.Fatalf("attempt %d: %v", i+1, err)
 		}
 	}
-	// Spread over many IPs, the name is now locked, even with the right
-	// password and in another case.
-	for _, name := range []string{"alice", "ALICE"} {
-		_, err := f.svc.Login(ctx, name, "secret123", ip(200))
-		var rl *RateLimitError
-		if !errors.As(err, &rl) || rl.RetryAfter <= 0 || rl.RetryAfter > 90*time.Second {
-			t.Errorf("%s after %d failures: %v", name, failuresPerName, err)
-		}
+	_, err := f.svc.Login(ctx, "Alice", "secret123", ip(200))
+	var rl *RateLimitError
+	if !errors.As(err, &rl) || rl.RetryAfter <= 0 || rl.RetryAfter > time.Minute {
+		t.Errorf("after %d failures across IPs: %v", failuresPerName, err)
 	}
 	if _, err := f.svc.Login(ctx, "bobby", "secret123", ip(201)); err != nil {
 		t.Errorf("other names are unaffected: %v", err)
 	}
 	// Unknown names are counted too, so they can't be probed endlessly.
-	for i := range failuresPerName {
-		f.svc.Login(ctx, "ghost", "x", ip(i))
+	for range failuresPerNameIP {
+		f.svc.Login(ctx, "ghost", "x", ip(202))
 	}
 	if _, err := f.svc.Login(ctx, "ghost", "x", ip(202)); !errors.Is(err, ErrRateLimited) {
 		t.Errorf("unknown name: %v", err)
@@ -58,16 +84,34 @@ func TestSuccessfulLoginResetsFailures(t *testing.T) {
 	f := limitedFixture(t, true)
 	ctx := context.Background()
 	f.addPlayer(t, "alice", "a@example.com", "secret123")
-	for i := range failuresPerName - 1 {
-		f.svc.Login(ctx, "alice", "wrong", ip(i))
+	login := func(password, ip string) error {
+		_, err := f.svc.Login(ctx, "alice", password, ip)
+		return err
 	}
-	if _, err := f.svc.Login(ctx, "alice", "secret123", ip(50)); err != nil {
+	// Per name and IP.
+	for range failuresPerNameIP - 1 {
+		login("wrong", "203.0.113.7")
+	}
+	if err := login("secret123", "203.0.113.7"); err != nil {
+		t.Fatal(err)
+	}
+	for range failuresPerNameIP - 1 {
+		login("wrong", "203.0.113.7")
+	}
+	if err := login("secret123", "203.0.113.7"); err != nil {
+		t.Errorf("a success should have cleared this IP's earlier failures: %v", err)
+	}
+	// Per name across IPs.
+	for i := range failuresPerName - 1 {
+		login("wrong", ip(i))
+	}
+	if err := login("secret123", ip(150)); err != nil {
 		t.Fatal(err)
 	}
 	for i := range failuresPerName - 1 {
-		f.svc.Login(ctx, "alice", "wrong", ip(100+i))
+		login("wrong", ip(i))
 	}
-	if _, err := f.svc.Login(ctx, "alice", "secret123", ip(150)); err != nil {
+	if err := login("secret123", ip(151)); err != nil {
 		t.Errorf("a success should have cleared the earlier failures: %v", err)
 	}
 }
@@ -75,11 +119,11 @@ func TestSuccessfulLoginResetsFailures(t *testing.T) {
 func TestPerIPOnlyMode(t *testing.T) {
 	f := limitedFixture(t, false)
 	ctx := context.Background()
-	// A name with no account fails without a bcrypt check, keeping this fast.
-	for i := range failuresPerName + 5 {
-		f.svc.Login(ctx, "ghost", "wrong", ip(i))
+	// Under the per-IP limit, but over the per-name-and-IP one.
+	for range failuresPerNameIP + 5 {
+		f.svc.Login(ctx, "ghost", "wrong", "203.0.113.7")
 	}
-	if _, err := f.svc.Login(ctx, "ghost", "wrong", ip(200)); !errors.Is(err, ErrAuthFailed) {
+	if _, err := f.svc.Login(ctx, "ghost", "wrong", "203.0.113.7"); !errors.Is(err, ErrAuthFailed) {
 		t.Errorf("names aren't limited in per-IP mode: %v", err)
 	}
 }
