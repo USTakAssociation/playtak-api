@@ -29,6 +29,10 @@ const (
 	messagesPerPlayer = 10
 	messagesPeriod    = 10 * time.Second
 	maxTrackedPlayers = 100_000
+	// maxRoomsPerMember bounds how many rooms one session can be in, so a
+	// client can't grow the room table without limit. Clients join a room
+	// per observed game.
+	maxRoomsPerMember = 50
 )
 
 var (
@@ -38,6 +42,8 @@ var (
 	ErrNotInRoom = errors.New("You are not in that room")
 	// ErrTooFast means the sender has used up their messages for now.
 	ErrTooFast = errors.New("You are sending messages too fast")
+	// ErrTooManyRooms means the session is already in maxRoomsPerMember rooms.
+	ErrTooManyRooms = errors.New("You are in too many rooms")
 )
 
 // Member is a session that can receive chat.
@@ -58,15 +64,17 @@ type Service struct {
 	log   *slog.Logger
 	limit *ratelimit.Keyed // messages per player name
 
-	mu    sync.Mutex
-	rooms map[string]map[Member]struct{}
+	mu     sync.Mutex
+	rooms  map[string]map[Member]struct{}
+	joined map[Member]int // how many rooms each member is in
 }
 
 func NewService(log *slog.Logger) *Service {
 	return &Service{
-		log:   log,
-		limit: ratelimit.New(messagesPerPlayer, messagesPeriod, maxTrackedPlayers),
-		rooms: make(map[string]map[Member]struct{}),
+		log:    log,
+		limit:  ratelimit.New(messagesPerPlayer, messagesPeriod, maxTrackedPlayers),
+		rooms:  make(map[string]map[Member]struct{}),
+		joined: make(map[Member]int),
 	}
 }
 
@@ -99,17 +107,26 @@ func (s *Service) Shout(from Sender, everyone []Member, text string) error {
 	return nil
 }
 
-// Join adds m to room, creating it if needed.
-func (s *Service) Join(room string, member Member) {
+// Join adds m to room, creating it if needed. A member already in
+// maxRoomsPerMember rooms gets ErrTooManyRooms.
+func (s *Service) Join(room string, member Member) error {
 	s.mu.Lock()
 	members := s.rooms[room]
-	if members == nil {
-		members = make(map[Member]struct{})
-		s.rooms[room] = members
+	if _, in := members[member]; !in {
+		if s.joined[member] >= maxRoomsPerMember {
+			s.mu.Unlock()
+			return ErrTooManyRooms
+		}
+		if members == nil {
+			members = make(map[Member]struct{})
+			s.rooms[room] = members
+		}
+		members[member] = struct{}{}
+		s.joined[member]++
 	}
-	members[member] = struct{}{}
 	s.mu.Unlock()
 	member.Send(protocol.RoomJoined{Room: room})
+	return nil
 }
 
 // Leave removes m from room; an empty room is deleted.
@@ -143,8 +160,17 @@ func (s *Service) JoinedRooms(m Member) []string {
 }
 
 func (s *Service) leaveLocked(room string, m Member) {
-	delete(s.rooms[room], m)
-	if len(s.rooms[room]) == 0 {
+	members, ok := s.rooms[room]
+	if !ok {
+		return
+	}
+	if _, in := members[m]; in {
+		delete(members, m)
+		if s.joined[m]--; s.joined[m] <= 0 {
+			delete(s.joined, m)
+		}
+	}
+	if len(members) == 0 {
 		delete(s.rooms, room)
 	}
 }

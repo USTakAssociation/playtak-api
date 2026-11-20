@@ -3,6 +3,7 @@ package chat
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"log/slog"
 	"slices"
 	"strings"
@@ -283,5 +284,44 @@ func TestMessagesRateLimitedPerPlayer(t *testing.T) {
 	}
 	if err := s.Shout(Sender{Name: "bob", Session: b}, []Member{a, b}, "hi"); err != nil {
 		t.Errorf("bob is limited by alice's flood: %v", err)
+	}
+}
+
+func TestRoomsPerMemberCapped(t *testing.T) {
+	s, _ := newService()
+	a, b := &member{}, &member{}
+	for i := range maxRoomsPerMember {
+		if err := s.Join(fmt.Sprint("room", i), a); err != nil {
+			t.Fatalf("room %d: %v", i, err)
+		}
+	}
+	if err := s.Join("one-too-many", a); !errors.Is(err, ErrTooManyRooms) {
+		t.Errorf("over the cap: %v, want ErrTooManyRooms", err)
+	}
+	if s.roomCount() != maxRoomsPerMember {
+		t.Errorf("a refused join created a room: %d rooms", s.roomCount())
+	}
+	if err := s.Join("room0", a); err != nil {
+		t.Errorf("rejoining a room already in doesn't count: %v", err)
+	}
+	if err := s.Join("one-too-many", b); err != nil {
+		t.Errorf("another member has their own cap: %v", err)
+	}
+	s.Leave("room0", a)
+	s.Leave("room0", a) // leaving twice frees only one slot
+	if err := s.Join("one-too-many", a); err != nil {
+		t.Errorf("after leaving a room: %v", err)
+	}
+	if err := s.Join("another", a); !errors.Is(err, ErrTooManyRooms) {
+		t.Errorf("leaving twice freed two slots: %v", err)
+	}
+
+	s.LeaveAll(a)
+	s.LeaveAll(b)
+	s.mu.Lock()
+	left := len(s.joined)
+	s.mu.Unlock()
+	if left != 0 || s.roomCount() != 0 {
+		t.Errorf("after everyone left: %d members counted, %d rooms", left, s.roomCount())
 	}
 }

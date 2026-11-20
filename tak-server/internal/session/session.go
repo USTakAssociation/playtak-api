@@ -166,7 +166,9 @@ func (s *Session) HandleLine(line string) {
 			s.Send(protocol.CommandFailed{Reason: err.Error()})
 		}
 	case protocol.JoinRoom:
-		s.manager.chat.Join(command.Room, s)
+		if err := s.manager.chat.Join(command.Room, s); err != nil {
+			s.Send(protocol.CommandFailed{Reason: err.Error()})
+		}
 	case protocol.LeaveRoom:
 		s.manager.chat.Leave(command.Room, s)
 		s.Send(protocol.OK{})

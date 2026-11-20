@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
@@ -158,4 +159,15 @@ func TestShoutFloodRefused(t *testing.T) {
 	a.send("Shout spam")
 	a.expect("Error:You are sending messages too fast")
 	b.expectNothing()
+}
+
+func TestJoinRoomCapThroughProtocol(t *testing.T) {
+	h := newHarness(t, Config{})
+	c := loginGuestWith(h, "")
+	for i := range 50 {
+		c.send(fmt.Sprintf("JoinRoom r%d", i))
+		c.expect(fmt.Sprintf("Joined room r%d", i))
+	}
+	c.send("JoinRoom r50")
+	c.expect("Error:You are in too many rooms")
 }

@@ -486,6 +486,7 @@ The deliberate changes in client-visible behaviour, for release notes:
 - A client that falls 1024 lines behind is disconnected, so one slow connection can't hold up the server. Java kept queuing. Telnet clients are disconnected the same way, without a code.
 - Each IP may hold `TAK_MAX_CONNECTIONS_PER_IP` (default 100) connections open at once. Java had no cap.
 - Chat is limited to 10 messages per 10 seconds per player. Java had no limit.
+- A connection can be in at most 50 chat rooms; joining more answers `Error:You are in too many rooms`. Java had no limit.
 
 **Accounts**
 - Java accepted some non-ASCII passwords through a legacy fallback. That fallback is gone, so those players need to reset their password.
