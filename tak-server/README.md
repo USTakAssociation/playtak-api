@@ -381,8 +381,8 @@ Safe to run again. On each run it:
    and the rating timer.
 6. Checks the server sends `Welcome!` on its telnet port within 30 seconds.
    Then it points the nginx `upstream playtak-api-<env>` block (in
-   `/etc/nginx/sites-enabled/proxysettings`, which serves api.playtak.com or
-   api.beta.playtak.com) at the Go HTTP port, checks it with `nginx -t` and
+   `/etc/nginx/sites-enabled/proxysettings` for prod, `proxysettings-beta`
+   for beta, serving api.playtak.com or api.beta.playtak.com) at the Go HTTP port, checks it with `nginx -t` and
    reloads. The NestJS port it replaces is saved for `rollback.sh`.
 7. Deletes old backups, keeping the 10 newest. This runs only after a
    successful deploy, so failed deploys can't push out the last good backup.

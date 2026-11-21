@@ -100,7 +100,9 @@ pm2() { sudo -u "$run_user" -i pm2 "$@"; }
 # upstream. point_api sets the port in that block only, checks the config
 # and reloads; on a bad config it puts the file back. The copy is kept
 # outside sites-enabled, where nginx would load it as a second config.
+# Prod's config is proxysettings, beta's proxysettings-beta.
 nginx_conf=/etc/nginx/sites-enabled/proxysettings
+[ "$env" = prod ] || nginx_conf=$nginx_conf-$env
 nginx_upstream=playtak-api-$env
 node_api_port_file=$app_dir/nginx-api-port.node
 api_port() { sed -n "/^upstream $nginx_upstream {/,/}/ s/.*127\.0\.0\.1:\([0-9]\+\).*/\1/p" "$nginx_conf"; }
