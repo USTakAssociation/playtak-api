@@ -364,21 +364,27 @@ in `deploy/`) to the server and runs `deploy/deploy.sh beta|prod` as root.
 
 Safe to run again. On each run it:
 
-1. Stops the Go and Java servers for that environment. If either is still
-   running afterwards, it stops there and changes nothing.
+1. Stops the Go and Java servers and the NestJS API (pm2 app
+   `playtak-api-<env>`, stopped and saved so a reboot doesn't restart it).
+   If any is still running afterwards, it stops there.
 2. Backs up both databases to `/var/backups/tak-server-<env>/<time>/`. The
    backup is taken after stopping, so nothing can be written between the
-   backup and the migrations.
+   backup and the migrations. The rating cursor is saved with it.
 3. Runs every migration. Each is safe to run more than once.
-4. Installs the binary and `.env` to `/var/apps/tak-server-<env>/` and the
-   unit `tak-server-<env>.service`.
+4. Installs the binary and `.env` to `/var/apps/tak-server-<env>/`, the
+   unit `tak-server-<env>.service` (run as `ubuntu`, who owns the
+   databases), and the rating job `tak-server-rate-<env>.service` with its
+   timer, hourly at minute 19. On the first deploy it copies the NestJS
+   rating cursor (`/var/apps/playtak-api-<env>/previous.txt`) to the Go one.
 5. Disables the Java unit (`takserver-<env>.service`), so a reboot can't
-   start both, and checks it really is disabled. Then it starts the Go unit.
+   start both, and checks it really is disabled. Then it starts the Go unit
+   and the rating timer.
 6. Checks the server sends `Welcome!` on its telnet port within 30 seconds.
 7. Deletes old backups, keeping the 10 newest. This runs only after a
    successful deploy, so failed deploys can't push out the last good backup.
 
-If any step after stopping fails, it rolls back to Java and fails the job:
+If any step after stopping fails, it rolls back to Java and NestJS and fails
+the job:
 
 | Failed during | Rollback |
 | --- | --- |
@@ -403,11 +409,16 @@ bash /var/apps/tak-server-prod/rollback.sh prod              # back to Java, kee
 bash /var/apps/tak-server-prod/rollback.sh prod --restore-db # also restore the newest backup
 ```
 
+Rolling back stops the rating timer (waiting for a run in progress), moves
+the Go rating cursor back to NestJS so it doesn't rate those games again,
+and starts Java and the NestJS API.
+
 The Java server runs on the migrated databases, so restoring is rarely
 needed. Restoring loses everything since the backup; the replaced files are
-kept as `*.before-restore`. `rollback.sh` refuses to restore while either
-server is still running, and removes any leftover journal or WAL files so
-they can't be replayed onto the restored databases.
+kept as `*.before-restore`, and the cursor saved with the backup is given
+to NestJS. `rollback.sh` refuses to restore while Java is still running. It
+restores with `sqlite3 .restore` rather than copying files, because the
+databases are in WAL mode and the NestJS API may still have them open.
 
 ### Settings: the TAK_ENV secret
 

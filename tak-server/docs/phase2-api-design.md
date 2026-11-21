@@ -166,19 +166,19 @@ Prod settings, mapped from the NestJS `.env`:
 | `CORS_DOMAIN = playtak.com, ptn.ninja, attak.club, kati.exoticorn.de` | `*` on the public endpoints, which covers all four |
 | `PORT`, `NODE_ENV`, `APP_ENV` | not needed |
 
-1. Deploy with the settings above. Whichever user cron runs
-   `tak-server rate` as needs write access to the `/var/www/html/` directory
-   itself, because the ratings list is written to a temp file and renamed
-   into place.
-2. Turn off the Node rating cron (`RATING_CRON_VALUE`) **before** enabling
-   the Go one. Running both rates every game twice.
-3. Copy Node's `previous.txt`, from the Node process's working directory, to
-   the cursor file path. The Go job refuses to run without it.
-4. Add the crontab entry.
-5. Point api.playtak.com at the tak-server HTTP listener.
-6. Stop the NestJS service. Delete `api/` and `tests/rating-parity/`.
+`deploy.sh` does the cutover; see the README. It stops the NestJS API
+(and with it the Node rating job), copies Node's `previous.txt` to the Go
+cursor, and installs the hourly `tak-server-rate-<env>.timer`, run as
+`ubuntu`, who owns `/var/www/html/` (the ratings list is written to a temp
+file there and renamed into place). `rollback.sh` reverses it: it stops the
+timer, moves the cursor back to Node, and starts NestJS. Node can read
+everything Go writes.
 
-Rollback is the reverse. Node can read everything Go writes.
+Still by hand:
+
+1. Point api.playtak.com at the tak-server HTTP listener.
+2. Once Go has run without a rollback for a while: `pm2 delete` the NestJS
+   apps, and delete `api/` and `tests/rating-parity/`.
 
 ## Open questions
 

@@ -10,10 +10,11 @@
 # TAK_TELNET_ADDR explicitly (beta and prod share the machine, so relying on
 # the default ports would collide).
 #
-# Steps: stop the servers, back up both databases, run the migrations,
-# install the binary and its systemd unit, start it, and check it answers.
-# If any step after stopping the servers fails, rollback.sh starts the Java
-# server again. A failure after the backup but before the Go server starts
+# Steps: stop the servers (Java, and the NestJS API, which tak-server
+# replaces), back up both databases, run the migrations, install the binary,
+# its systemd unit and the hourly rating timer, start it, and check it
+# answers. If any step after stopping the servers fails, rollback.sh starts
+# Java and NestJS again. A failure after the backup but before the Go server starts
 # also restores that backup: nothing has written since, so no data is lost,
 # and a half-applied migration is undone.
 set -Eeuo pipefail
@@ -31,6 +32,11 @@ release=$(cd "$(dirname "$0")" && pwd)
 app_dir=/var/apps/tak-server-$env
 go_unit=tak-server-$env.service
 java_unit=takserver-$env.service
+rate_unit=tak-server-rate-$env
+# The NestJS API, run by pm2 as $run_user. Its rating job's cursor is in its
+# working directory.
+node_app=playtak-api-$env
+node_cursor=/var/apps/playtak-api-$env/previous.txt
 backups=/var/backups/tak-server-$env
 # The server runs as the user that owns the databases, so the WAL files
 # SQLite creates beside them (-wal, -shm) stay writable by everything else
@@ -49,6 +55,8 @@ players_db=$(setting TAK_PLAYERS_DB)
 games_db=$(setting TAK_GAMES_DB)
 telnet_port=$(setting TAK_TELNET_ADDR)
 telnet_port=${telnet_port##*:}
+cursor=$(setting TAK_RATING_CURSOR_FILE)
+cursor=${cursor:-$(dirname "$games_db")/previous.txt}
 for v in players_db games_db telnet_port; do
 	[ -n "${!v}" ] || { echo "$v is not set in .env" >&2; exit 1; }
 done
@@ -83,9 +91,17 @@ on_failure() {
 	exit 1
 }
 
+pm2() { sudo -u "$run_user" -i pm2 "$@"; }
+
 echo "stopping servers"
 systemctl stop "$go_unit" 2>/dev/null || true
 systemctl stop "$java_unit" 2>/dev/null || true
+# Stopped, not deleted, so rollback.sh can start it again. Saved so a reboot
+# doesn't bring it back; its rating job and Go's would rate games twice.
+if pm2 describe "$node_app" >/dev/null 2>&1; then
+	pm2 stop "$node_app" >/dev/null || true # checked below
+	pm2 save >/dev/null || true
+fi
 # A server that won't stop still holds the databases: leave everything as it
 # is rather than back up or migrate underneath it.
 for unit in "$go_unit" "$java_unit"; do
@@ -94,6 +110,10 @@ for unit in "$go_unit" "$java_unit"; do
 		exit 1
 	fi
 done
+if pm2 pid "$node_app" 2>/dev/null | grep -q '[1-9]'; then
+	echo "$node_app did not stop; deploy aborted, nothing changed" >&2
+	exit 1
+fi
 
 # Backed up only after stopping, so no write can fall between the backup and
 # the migrations; restoring it then loses nothing.
@@ -108,6 +128,13 @@ chmod 700 "$backups" "$backups/$stamp"
 sqlite3 "$players_db" ".backup '$backups/$stamp/players.db'"
 sqlite3 "$games_db" ".backup '$backups/$stamp/games.db'"
 chmod 600 "$backups/$stamp/players.db" "$backups/$stamp/games.db"
+# The rating cursor that matches these databases, for rollback.sh --restore-db.
+for f in "$cursor" "$node_cursor"; do
+	if [ -f "$f" ]; then
+		cp "$f" "$backups/$stamp/previous.txt"
+		break
+	fi
+done
 # Written last: rollback.sh only restores backups that have it.
 printf '%s\n%s\n' "$players_db" "$games_db" >"$backups/$stamp/paths"
 phase=backed-up
@@ -130,6 +157,16 @@ install -m 0755 "$release/tak-server" "$app_dir/tak-server.new"
 mv -f "$app_dir/tak-server.new" "$app_dir/tak-server"
 install -m 0600 -o "$run_user" "$release/.env" "$app_dir/.env"
 install -m 0755 "$release/rollback.sh" "$app_dir/rollback.sh"
+
+# The rating job carries on from where the NestJS job stopped. Once Go has
+# its own cursor, that one is kept: rollback.sh moves it back to NestJS.
+if [ ! -f "$cursor" ]; then
+	if [ ! -f "$node_cursor" ]; then
+		echo "no rating cursor: neither $cursor nor $node_cursor exists" >&2
+		on_failure
+	fi
+	install -m 0644 -o "$run_user" -g "$(id -gn "$run_user")" "$node_cursor" "$cursor"
+fi
 
 # TODO: the server runs as $run_user with no sandboxing, so a remote code
 # execution bug gets that user's files. Once the NodeJS API and the Java
@@ -155,6 +192,31 @@ TimeoutStopSec=30
 WantedBy=multi-user.target
 EOF
 
+# The rating job, hourly at minute 19 as the NestJS job ran. A oneshot
+# service never runs twice at once, and Persistent= makes up a run missed
+# while the machine was down. Logs: journalctl -u $rate_unit
+cat >"/etc/systemd/system/$rate_unit.service" <<EOF
+[Unit]
+Description=PlayTak rating job ($env)
+
+[Service]
+Type=oneshot
+WorkingDirectory=$app_dir
+ExecStart=$app_dir/tak-server rate
+User=$run_user
+EOF
+cat >"/etc/systemd/system/$rate_unit.timer" <<EOF
+[Unit]
+Description=PlayTak rating job ($env), hourly
+
+[Timer]
+OnCalendar=*-*-* *:19:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
 systemctl daemon-reload
 # Disabled so a reboot can't start both servers on the same ports.
 systemctl disable "$java_unit" 2>/dev/null || true # fails if there's no Java unit
@@ -164,6 +226,7 @@ if systemctl is-enabled --quiet "$java_unit" 2>/dev/null; then
 fi
 phase=started
 systemctl enable --now "$go_unit"
+systemctl enable --now "$rate_unit.timer"
 
 echo "checking the server answers on port $telnet_port"
 for _ in $(seq 1 30); do
