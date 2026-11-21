@@ -16,9 +16,13 @@ import (
 // not create the file: a missing database is a deployment error.
 func Open(ctx context.Context, path string) (*sql.DB, error) {
 	// The filename is read as a URI, so characters such as %, ? and # in the
-	// path must be escaped.
+	// path must be escaped. Transactions take the write lock up front
+	// (_txlock): in WAL mode, which prod uses, a transaction that reads and
+	// then writes fails at once if another connection wrote in between, and
+	// busy_timeout doesn't help. Every transaction here writes anyway.
 	dsn := "file:" + (&url.URL{Path: path}).EscapedPath() + "?mode=rw&" + url.Values{
 		"_pragma": {"busy_timeout(5000)", "foreign_keys(1)"},
+		"_txlock": {"immediate"},
 	}.Encode()
 	conn, err := sql.Open("sqlite", dsn)
 	if err != nil {

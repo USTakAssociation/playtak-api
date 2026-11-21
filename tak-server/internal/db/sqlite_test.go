@@ -144,3 +144,58 @@ func TestOpenPathWithURICharacters(t *testing.T) {
 		}
 	}
 }
+
+// A transaction that reads before it writes, while another connection
+// writes in between, must wait rather than fail. In WAL mode a deferred
+// transaction would get SQLITE_BUSY_SNAPSHOT here.
+func TestReadThenWriteTransactionWaitsInWAL(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "wal.db")
+	seed, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := seed.Exec(`PRAGMA journal_mode=WAL; CREATE TABLE t (x)`); err != nil {
+		t.Fatal(err)
+	}
+	seed.Close()
+	a, err := Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close()
+	b, err := Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+
+	read := make(chan struct{})
+	other := make(chan error, 1)
+	err = WithTransaction(ctx, a, func(tx *sql.Tx) error {
+		var n int
+		if err := tx.QueryRow(`SELECT count(*) FROM t`).Scan(&n); err != nil {
+			return err
+		}
+		go func() {
+			close(read)
+			_, err := b.Exec(`INSERT INTO t VALUES (2)`)
+			other <- err
+		}()
+		<-read
+		time.Sleep(100 * time.Millisecond) // let the other write try to go first
+		_, err := tx.Exec(`INSERT INTO t VALUES (1)`)
+		return err
+	})
+	if err != nil {
+		t.Fatalf("read-then-write transaction: %v", err)
+	}
+	if err := <-other; err != nil {
+		t.Fatalf("concurrent write: %v", err)
+	}
+	var mode string
+	a.QueryRow(`PRAGMA journal_mode`).Scan(&mode)
+	if mode != "wal" {
+		t.Errorf("journal_mode %q, want wal", mode)
+	}
+}
