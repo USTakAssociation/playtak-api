@@ -162,7 +162,7 @@ Prod settings, mapped from the NestJS `.env`:
 | `ANON_DB_PATH = /var/www/html/games_anon.db.gz` | `TAK_PUBLIC_GAMES_DB=/var/www/html/games_anon.db.gz` |
 | `RATING_OUTPUT_PATH = /var/www/html/` | `TAK_RATING_LIST_FILE=/var/www/html/ratinglist.json.gz` |
 | `PREVIOUS_FILE = previous.txt` (relative to the Node process's working directory) | `TAK_RATING_CURSOR_FILE`, default `/var/apps/playtak-server-prod/previous.txt` |
-| `RATING_CRON_VALUE = 0 19 * * * *` (minute 19 of every hour) | crontab `19 * * * * cd /var/apps/playtak-server-prod && ./tak-server rate` |
+| `RATING_CRON_VALUE = 0 19 * * * *` (minute 19 of every hour) | systemd timer `tak-server-rate-prod.timer`, installed by `deploy.sh` |
 | `CORS_DOMAIN = playtak.com, ptn.ninja, attak.club, kati.exoticorn.de` | `*` on the public endpoints, which covers all four |
 | `PORT`, `NODE_ENV`, `APP_ENV` | not needed |
 
@@ -177,6 +177,13 @@ points nginx back. Node can read everything Go writes.
 
 Still by hand: once Go has run without a rollback for a while, `pm2 delete`
 the NestJS apps, and delete `api/` and `tests/rating-parity/`.
+
+TODO: the public anonymized games DB (`games_anon.db.gz`) is still built by
+`/anon.sh` from ubuntu's crontab, outside this repo. It is only a snapshot
+for the community to download; search and PTN no longer anonymize. The
+script copies `games.db` with `cp`, which in WAL mode can miss recent games
+or catch a half-written checkpoint. Fix: copy with `sqlite3 .backup`, set
+the copy to `journal_mode=DELETE`, and run it from a timer in `deploy.sh`.
 
 ## Open questions
 
