@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/auth"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/dbtest"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/online"
@@ -24,6 +25,9 @@ type fakeAccounts struct {
 }
 
 func (a *fakeAccounts) SetPassword(_ context.Context, name, pw string) error {
+	if !auth.ValidPassword(pw) { // as the real one checks
+		return auth.ErrInvalidPassword
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.passwords[name] = pw
@@ -362,9 +366,6 @@ func TestRoles(t *testing.T) {
 	want(t, e.run("ada", "", protocol.SudoMod, "pat", ""), "pat is already a moderator")
 	want(t, e.run("ada", "", protocol.SudoUnmod, "pat", ""), "Removed pat as moderator")
 	want(t, e.run("ada", "", protocol.SudoUnmod, "pat", ""), "pat is not a moderator")
-	want(t, e.run("ada", "", protocol.SudoAdmin, "pat", ""), "Added pat as admin")
-	want(t, e.run("ada", "", protocol.SudoAdmin, "pat", ""), "pat is already an admin")
-	want(t, e.run("ada", "", protocol.SudoUnadmin, "pat", ""), "Removed pat as admin")
 	want(t, e.run("ada", "", protocol.SudoUnadmin, "pat", ""), "pat is not an admin")
 	want(t, e.run("ada", "", protocol.SudoBot, "pat", ""), "Added pat as bot")
 	want(t, e.run("ada", "", protocol.SudoBot, "pat", ""), "pat is already a bot")
@@ -372,22 +373,61 @@ func TestRoles(t *testing.T) {
 	if r := e.record("pat"); r.IsAdmin || r.IsBot || r.IsMod {
 		t.Errorf("roles left: %+v", r)
 	}
-	// Admins may change other admins' roles, but not their own.
-	want(t, e.run("ada", "", protocol.SudoUnadmin, "abe", ""), "Removed abe as admin")
+	// Admins may change moderators' roles.
+	want(t, e.run("ada", "", protocol.SudoUnmod, "mona", ""), "Removed mona as moderator")
+	want(t, e.run("ada", "", protocol.SudoAdmin, "pat", ""), "Added pat as admin")
+	if !e.record("pat").IsAdmin || !p.IsAdmin() {
+		t.Error("admin not saved or not applied online")
+	}
 	want(t, e.run("ada", "", protocol.SudoUnadmin, "ADA", ""), "You can't change your own roles")
 	want(t, e.run("ada", "", protocol.SudoMod, "nobody", ""), "No such player")
+}
+
+// No admin can change another admin's roles, even one they just promoted:
+// that takes a database change, so one admin account can't strip the rest.
+func TestAdminsCantChangeAdminsRoles(t *testing.T) {
+	e := newEnv(t)
+	e.run("ada", "", protocol.SudoAdmin, "pat", "")
+	for _, tc := range []struct {
+		action protocol.SudoAction
+		target string
+	}{
+		{protocol.SudoUnadmin, "abe"},
+		{protocol.SudoUnadmin, "pat"},
+		{protocol.SudoUnadmin, "val"},
+		{protocol.SudoUnmod, "abe"},
+		{protocol.SudoBot, "val"},
+	} {
+		want(t, e.run("ada", "", tc.action, tc.target, ""), "You don't have rights")
+	}
+	if r := e.record("abe"); !r.IsAdmin || !r.IsMod {
+		t.Errorf("abe's roles changed: %+v", r)
+	}
+	if r := e.record("val"); !r.IsAdmin || r.IsBot {
+		t.Errorf("val's roles changed: %+v", r)
+	}
+	if !e.record("pat").IsAdmin {
+		t.Error("pat was demoted")
+	}
 }
 
 func TestSetPassword(t *testing.T) {
 	e := newEnv(t)
 	want(t, e.run("ada", "sudo set password Pat ******", protocol.SudoSetPassword, "Pat", "n3wpassword"), "Password set")
-	if e.accounts.passwords["pat"] != "n3wpassword" || !slices.Equal(e.accounts.revoked, []string{"pat"}) {
-		t.Errorf("passwords %v, revoked %v", e.accounts.passwords, e.accounts.revoked)
+	// Revoking the player's tokens is SetPassword's job (tested in auth).
+	if e.accounts.passwords["pat"] != "n3wpassword" {
+		t.Errorf("passwords %v", e.accounts.passwords)
 	}
 	want(t, e.run("ada", "", protocol.SudoSetPassword, "mona", "n3wpassword"), "Password set")
 	want(t, e.run("ada", "", protocol.SudoSetPassword, "abe", "n3wpassword"), "You don't have rights")
 	want(t, e.run("ada", "", protocol.SudoSetPassword, "ada", "n3wpassword"), "You don't have rights")
 	want(t, e.run("ada", "", protocol.SudoSetPassword, "nobody", "n3wpassword"), "No such player")
+	// The sudo parser allows up to 100 characters; the password rules allow 50.
+	long := strings.Repeat("x", 51)
+	want(t, e.run("ada", "", protocol.SudoSetPassword, "pat", long), "Invalid password: 6 to 50 characters, no spaces")
+	if e.accounts.passwords["pat"] != "n3wpassword" {
+		t.Error("an invalid password replaced the old one")
+	}
 	if strings.Contains(e.log.String(), "n3wpassword") {
 		t.Errorf("password logged: %s", e.log.String())
 	}

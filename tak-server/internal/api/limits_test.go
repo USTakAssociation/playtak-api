@@ -32,7 +32,7 @@ func newLimitedServer(t *testing.T, trusted string) (*httptest.Server, *players.
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := httptest.NewServer(NewServer(authSvc, online.NewRegistry(), seek.NewManager(), serviceKey, resolver, log).Handler())
+	srv := httptest.NewServer(NewServer(authSvc, online.NewRegistry(), seek.NewManager(), serviceKey, resolver, PublicData{}, log).Handler())
 	t.Cleanup(srv.Close)
 	return srv, store
 }

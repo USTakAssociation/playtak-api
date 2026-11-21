@@ -38,7 +38,7 @@ func newTestServerWithSeeks(t *testing.T) (*httptest.Server, *players.Store, *on
 	authSvc := auth.NewService(store, players.NewTokenStore(conn), email.Log{Logger: log}, log)
 	reg := online.NewRegistry()
 	seeks := seek.NewManager()
-	srv := httptest.NewServer(NewServer(authSvc, reg, seeks, serviceKey, &clientip.Resolver{}, log).Handler())
+	srv := httptest.NewServer(NewServer(authSvc, reg, seeks, serviceKey, &clientip.Resolver{}, PublicData{}, log).Handler())
 	t.Cleanup(srv.Close)
 	return srv, store, reg, seeks
 }
@@ -135,6 +135,21 @@ func TestGuest(t *testing.T) {
 	}
 	if p := reg.Guest(token); p.Name != body["name"] {
 		t.Errorf("token resolves to %q, want %q", p.Name, body["name"])
+	}
+}
+
+// Every response, including errors and unknown paths, forbids MIME sniffing.
+func TestNoSniff(t *testing.T) {
+	srv, _, _ := newTestServer(t)
+	for _, path := range []string{"/health", "/api/auth/login", "/no-such-path"} {
+		resp, err := http.Get(srv.URL + path) // GET on login: 405
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if got := resp.Header.Get("X-Content-Type-Options"); got != "nosniff" {
+			t.Errorf("%s: X-Content-Type-Options = %q", path, got)
+		}
 	}
 }
 

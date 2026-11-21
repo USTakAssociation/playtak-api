@@ -18,7 +18,7 @@ func TestSocketLoginRateLimited(t *testing.T) {
 		c.expect("Authentication failure")
 	}
 	c := h.connect()
-	c.send("Login alice password") // right password, but the name is locked
+	c.send("Login alice password") // right password, but the name is locked for this IP
 	c.expect("Authentication failure")
 	c.expectNothing()
 }
@@ -43,6 +43,19 @@ func TestSocketResetTokenRateLimited(t *testing.T) {
 	for range 3 {
 		c.send("SendResetToken alice alice@example.com")
 		c.expect("Reset token sent")
+	}
+	c.send("SendResetToken alice alice@example.com")
+	c.expect("Reset Token Error: Too many requests, please try again later")
+}
+
+func TestSocketResetRequestsPerIP(t *testing.T) {
+	h := newHarness(t, Config{})
+	h.m.auth.EnableLimits(true)
+	h.addPlayer("alice", false)
+	c := h.connect()
+	for i := range 10 {
+		c.send(fmt.Sprintf("SendResetToken nobody%d a@example.com", i))
+		c.expect("Reset Token Error: Username or email address is invalid")
 	}
 	c.send("SendResetToken alice alice@example.com")
 	c.expect("Reset Token Error: Too many requests, please try again later")

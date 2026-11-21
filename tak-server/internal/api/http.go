@@ -12,6 +12,8 @@ import (
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/auth"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/clientip"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/games"
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/online"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/ratelimit"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/seek"
@@ -23,6 +25,8 @@ import (
 const (
 	tokenCallsPerIP = 30 // refresh, logout and guest, per minute
 	seekListsPerIP  = 60 // per minute
+	historyPerIP    = 60 // games history and ratings, per minute
+	eventsPerIP     = 30 // per minute
 	maxTrackedIPs   = 100_000
 )
 
@@ -37,17 +41,39 @@ type Server struct {
 	clientIP   *clientip.Resolver
 	log        *slog.Logger
 
-	tokenCalls *ratelimit.Keyed
-	seekLists  *ratelimit.Keyed
+	games         *games.Store
+	playerStore   *players.Store
+	events        *eventsFeed
+	publicGamesDB string
+
+	tokenCalls  *ratelimit.Keyed
+	seekLists   *ratelimit.Keyed
+	historyRead *ratelimit.Keyed
+	eventReads  *ratelimit.Keyed
+}
+
+// PublicData is what the public read-only endpoints (games history,
+// ratings, events) serve from.
+type PublicData struct {
+	Games   *games.Store
+	Players *players.Store
+	// EventsCSVURL is the events sheet published as CSV.
+	EventsCSVURL string
+	// PublicGamesDB is the downloadable games DB; empty disables its info
+	// endpoint.
+	PublicGamesDB string
 }
 
 // NewServer returns the API. clientIP finds the client's address behind a
 // reverse proxy, for rate limits and logs.
-func NewServer(authSvc *auth.Service, players *online.Registry, seeks *seek.Manager, serviceKey string, clientIP *clientip.Resolver, log *slog.Logger) *Server {
+func NewServer(authSvc *auth.Service, players *online.Registry, seeks *seek.Manager, serviceKey string, clientIP *clientip.Resolver, public PublicData, log *slog.Logger) *Server {
 	return &Server{
 		auth: authSvc, players: players, seeks: seeks, serviceKey: serviceKey, clientIP: clientIP, log: log,
-		tokenCalls: ratelimit.New(tokenCallsPerIP, time.Minute, maxTrackedIPs),
-		seekLists:  ratelimit.New(seekListsPerIP, time.Minute, maxTrackedIPs),
+		games: public.Games, playerStore: public.Players, events: newEventsFeed(public.EventsCSVURL, log), publicGamesDB: public.PublicGamesDB,
+		tokenCalls:  ratelimit.New(tokenCallsPerIP, time.Minute, maxTrackedIPs),
+		seekLists:   ratelimit.New(seekListsPerIP, time.Minute, maxTrackedIPs),
+		historyRead: ratelimit.New(historyPerIP, time.Minute, maxTrackedIPs),
+		eventReads:  ratelimit.New(eventsPerIP, time.Minute, maxTrackedIPs),
 	}
 }
 
@@ -55,6 +81,8 @@ func NewServer(authSvc *auth.Service, players *online.Registry, seeks *seek.Mana
 func (s *Server) PruneLimits() {
 	s.tokenCalls.Prune(s.log, "token calls per IP")
 	s.seekLists.Prune(s.log, "seek lists per IP")
+	s.historyRead.Prune(s.log, "history reads per IP")
+	s.eventReads.Prune(s.log, "event reads per IP")
 }
 
 func (s *Server) Handler() http.Handler {
@@ -66,7 +94,28 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/auth/logout", s.limited(s.tokenCalls, s.logout))
 	mux.HandleFunc("GET /api/v1/seeks", s.limited(s.seekLists, s.listSeeks))
 	mux.HandleFunc("PUT /api/v1/seeks", s.createSeek)
-	return mux
+
+	// Public read-only endpoints, at the paths the NestJS API served them on
+	// (api.playtak.com), so clients don't change.
+	public := func(k *ratelimit.Keyed, h http.HandlerFunc) http.HandlerFunc { return publicCORS(s.limited(k, h)) }
+	mux.HandleFunc("GET /v1/games-history", public(s.historyRead, s.listGames))
+	mux.HandleFunc("GET /v1/games-history/{id}", public(s.historyRead, s.getGame))
+	mux.HandleFunc("GET /v1/games-history/ptn/{id}", public(s.historyRead, s.getGamePTN))
+	mux.HandleFunc("GET /v1/games-history/db", public(s.historyRead, s.publicGamesDBInfo))
+	mux.HandleFunc("GET /v1/ratings", public(s.historyRead, s.listRatings))
+	mux.HandleFunc("GET /v1/ratings/{name}", public(s.historyRead, s.getRating))
+	mux.HandleFunc("GET /events", public(s.eventReads, s.listEvents))
+	mux.HandleFunc("GET /health", health)
+	return noSniff(mux)
+}
+
+// noSniff stops browsers guessing a response's type, so JSON or plain text
+// that echoes request data can't be run as HTML or script.
+func noSniff(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		h.ServeHTTP(w, r)
+	})
 }
 
 type tokenResponse struct {
@@ -148,18 +197,13 @@ func (s *Server) refresh(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &body) {
 		return
 	}
-	pair, err := s.auth.Refresh(r.Context(), body.RefreshToken)
+	record, pair, err := s.auth.Refresh(r.Context(), body.RefreshToken)
 	if errors.Is(err, auth.ErrAuthFailed) {
 		writeError(w, http.StatusUnauthorized, "invalid_token")
 		return
 	}
 	if err != nil {
 		s.internalError(w, "refresh", err)
-		return
-	}
-	record, err := s.auth.Authenticate(r.Context(), pair.AccessToken)
-	if err != nil {
-		s.internalError(w, "load refreshed player", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, newTokenResponse(record.Name, pair))

@@ -82,6 +82,7 @@ func (r *Registry) Guest(token string) *Player {
 	r.guestSeq++
 	p := newPlayer(players.Record{Name: fmt.Sprintf("Guest%d", r.guestSeq)})
 	p.Guest = true
+	p.rejoinable = token != ""
 	p.lastActive = time.Now()
 	r.byName[p.Name] = p
 	if token != "" {
@@ -103,9 +104,11 @@ func (r *Registry) Attach(player *Player, c Client) {
 	r.byName[player.Name] = player
 }
 
-// Detach removes c from p's connections. A registered player with no
-// connections left is dropped from memory; guests are kept so they can rejoin
-// with their token until PruneGuests removes them.
+// Detach removes c from p's connections. A player with no connections left
+// is dropped from memory, except a guest with a token, who is kept so they
+// can rejoin with it until PruneGuests removes them. A guest without one can
+// never rejoin, so keeping them would only let a connect-and-leave loop fill
+// memory.
 func (r *Registry) Detach(player *Player, c Client) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -114,7 +117,7 @@ func (r *Registry) Detach(player *Player, c Client) {
 	remaining := len(player.clients)
 	player.lastActive = time.Now()
 	player.mu.Unlock()
-	if remaining == 0 && !player.Guest && r.byName[player.Name] == player {
+	if remaining == 0 && !player.rejoinable && r.byName[player.Name] == player {
 		delete(r.byName, player.Name)
 	}
 }

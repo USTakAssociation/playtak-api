@@ -9,6 +9,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/clientip"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/transport"
 )
 
@@ -16,6 +17,8 @@ type Server struct {
 	Acceptor    transport.Acceptor
 	Log         *slog.Logger
 	IdleTimeout time.Duration // defaults to transport.IdleTimeout
+	// Limit caps connections per client IP. Nil means no cap.
+	Limit *transport.ConnLimit
 }
 
 // Serve accepts connections on ln until ctx is cancelled.
@@ -57,6 +60,14 @@ func (c *conn) Close(reason transport.CloseReason) { c.queue.Close(reason) }
 func (c *conn) RemoteAddr() string                 { return c.netConn.RemoteAddr().String() }
 
 func (s *Server) handle(netConn net.Conn) {
+	ip := clientip.Host(netConn.RemoteAddr().String())
+	release, ok := s.Limit.Acquire(ip)
+	if !ok {
+		s.Log.Warn("too many connections from one IP", "ip", ip, "transport", "telnet")
+		netConn.Close()
+		return
+	}
+	defer release() // runs last, after the session has cleaned up
 	idle := s.IdleTimeout
 	if idle == 0 {
 		idle = transport.IdleTimeout

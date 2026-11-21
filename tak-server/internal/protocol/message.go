@@ -143,14 +143,12 @@ const (
 type ResetTokenError int
 
 const (
-	ResetTokenNoSuchPlayer ResetTokenError = iota
-	ResetTokenEmailMismatch
+	ResetTokenBadNameOrEmail ResetTokenError = iota
 	ResetTokenRateLimited
 )
 
 type ResetPasswordError int
 
 const (
-	ResetPasswordNoSuchPlayer ResetPasswordError = iota
-	ResetPasswordWrongToken
+	ResetPasswordWrongToken ResetPasswordError = iota
 )

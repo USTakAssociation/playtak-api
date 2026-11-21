@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/USTakAssociation/playtak-api/tak-server/internal/auth"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/online"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/protocol"
@@ -335,6 +336,11 @@ func (s *Service) setRole(ctx context.Context, actor *online.Player, name string
 	if strings.EqualFold(record.Name, actor.Name) {
 		return "You can't change your own roles"
 	}
+	// As for every other command, nobody acts on their own rank or above, so
+	// one admin can't demote another; that takes a database change.
+	if rankOf(record.IsAdmin, record.IsMod) >= rankOf(actor.IsAdmin(), actor.IsMod()) {
+		return noRights
+	}
 	has := map[players.Flag]bool{players.FlagMod: record.IsMod, players.FlagAdmin: record.IsAdmin, players.FlagBot: record.IsBot}[flag]
 	article := "a "
 	if role == "admin" {
@@ -364,12 +370,14 @@ func (s *Service) setPassword(ctx context.Context, me rank, name, password strin
 	if rankOf(record.IsAdmin, record.IsMod) >= me {
 		return noRights
 	}
-	if err := s.accounts.SetPassword(ctx, record.Name, password); err != nil {
+	// SetPassword also revokes the player's API tokens.
+	err := s.accounts.SetPassword(ctx, record.Name, password)
+	if errors.Is(err, auth.ErrInvalidPassword) {
+		return "Invalid password: 6 to 50 characters, no spaces"
+	}
+	if err != nil {
 		s.log.Error("set password", "player", record.Name, "err", err)
 		return serverError
-	}
-	if _, err := s.accounts.RevokeAll(ctx, record.Name); err != nil {
-		s.log.Error("revoke tokens after password set", "player", record.Name, "err", err)
 	}
 	return "Password set"
 }

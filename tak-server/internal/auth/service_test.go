@@ -1,17 +1,20 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
 	"log/slog"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/dbtest"
 	"github.com/USTakAssociation/playtak-api/tak-server/internal/db/players"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type sentMail struct{ to, subject, body string }
@@ -34,6 +37,11 @@ func (m fakeMailer) next(t *testing.T) sentMail {
 	}
 }
 
+var cheapHash = func() string {
+	h, _ := bcrypt.GenerateFromPassword([]byte("dummy"), bcrypt.MinCost)
+	return string(h)
+}()
+
 type fixture struct {
 	svc   *Service
 	store *players.Store
@@ -47,17 +55,21 @@ func newFixture(t *testing.T) fixture {
 	mail := make(fakeMailer, 10)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	svc := NewService(store, players.NewTokenStore(conn), mail, log)
+	// Unknown-name logins hash at the lowest cost, so tests that make many
+	// stay fast; TestLoginUnknownNameTakesAsLongAsWrongPassword restores it.
+	svc.dummyHash = func() string { return cheapHash }
 	return fixture{svc: svc, store: store, mail: mail}
 }
 
-// addPlayer creates a player with a known password.
+// addPlayer creates a player with a known password, hashed at the lowest
+// cost so tests that fail many logins stay fast (and within limit windows).
 func (f fixture) addPlayer(t *testing.T, name, email, password string) players.Record {
 	t.Helper()
-	hash, err := hashPassword(password)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.MinCost)
 	if err != nil {
 		t.Fatal(err)
 	}
-	rec, err := f.store.Create(context.Background(), name, email, hash)
+	rec, err := f.store.Create(context.Background(), name, email, string(hash))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,13 +168,23 @@ func TestPasswordReset(t *testing.T) {
 	f := newFixture(t)
 	f.addPlayer(t, "alice", "a@example.com", "oldpass1")
 
-	if err := f.svc.SendResetToken(ctx, "nobody", "a@example.com"); !errors.Is(err, ErrNoSuchPlayer) {
+	// An unknown name and a wrong email get the same error and no email, so
+	// the reply doesn't reveal which accounts exist.
+	if err := f.svc.SendResetToken(ctx, "nobody", "a@example.com", "203.0.113.7"); !errors.Is(err, ErrBadNameOrEmail) {
 		t.Errorf("unknown player: %v", err)
 	}
-	if err := f.svc.SendResetToken(ctx, "alice", "other@example.com"); !errors.Is(err, ErrEmailMismatch) {
+	if err := f.svc.SendResetToken(ctx, "alice", "other@example.com", "203.0.113.7"); !errors.Is(err, ErrBadNameOrEmail) {
 		t.Errorf("wrong email: %v", err)
 	}
-	if err := f.svc.SendResetToken(ctx, "alice", "a@example.com"); err != nil {
+	select {
+	case m := <-f.mail:
+		t.Errorf("email sent for a bad request: %+v", m)
+	case <-time.After(100 * time.Millisecond):
+	}
+	if err := f.svc.ResetPassword(ctx, "nobody", "badtoken", "newpass1"); !errors.Is(err, ErrWrongToken) {
+		t.Errorf("unknown player reset: %v, want ErrWrongToken", err)
+	}
+	if err := f.svc.SendResetToken(ctx, "alice", "a@example.com", "203.0.113.7"); err != nil {
 		t.Fatal(err)
 	}
 	token := strings.TrimPrefix(f.mail.next(t).body, "Your reset token is ")
@@ -185,7 +207,7 @@ func TestResetTokenExpires(t *testing.T) {
 	ctx := context.Background()
 	f := newFixture(t)
 	f.addPlayer(t, "alice", "a@example.com", "oldpass1")
-	if err := f.svc.SendResetToken(ctx, "alice", "a@example.com"); err != nil {
+	if err := f.svc.SendResetToken(ctx, "alice", "a@example.com", "203.0.113.7"); err != nil {
 		t.Fatal(err)
 	}
 	token := strings.TrimPrefix(f.mail.next(t).body, "Your reset token is ")
@@ -200,7 +222,7 @@ func TestLoginClearsResetToken(t *testing.T) {
 	ctx := context.Background()
 	f := newFixture(t)
 	f.addPlayer(t, "alice", "a@example.com", "oldpass1")
-	f.svc.SendResetToken(ctx, "alice", "a@example.com")
+	f.svc.SendResetToken(ctx, "alice", "a@example.com", "203.0.113.7")
 	token := strings.TrimPrefix(f.mail.next(t).body, "Your reset token is ")
 
 	if _, err := f.svc.Login(ctx, "alice", "oldpass1", "198.51.100.1"); err != nil {
@@ -235,5 +257,138 @@ func TestNewGuestToken(t *testing.T) {
 	a, b := NewGuestToken(), NewGuestToken()
 	if !re.MatchString(a) || a == b {
 		t.Errorf("tokens %q, %q", a, b)
+	}
+}
+
+// Every way of changing a password revokes the player's API tokens, so a
+// stolen token stops working once the password changes.
+func TestPasswordChangeRevokesTokens(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name   string
+		change func(f fixture) error
+	}{
+		{"change", func(f fixture) error { return f.svc.ChangePassword(ctx, "alice", "oldpass1", "newpass1") }},
+		{"admin set", func(f fixture) error { return f.svc.SetPassword(ctx, "alice", "newpass1") }},
+		{"reset", func(f fixture) error {
+			if err := f.svc.SendResetToken(ctx, "alice", "a@example.com", "203.0.113.7"); err != nil {
+				return err
+			}
+			token := strings.TrimPrefix(f.mail.next(t).body, "Your reset token is ")
+			return f.svc.ResetPassword(ctx, "alice", token, "newpass1")
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t)
+			alice := f.addPlayer(t, "alice", "a@example.com", "oldpass1")
+			bob := f.addPlayer(t, "bobby", "b@example.com", "oldpass1")
+			stolen, err := f.svc.IssueTokens(ctx, alice.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			bobs, _ := f.svc.IssueTokens(ctx, bob.ID)
+
+			if err := tc.change(f); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.svc.Authenticate(ctx, stolen.AccessToken); !errors.Is(err, ErrAuthFailed) {
+				t.Errorf("access token still works: %v", err)
+			}
+			if _, _, err := f.svc.Refresh(ctx, stolen.RefreshToken); !errors.Is(err, ErrAuthFailed) {
+				t.Errorf("refresh token still works: %v", err)
+			}
+			if _, err := f.svc.Authenticate(ctx, bobs.AccessToken); err != nil {
+				t.Errorf("another player's tokens were revoked: %v", err)
+			}
+		})
+	}
+}
+
+// An unknown name is hashed like a wrong password, so login time doesn't
+// reveal which names are registered.
+func TestLoginUnknownNameTakesAsLongAsWrongPassword(t *testing.T) {
+	ctx := context.Background()
+	f := newFixture(t)
+	f.addPlayer(t, "alice", "a@example.com", "secret123")
+	f.svc.dummyHash = dummyHash
+	dummyHash() // made once, not timed
+	timeIt := func(name string) time.Duration {
+		best := time.Hour
+		for range 3 {
+			start := time.Now()
+			if _, err := f.svc.Login(ctx, name, "wrongpass", ""); !errors.Is(err, ErrAuthFailed) {
+				t.Fatalf("%s: %v", name, err)
+			}
+			best = min(best, time.Since(start))
+		}
+		return best
+	}
+	known, unknown := timeIt("alice"), timeIt("nobody")
+	// bcrypt dominates both; without the dummy hash, unknown names return
+	// in well under a tenth of the time.
+	if unknown < known/2 {
+		t.Errorf("unknown name took %v, wrong password %v", unknown, known)
+	}
+}
+
+type failingMailer struct{ done chan struct{} }
+
+func (m failingMailer) Send(context.Context, string, string, string) error {
+	defer close(m.done)
+	return errors.New("smtp down")
+}
+
+// A failed send is logged by player name, without the recipient's address.
+func TestFailedEmailLogOmitsAddress(t *testing.T) {
+	var log bytes.Buffer
+	var mu sync.Mutex
+	conn := dbtest.NewPlayersDB(t)
+	mail := failingMailer{done: make(chan struct{})}
+	svc := NewService(players.NewStore(conn), players.NewTokenStore(conn), mail,
+		slog.New(slog.NewTextHandler(lockedWriter{&mu, &log}, nil)))
+	if _, err := svc.Register(context.Background(), "newbie", "secret.person@example.com", ""); err != nil {
+		t.Fatal(err)
+	}
+	<-mail.done
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		mu.Lock()
+		out := log.String()
+		mu.Unlock()
+		if strings.Contains(out, "send email") {
+			if strings.Contains(out, "secret.person") || !strings.Contains(out, "player=newbie") {
+				t.Errorf("want the name and not the address: %s", out)
+			}
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("no send failure logged: %s", out)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+type lockedWriter struct {
+	mu *sync.Mutex
+	w  io.Writer
+}
+
+func (l lockedWriter) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.w.Write(p)
+}
+
+func TestAdminSetPasswordValidates(t *testing.T) {
+	ctx := context.Background()
+	f := newFixture(t)
+	f.addPlayer(t, "alice", "a@example.com", "oldpass1")
+	for _, pw := range []string{"short", strings.Repeat("x", 51), "has space"} {
+		if err := f.svc.SetPassword(ctx, "alice", pw); !errors.Is(err, ErrInvalidPassword) {
+			t.Errorf("%q: %v, want ErrInvalidPassword", pw, err)
+		}
+	}
+	if _, err := f.svc.Login(ctx, "alice", "oldpass1", ""); err != nil {
+		t.Errorf("old password should still work: %v", err)
 	}
 }

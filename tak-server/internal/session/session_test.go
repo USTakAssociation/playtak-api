@@ -354,14 +354,16 @@ func TestPasswordCommands(t *testing.T) {
 	h := newHarness(t, Config{})
 	h.addPlayer("alice", false)
 	c := h.connect()
+	// Unknown names and wrong emails get the same reply, so it doesn't
+	// reveal which accounts exist.
 	c.send("SendResetToken nobody a@example.com")
-	c.expect("Reset Token Error: No such player")
+	c.expect("Reset Token Error: Username or email address is invalid")
 	c.send("SendResetToken alice wrong@example.com")
-	c.expect("Reset Token Error: Email address does not match")
+	c.expect("Reset Token Error: Username or email address is invalid")
 	c.send("ResetPassword alice badtoken newpass1")
 	c.expect("Wrong token")
 	c.send("ResetPassword nobody badtoken newpass1")
-	c.expect("No such player")
+	c.expect("Wrong token")
 
 	c.send("Login alice password")
 	c.drainUntil("OnlinePlayers")

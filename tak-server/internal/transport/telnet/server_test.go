@@ -153,3 +153,39 @@ func TestSlowClientIsDisconnected(t *testing.T) {
 		t.Fatal("slow client not disconnected")
 	}
 }
+
+func TestConnectionsPerIPCapped(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	limit, _ := transport.NewConnLimit(1, "")
+	echo := transporttest.NewEcho()
+	s := &Server{Acceptor: echo, Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Limit: limit}
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go s.Serve(ctx, ln)
+	addr := ln.Addr().String()
+
+	first := dial(t, addr)
+	first.expect("hello")
+	dial(t, addr).expectEOF() // over the cap: closed without a session
+
+	first.write("close:normal\n")
+	first.expect("echo:close:normal")
+	first.expectEOF()
+	<-echo.Closed
+	// The slot frees once the first connection is cleaned up.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		c := dial(t, addr)
+		c.nc.SetReadDeadline(time.Now().Add(time.Second))
+		if line, err := c.r.ReadString('\n'); err == nil && line == "hello\n" {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the slot was never released")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}

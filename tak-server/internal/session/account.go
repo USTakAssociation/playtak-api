@@ -98,13 +98,11 @@ func (s *Session) register(ctx context.Context, command protocol.Register) {
 }
 
 func (s *Session) sendResetToken(ctx context.Context, command protocol.SendResetToken) {
-	switch err := s.manager.auth.SendResetToken(ctx, command.Name, command.Email); {
+	switch err := s.manager.auth.SendResetToken(ctx, command.Name, command.Email, s.ip()); {
 	case err == nil:
 		s.Send(protocol.ResetTokenSent{})
-	case errors.Is(err, auth.ErrNoSuchPlayer):
-		s.Send(protocol.ResetTokenFailed{Reason: protocol.ResetTokenNoSuchPlayer})
-	case errors.Is(err, auth.ErrEmailMismatch):
-		s.Send(protocol.ResetTokenFailed{Reason: protocol.ResetTokenEmailMismatch})
+	case errors.Is(err, auth.ErrBadNameOrEmail):
+		s.Send(protocol.ResetTokenFailed{Reason: protocol.ResetTokenBadNameOrEmail})
 	case errors.Is(err, auth.ErrRateLimited):
 		s.Send(protocol.ResetTokenFailed{Reason: protocol.ResetTokenRateLimited})
 	default:
@@ -116,8 +114,6 @@ func (s *Session) resetPassword(ctx context.Context, command protocol.ResetPassw
 	switch err := s.manager.auth.ResetPassword(ctx, command.Name, command.Token, command.Password); {
 	case err == nil:
 		s.Send(protocol.PasswordReset{})
-	case errors.Is(err, auth.ErrNoSuchPlayer):
-		s.Send(protocol.PasswordResetFailed{Reason: protocol.ResetPasswordNoSuchPlayer})
 	case errors.Is(err, auth.ErrWrongToken):
 		s.Send(protocol.PasswordResetFailed{Reason: protocol.ResetPasswordWrongToken})
 	default:

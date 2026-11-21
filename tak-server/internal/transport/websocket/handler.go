@@ -23,6 +23,8 @@ type Handler struct {
 	// ClientIP finds the client's address behind a reverse proxy. Nil uses
 	// the connection's own address.
 	ClientIP *clientip.Resolver
+	// Limit caps connections per client IP. Nil means no cap.
+	Limit *transport.ConnLimit
 }
 
 var upgrader = websocket.Upgrader{
@@ -33,6 +35,20 @@ var upgrader = websocket.Upgrader{
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	remote := r.RemoteAddr
+	ip := clientip.Host(remote)
+	if h.ClientIP != nil {
+		remote = h.ClientIP.IP(r)
+		ip = remote
+	}
+	release, ok := h.Limit.Acquire(ip)
+	if !ok {
+		h.Log.Warn("too many connections from one IP", "ip", ip, "transport", "websocket")
+		http.Error(w, "too many connections", http.StatusTooManyRequests)
+		return
+	}
+	defer release() // runs last, after the session has cleaned up
+
 	socket, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return // Upgrade has already written an error response
@@ -43,10 +59,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	socket.SetReadLimit(transport.MaxLineBytes)
 
-	remote := r.RemoteAddr
-	if h.ClientIP != nil {
-		remote = h.ClientIP.IP(r)
-	}
 	connection := &conn{socket: socket, queue: transport.NewQueue(), remote: remote}
 	go connection.writeLoop()
 

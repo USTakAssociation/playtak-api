@@ -39,7 +39,8 @@ func newDB(t testing.TB, name, schema string) *sql.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := raw.Exec(schema); err != nil {
+	// WAL, like beta and prod. It's stored in the file, so db.Open keeps it.
+	if _, err := raw.Exec("PRAGMA journal_mode=WAL;" + schema); err != nil {
 		t.Fatal(err)
 	}
 	raw.Close()

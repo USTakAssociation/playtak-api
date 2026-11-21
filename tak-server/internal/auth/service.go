@@ -5,6 +5,7 @@ package auth
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -25,9 +26,11 @@ var (
 	ErrGuestName       = errors.New("username contains guest")
 	ErrNameTaken       = errors.New("username is already taken")
 	ErrNoSuchPlayer    = errors.New("no such player")
-	ErrEmailMismatch   = errors.New("email does not match")
-	ErrWrongToken      = errors.New("wrong or expired token")
-	ErrWrongPassword   = errors.New("wrong password")
+	// ErrBadNameOrEmail covers both an unknown name and the wrong email, so
+	// the reply doesn't reveal which names are registered.
+	ErrBadNameOrEmail = errors.New("username or email is invalid")
+	ErrWrongToken     = errors.New("wrong or expired token")
+	ErrWrongPassword  = errors.New("wrong password")
 )
 
 var (
@@ -70,6 +73,9 @@ type Service struct {
 	mail    Mailer
 	log     *slog.Logger
 	now     func() time.Time
+	// dummyHash is checked against for unknown names; tests swap in a
+	// cheap one.
+	dummyHash func() string
 
 	limits limiters // all off until EnableLimits
 
@@ -89,6 +95,7 @@ func NewService(ps PlayerStore, ts TokenStore, mail Mailer, log *slog.Logger) *S
 		mail:        mail,
 		log:         log,
 		now:         time.Now,
+		dummyHash:   dummyHash,
 		resetTokens: make(map[string]resetToken),
 	}
 }
@@ -109,8 +116,10 @@ func (s *Service) Login(ctx context.Context, name, password, ip string) (_ playe
 	record, err := s.players.ByName(ctx, name)
 	switch {
 	case errors.Is(err, players.ErrNotFound):
+		// Hash anyway, so an unknown name takes as long as a wrong password.
+		checkPassword(s.dummyHash(), password)
 		err = ErrAuthFailed
-	case err == nil && (record.IsBanned || !checkPassword(record.PasswordHash, password)):
+	case err == nil && (!checkPassword(record.PasswordHash, password) || record.IsBanned):
 		err = ErrAuthFailed
 	}
 	if err != nil {
@@ -119,6 +128,7 @@ func (s *Service) Login(ctx context.Context, name, password, ip string) (_ playe
 	// A success clears the name's failures, but not the IP's: on a shared
 	// IP, one player logging in mustn't wipe out someone else's guesses.
 	if s.limits.failuresByName != nil {
+		s.limits.failuresByNameIP.Reset(nameIPKey(name, ip))
 		s.limits.failuresByName.Reset(nameKey(name))
 	}
 	// Logging in proves the player knows their password.
@@ -155,56 +165,63 @@ func (s *Service) Register(ctx context.Context, name, email, ip string) (players
 	if err != nil {
 		return players.Record{}, err
 	}
-	s.sendMail(email, "playtak.com password",
+	s.sendMail(name, email, "playtak.com password",
 		fmt.Sprintf("Hello %s, your password is %s You can change it on playtak.com.", name, password))
 	return record, nil
 }
 
 // SendResetToken emails a one-time password reset token, valid for an hour.
-// Only a few are sent per player per hour.
-func (s *Service) SendResetToken(ctx context.Context, name, email string) error {
-	if err := s.allow(s.limits.resetByName, "reset emails per name", nameKey(name)); err != nil {
+// Only a few are sent per player per hour, and only a few requests are
+// taken from ip, which caps how many name and email pairs one IP can check.
+// An unknown name and the wrong email both return ErrBadNameOrEmail.
+func (s *Service) SendResetToken(ctx context.Context, name, email, ip string) error {
+	if err := s.allow(s.limits.resetByIP, "reset requests per IP", ratelimit.IPKey(ip)); err != nil {
 		return err
 	}
 	record, err := s.players.ByName(ctx, name)
-	if errors.Is(err, players.ErrNotFound) {
-		return ErrNoSuchPlayer
+	if errors.Is(err, players.ErrNotFound) || (err == nil && record.Email != email) {
+		return ErrBadNameOrEmail
 	}
 	if err != nil {
 		return err
 	}
-	if record.Email != email {
-		return ErrEmailMismatch
+	// Counted only for emails that would be sent, so requests with the wrong
+	// email can't use up the owner's resets, and made-up names can't fill
+	// the table.
+	if err := s.allow(s.limits.resetByName, "reset emails per name", nameKey(name)); err != nil {
+		return err
 	}
 	token := rand.Text()
 	s.mu.Lock()
 	s.resetTokens[name] = resetToken{token: token, expires: s.now().Add(resetTokenTTL)}
 	s.mu.Unlock()
-	s.sendMail(email, "playtak.com reset password", "Your reset token is "+token)
+	s.sendMail(name, email, "playtak.com reset password", "Your reset token is "+token)
 	return nil
 }
 
-// ResetPassword sets a new password using a token from SendResetToken.
+// ResetPassword sets a new password using a token from SendResetToken. An
+// unknown name gets ErrWrongToken, like a wrong token, so the reply doesn't
+// reveal which names are registered.
 func (s *Service) ResetPassword(ctx context.Context, name, token, password string) error {
-	record, err := s.players.ByName(ctx, name)
-	if errors.Is(err, players.ErrNotFound) {
-		return ErrNoSuchPlayer
-	}
-	if err != nil {
-		return err
-	}
 	if !ValidPassword(password) {
 		return ErrInvalidPassword
 	}
 	s.mu.Lock()
 	rt, ok := s.resetTokens[name]
-	valid := ok && rt.token == token && s.now().Before(rt.expires)
+	valid := ok && subtle.ConstantTimeCompare([]byte(rt.token), []byte(token)) == 1 && s.now().Before(rt.expires)
 	if valid {
 		delete(s.resetTokens, name)
 	}
 	s.mu.Unlock()
 	if !valid {
 		return ErrWrongToken
+	}
+	record, err := s.players.ByName(ctx, name)
+	if errors.Is(err, players.ErrNotFound) {
+		return ErrWrongToken // deleted since the token was sent
+	}
+	if err != nil {
+		return err
 	}
 	return s.setPassword(ctx, record.ID, password)
 }
@@ -228,8 +245,11 @@ func (s *Service) ChangePassword(ctx context.Context, name, current, next string
 }
 
 // SetPassword replaces a player's password without checking the current one,
-// for admin use.
+// for admin use. The new password must still be valid.
 func (s *Service) SetPassword(ctx context.Context, name, password string) error {
+	if !ValidPassword(password) {
+		return ErrInvalidPassword
+	}
 	record, err := s.players.ByName(ctx, name)
 	if errors.Is(err, players.ErrNotFound) {
 		return ErrNoSuchPlayer
@@ -240,12 +260,21 @@ func (s *Service) SetPassword(ctx context.Context, name, password string) error 
 	return s.setPassword(ctx, record.ID, password)
 }
 
+// setPassword replaces the password and revokes every API token the player
+// holds, so a stolen token stops working once the password changes.
 func (s *Service) setPassword(ctx context.Context, id int, password string) error {
 	hash, err := hashPassword(password)
 	if err != nil {
 		return fmt.Errorf("hash password: %w", err)
 	}
-	return s.players.SetPassword(ctx, id, hash)
+	if err := s.players.SetPassword(ctx, id, hash); err != nil {
+		return err
+	}
+	// The password has changed either way, so this doesn't fail the call.
+	if _, err := s.tokens.DeleteForPlayer(ctx, id); err != nil {
+		s.log.Error("revoke tokens after password change", "player_id", id, "err", err)
+	}
+	return nil
 }
 
 // NewGuestToken returns a token that rejoins the same guest when passed to
@@ -260,13 +289,14 @@ func NewGuestToken() string {
 	return string(b)
 }
 
-// sendMail sends in the background so callers aren't held up by SMTP.
-func (s *Service) sendMail(to, subject, body string) {
+// sendMail sends to player's address in the background so callers aren't
+// held up by SMTP. A failure is logged by player name, never by address.
+func (s *Service) sendMail(player, to, subject, body string) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 		if err := s.mail.Send(ctx, to, subject, body); err != nil {
-			s.log.Error("send email", "to", to, "subject", subject, "err", err)
+			s.log.Error("send email", "player", player, "subject", subject, "err", err)
 		}
 	}()
 }

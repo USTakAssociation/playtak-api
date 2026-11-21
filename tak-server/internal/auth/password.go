@@ -2,6 +2,7 @@ package auth
 
 import (
 	"crypto/rand"
+	"sync"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -32,6 +33,16 @@ func bcryptInput(password string) []byte {
 	}
 	return b
 }
+
+// dummyHash is checked against for unknown names, so their logins take as
+// long as real ones. Made on first use, since hashing is slow.
+var dummyHash = sync.OnceValue(func() string {
+	h, err := hashPassword(rand.Text())
+	if err != nil {
+		panic(err) // only fails for over-long input or a bad cost
+	}
+	return h
+})
 
 // newTemporaryPassword returns a random password emailed to new players.
 func newTemporaryPassword() string {

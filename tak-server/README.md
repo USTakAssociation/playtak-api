@@ -195,7 +195,13 @@ main ones:
 | `TAK_SERVICE_API_KEY` | empty | Shared secret for service-to-service calls such as `PUT /api/v1/seeks`. Empty disables them. |
 | `TAK_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`. |
 | `TAK_TRUSTED_PROXIES` | `127.0.0.1/32,::1/128` | Reverse proxies whose `X-Real-IP` / `X-Forwarded-For` headers are believed. See [Rate limits](#rate-limits). |
+| `TAK_MAX_CONNECTIONS_PER_IP` | `100` | Open telnet and WebSocket connections allowed per client IP (an IPv6 /64 counts as one). Over it, telnet connections are closed and WebSocket upgrades get `429`. `0` turns it off. |
+| `TAK_CONNECTION_LIMIT_EXEMPT` | (empty) | IPs or CIDRs, comma-separated, with no connection cap, e.g. a host running many bots. |
 | `TAK_LOGIN_LIMIT` | `username` | `username` counts failed logins per username as well as per IP; `ip` limits per IP only. |
+| `TAK_EVENTS_CSV_URL` | the USTA events sheet | The events Google Sheet, published to the web as CSV. Fetched at most every 30 minutes. |
+| `TAK_PUBLIC_GAMES_DB` | empty | The downloadable copy of the games DB, reported by `GET /v1/games-history/db`. Empty makes that endpoint 404. |
+| `TAK_RATING_CURSOR_FILE` | `previous.txt` beside the games DB | The rating job's cursor: the last game ID it has finished with. Same format as the NestJS job's `previous.txt`. |
+| `TAK_RATING_LIST_FILE` | empty | Where the rating job writes the gzipped list the ratings page loads (`ratinglist.json.gz`). Empty skips it. |
 
 `TAK_EVENT_SUBSCRIBER_URL` is read, but the game update webhooks it
 configures aren't implemented yet.
@@ -254,6 +260,27 @@ with a note, next to their Go versions.
 | `POST /api/auth/logout` | Revoke tokens. |
 | `GET /api/v1/seeks` | List open seeks. |
 | `PUT /api/v1/seeks` | Create a seek (service key required). |
+| `GET /v1/games-history` | Games history, filtered and paginated. Player names match exactly, ignoring case (no wildcards). |
+| `GET /v1/games-history/{id}` | One game. |
+| `GET /v1/games-history/ptn/{id}` | One game as PTN (text). |
+| `GET /v1/games-history/db` | Size and modification time of the downloadable games DB. |
+| `GET /v1/ratings` | Rated players, paginated. |
+| `GET /v1/ratings/{name}` | One player's rating (exact name). |
+| `GET /events` | USTA events, from the events sheet. |
+| `GET /health` | Liveness check. |
+
+The `/v1/...`, `/events` and `/health` paths are the ones the NestJS API
+served on api.playtak.com, so clients don't change. They are public and
+read-only, and send `Access-Control-Allow-Origin: *`.
+
+### Rating job
+
+`tak-server rate` rates the games played since its last run and exits; run
+it from cron (the NestJS job ran hourly). It updates the games and players
+databases in one transaction, then the cursor file and the ratings page
+list. It matches the NestJS job's results; see
+[docs/phase2-api-design.md](docs/phase2-api-design.md). Never run it and the
+NestJS job against the same databases: each would rate the same games.
 
 Tokens are stored only as SHA-256 hashes in the `auth_tokens` table.
 Expired ones are purged hourly. Admins can revoke a player's tokens with
@@ -266,12 +293,17 @@ Logins, registrations and password resets are limited inside
 
 | What | Limit |
 | --- | --- |
-| Failed logins per username (unless `TAK_LOGIN_LIMIT=ip`) | 10 per 15 minutes; a successful login resets it |
+| Failed logins per username from one IP (unless `TAK_LOGIN_LIMIT=ip`) | 10 per 15 minutes; a successful login resets it |
+| Failed logins per username from all IPs (unless `TAK_LOGIN_LIMIT=ip`) | 100 per hour; a successful login resets it |
 | Failed logins per IP | 20 per minute; successful logins don't count, so many players behind one IP can all log in. Logins still being checked count, so parallel attempts can't get past either login limit |
 | Registrations per IP | 5 per hour |
-| Password reset emails per username | 3 per hour |
+| Password reset emails per username | 3 sent per hour; requests with an unknown name or the wrong email don't count |
+| Password reset requests per IP | 10 per hour, sent or not |
 | `POST /api/auth/refresh`, `/logout`, `/guest` per IP | 30 per minute, shared |
 | `GET /api/v1/seeks` per IP | 60 per minute |
+| `GET /v1/games-history/*` and `/v1/ratings/*` per IP | 60 per minute, shared |
+| `GET /events` per IP | 30 per minute |
+| Chat messages per player (shouts, room shouts and tells together) | 10 per 10 seconds; over it the client gets `Error:You are sending messages too fast` |
 
 A limited REST request gets `429 Too Many Requests` with a `Retry-After`
 header and `{"error":"rate_limited"}`. Over the text protocol, a limited
@@ -333,21 +365,31 @@ in `deploy/`) to the server and runs `deploy/deploy.sh beta|prod` as root.
 
 Safe to run again. On each run it:
 
-1. Stops the Go and Java servers for that environment. If either is still
-   running afterwards, it stops there and changes nothing.
+1. Stops the Go and Java servers and the NestJS API (pm2 app
+   `playtak-api-<env>`, stopped and saved so a reboot doesn't restart it).
+   If any is still running afterwards, it stops there.
 2. Backs up both databases to `/var/backups/tak-server-<env>/<time>/`. The
    backup is taken after stopping, so nothing can be written between the
-   backup and the migrations.
+   backup and the migrations. The rating cursor is saved with it.
 3. Runs every migration. Each is safe to run more than once.
-4. Installs the binary and `.env` to `/var/apps/tak-server-<env>/` and the
-   unit `tak-server-<env>.service`.
+4. Installs the binary and `.env` to `/var/apps/tak-server-<env>/`, the
+   unit `tak-server-<env>.service` (run as `ubuntu`, who owns the
+   databases), and the rating job `tak-server-rate-<env>.service` with its
+   timer, hourly at minute 19. On the first deploy it copies the NestJS
+   rating cursor (`/var/apps/playtak-api-<env>/previous.txt`) to the Go one.
 5. Disables the Java unit (`takserver-<env>.service`), so a reboot can't
-   start both, and checks it really is disabled. Then it starts the Go unit.
+   start both, and checks it really is disabled. Then it starts the Go unit
+   and the rating timer.
 6. Checks the server sends `Welcome!` on its telnet port within 30 seconds.
+   Then it points the nginx `upstream playtak-api-<env>` block (in
+   `/etc/nginx/sites-enabled/proxysettings` for prod, `proxysettings-beta`
+   for beta, serving api.playtak.com or api.beta.playtak.com) at the Go HTTP port, checks it with `nginx -t` and
+   reloads. The NestJS port it replaces is saved for `rollback.sh`.
 7. Deletes old backups, keeping the 10 newest. This runs only after a
    successful deploy, so failed deploys can't push out the last good backup.
 
-If any step after stopping fails, it rolls back to Java and fails the job:
+If any step after stopping fails, it rolls back to Java and NestJS and fails
+the job:
 
 | Failed during | Rollback |
 | --- | --- |
@@ -372,11 +414,16 @@ bash /var/apps/tak-server-prod/rollback.sh prod              # back to Java, kee
 bash /var/apps/tak-server-prod/rollback.sh prod --restore-db # also restore the newest backup
 ```
 
+Rolling back stops the rating timer (waiting for a run in progress), moves
+the Go rating cursor back to NestJS so it doesn't rate those games again,
+starts Java and the NestJS API, and points nginx back at NestJS.
+
 The Java server runs on the migrated databases, so restoring is rarely
 needed. Restoring loses everything since the backup; the replaced files are
-kept as `*.before-restore`. `rollback.sh` refuses to restore while either
-server is still running, and removes any leftover journal or WAL files so
-they can't be replayed onto the restored databases.
+kept as `*.before-restore`, and the cursor saved with the backup is given
+to NestJS. `rollback.sh` refuses to restore while Java is still running. It
+restores with `sqlite3 .restore` rather than copying files, because the
+databases are in WAL mode and the NestJS API may still have them open.
 
 ### Settings: the TAK_ENV secret
 
@@ -437,9 +484,10 @@ The deliberate changes in client-visible behaviour, for release notes:
 **Moderation**
 - Ranks are enforced: a moderator acts only on players, an admin on players and moderators, and nobody acts on themselves. Java let a moderator act on an admin who wasn't also flagged mod.
 - Banning someone offline replies `<name> banned`. A ban also revokes the player's REST tokens and ends their game right away as a loss. Guests can only be kicked.
-- `sudo set password` hides the password in the echo and the logs, and revokes the player's tokens.
+- `sudo set password` hides the password in the echo and the logs, and revokes the player's tokens (as do password resets and changes).
 - `sudo list` output is sorted, without a trailing comma, and lists each player once.
 - `mod`, `admin` and `bot` say when the player already has, or doesn't have, that role.
+- `mod`, `admin` and `bot` (and their `un` forms) can't target an admin, including yourself; Java let any admin demote any other. Removing an admin takes a database change.
 - New: `sudo revoke <name>` (admin only).
 
 **Connections**
@@ -453,7 +501,11 @@ The deliberate changes in client-visible behaviour, for release notes:
   | 1011 internal error | a line over 64 KB, or a client too slow to keep up |
 
 - A client that falls 1024 lines behind is disconnected, so one slow connection can't hold up the server. Java kept queuing. Telnet clients are disconnected the same way, without a code.
+- Each IP may hold `TAK_MAX_CONNECTIONS_PER_IP` (default 100) connections open at once. Java had no cap.
+- Chat is limited to 10 messages per 10 seconds per player. Java had no limit.
+- A connection can be in at most 50 chat rooms; joining more answers `Error:You are in too many rooms`. Java had no limit.
 
 **Accounts**
 - Java accepted some non-ASCII passwords through a legacy fallback. That fallback is gone, so those players need to reset their password.
 - Logins, registrations and password resets are rate limited (see [Rate limits](#rate-limits)). Java had no limits.
+- `SendResetToken` answers `Reset Token Error: Username or email address is invalid` for both an unknown name and a wrong email (Java said which), and `ResetPassword` with an unknown name answers `Wrong token`, so neither reveals which names are registered. Logins with an unknown name take as long as a wrong password.

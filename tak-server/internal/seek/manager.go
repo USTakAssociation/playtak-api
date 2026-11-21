@@ -123,8 +123,10 @@ type RematchResult struct {
 }
 
 // Rematch offers a rematch of gameID, replacing owner's seek. If a rematch
-// seek for that game is already addressed to the requester, it is left for
-// them to accept instead of posting a second one.
+// seek for that game is already addressed to the requester by the opponent
+// they named, it is left for them to accept instead of posting a second one.
+// Matching the creator too stops a third player from posting a rematch of
+// someone else's game and having it auto-accepted in place of the real one.
 func (m *Manager) Rematch(owner Listener, gameID int, request Request) (RematchResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -133,7 +135,8 @@ func (m *Manager) Rematch(owner Listener, gameID int, request Request) (RematchR
 	}
 	m.removeOwnerLocked(owner)
 	for _, s := range m.seeks {
-		if s.RematchOf == gameID && strings.EqualFold(s.Opponent, request.Creator) {
+		if s.RematchOf == gameID && strings.EqualFold(s.Opponent, request.Creator) &&
+			strings.EqualFold(s.Creator, request.Opponent) {
 			return RematchResult{AcceptID: s.ID}, nil
 		}
 	}
@@ -218,13 +221,18 @@ func (m *Manager) sortedLocked() []Seek {
 	return out
 }
 
-// normalize clamps settings to what the server supports.
+// normalize clamps settings to what the server supports. The text protocol
+// only sends non-negative numbers; the REST API could send negative ones.
 func normalize(g protocol.GameSettings) protocol.GameSettings {
 	if g.Size < 3 || g.Size > 8 {
 		g.Size = defaultSize
 	}
-	g.Komi = min(g.Komi, 8)
+	g.Komi = max(min(g.Komi, 8), 0)
 	g.Pieces = max(min(g.Pieces, 80), 10)
-	g.Capstones = min(g.Capstones, 5)
+	g.Capstones = max(min(g.Capstones, 5), 0)
+	g.Time = max(g.Time, 0)
+	g.Increment = max(g.Increment, 0)
+	g.ExtraTimeTrigger = max(g.ExtraTimeTrigger, 0)
+	g.ExtraTimeAmount = max(g.ExtraTimeAmount, 0)
 	return g
 }

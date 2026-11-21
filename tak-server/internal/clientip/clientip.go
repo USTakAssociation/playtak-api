@@ -20,7 +20,17 @@ type Resolver struct {
 // NewResolver trusts the proxies in cidrs, a comma-separated list such as
 // "127.0.0.1/32,::1/128". A bare address is treated as a single host.
 func NewResolver(cidrs string) (*Resolver, error) {
-	resolver := &Resolver{}
+	trusted, err := ParsePrefixes(cidrs)
+	if err != nil {
+		return nil, fmt.Errorf("trusted proxy %w", err)
+	}
+	return &Resolver{trusted: trusted}, nil
+}
+
+// ParsePrefixes parses a comma-separated list of CIDRs. A bare address is
+// treated as a single host.
+func ParsePrefixes(cidrs string) ([]netip.Prefix, error) {
+	var prefixes []netip.Prefix
 	for _, cidr := range strings.Split(cidrs, ",") {
 		cidr = strings.TrimSpace(cidr)
 		if cidr == "" {
@@ -30,13 +40,28 @@ func NewResolver(cidrs string) (*Resolver, error) {
 		if err != nil {
 			a, aerr := netip.ParseAddr(cidr)
 			if aerr != nil {
-				return nil, fmt.Errorf("trusted proxy %q: %w", cidr, err)
+				return nil, fmt.Errorf("%q: %w", cidr, err)
 			}
 			p = netip.PrefixFrom(a, a.BitLen())
 		}
-		resolver.trusted = append(resolver.trusted, p.Masked())
+		prefixes = append(prefixes, p.Masked())
 	}
-	return resolver, nil
+	return prefixes, nil
+}
+
+// Contains reports whether ip is in any of prefixes.
+func Contains(prefixes []netip.Prefix, ip string) bool {
+	a, err := netip.ParseAddr(ip)
+	if err != nil {
+		return false
+	}
+	a = a.Unmap()
+	for _, p := range prefixes {
+		if p.Contains(a) {
+			return true
+		}
+	}
+	return false
 }
 
 // IP returns the client's address for r. If the connection comes from a
@@ -66,19 +91,7 @@ func (r *Resolver) IP(request *http.Request) string {
 	return peer
 }
 
-func (r *Resolver) trustedAddr(s string) bool {
-	a, err := netip.ParseAddr(s)
-	if err != nil {
-		return false
-	}
-	a = a.Unmap()
-	for _, p := range r.trusted {
-		if p.Contains(a) {
-			return true
-		}
-	}
-	return false
-}
+func (r *Resolver) trustedAddr(s string) bool { return Contains(r.trusted, s) }
 
 func valid(s string) bool {
 	_, err := netip.ParseAddr(s)

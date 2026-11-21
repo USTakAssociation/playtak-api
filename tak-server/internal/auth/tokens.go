@@ -36,29 +36,31 @@ func (s *Service) IssueTokens(ctx context.Context, playerID int) (TokenPair, err
 	return pair, nil
 }
 
-// Refresh exchanges an unused refresh token for a new pair. The old refresh
-// token stops working; its access token lives out its short lifetime.
-func (s *Service) Refresh(ctx context.Context, refreshToken string) (TokenPair, error) {
+// Refresh exchanges an unused refresh token for a new pair, returning the
+// player it belongs to as well. The old refresh token stops working; its
+// access token lives out its short lifetime.
+func (s *Service) Refresh(ctx context.Context, refreshToken string) (players.Record, TokenPair, error) {
 	now := s.now()
 	old, err := s.tokens.Get(ctx, hashToken(refreshToken), now)
 	if errors.Is(err, players.ErrNotFound) || (err == nil && old.Kind != players.TokenRefresh) {
-		return TokenPair{}, ErrAuthFailed
+		return players.Record{}, TokenPair{}, ErrAuthFailed
 	}
 	if err != nil {
-		return TokenPair{}, err
+		return players.Record{}, TokenPair{}, err
 	}
-	if _, err := s.activePlayer(ctx, old.PlayerID); err != nil {
-		return TokenPair{}, err
+	record, err := s.activePlayer(ctx, old.PlayerID)
+	if err != nil {
+		return players.Record{}, TokenPair{}, err
 	}
 	pair, rows := s.newPair(old.PlayerID)
 	err = s.tokens.Rotate(ctx, hashToken(refreshToken), now, rows...)
 	if errors.Is(err, players.ErrNotFound) {
-		return TokenPair{}, ErrAuthFailed // used concurrently by another request
+		return players.Record{}, TokenPair{}, ErrAuthFailed // used concurrently by another request
 	}
 	if err != nil {
-		return TokenPair{}, err
+		return players.Record{}, TokenPair{}, err
 	}
-	return pair, nil
+	return record, pair, nil
 }
 
 // Authenticate returns the player an access token belongs to.
