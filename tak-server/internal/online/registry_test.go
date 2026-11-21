@@ -80,7 +80,23 @@ func TestGuests(t *testing.T) {
 	r.Attach(a, c)
 	r.Detach(a, c)
 	if r.Lookup(a.Name) != a {
-		t.Error("offline guests are kept for rejoining")
+		t.Error("offline guests with a token are kept for rejoining")
+	}
+	if r.Guest("abcdefghijklmnopqrst") != a {
+		t.Error("the token should still rejoin the same guest")
+	}
+
+	b := r.Guest("")
+	c1, c2 := &fakeClient{}, &fakeClient{}
+	r.Attach(b, c1)
+	r.Attach(b, c2)
+	r.Detach(b, c1)
+	if r.Lookup(b.Name) != b {
+		t.Error("a tokenless guest still connected was dropped")
+	}
+	r.Detach(b, c2)
+	if r.Lookup(b.Name) != nil {
+		t.Error("a tokenless guest should be dropped once offline")
 	}
 }
 

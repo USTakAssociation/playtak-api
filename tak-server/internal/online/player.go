@@ -27,6 +27,8 @@ type Player struct {
 	Name  string
 	Guest bool
 
+	rejoinable bool // a guest with a token, kept while offline so it can rejoin
+
 	mu         sync.Mutex
 	admin      bool
 	moderator  bool
