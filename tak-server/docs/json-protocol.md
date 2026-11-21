@@ -1170,6 +1170,17 @@ other's messages during a game:
   game is in progress, apart from `global` and other rooms, so players are
   not distracted by other chat.
 
+Text protocol players use the same game room by name: `JoinRoom game:1043`,
+`ShoutRoom game:1043 <text>` and `LeaveRoom game:1043`. They get its
+messages as `ShoutRoom game:1043 <username> <text>`, so text and JSON
+observers chat together. The same rules apply: the game's players are not
+joined while it is in progress, and `game:` names only join rooms that
+exist. The text protocol has no error for `JoinRoom`, so a refused join
+just gets no `Joined room` reply. Text clients should use `game:<id>`
+instead of today's room named after the players, such as `alice-bob`.
+That is now an ordinary room, kept apart from the game room and with no
+rules on who joins.
+
 ### Private rooms
 
 A private room is a conversation between two players. It works like any
@@ -1422,6 +1433,9 @@ Text clients never see games that need `1.1` or later. A text client that
 logs in while the player has a game it cannot show is not sent that game. It
 gets `Message You have a game in progress that needs a newer client`
 instead.
+
+One change for text clients: observers should chat in the game's room,
+`game:<id>`, not a room named after the players. See [Rooms](#rooms).
 
 ### Version history
 
