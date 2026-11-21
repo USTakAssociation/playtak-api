@@ -47,14 +47,18 @@ if [ "$restore" = "--restore-db" ]; then
 		exit 1
 	fi
 	echo "restoring databases from $latest"
-	cp -f "$players_db" "$players_db.before-restore"
-	cp -f "$games_db" "$games_db.before-restore"
-	# A leftover journal or WAL would be replayed onto the restored file.
-	for db in "$players_db" "$games_db"; do
-		rm -f "$db-journal" "$db-wal" "$db-shm"
+	# Through SQLite rather than cp: the databases are in WAL mode, so the
+	# main file alone is missing recent writes, and copying over it or
+	# deleting its -wal under another open connection (the NestJS API) can
+	# corrupt it. .restore takes the write lock and other connections see the
+	# restored data.
+	for pair in "players.db=$players_db" "games.db=$games_db"; do
+		db=${pair#*=}
+		sqlite3 "$db" ".timeout 5000" ".backup '$db.before-restore'"
+		sqlite3 "$db" ".timeout 5000" ".restore '$latest${pair%%=*}'"
+		# Run as root: hand back any WAL files SQLite created.
+		chown -f "$(stat -c %U:%G "$db")" "$db-wal" "$db-shm" 2>/dev/null || true
 	done
-	cp -f "$latest/players.db" "$players_db"
-	cp -f "$latest/games.db" "$games_db"
 elif [ -n "$restore" ]; then
 	echo "unknown option $restore" >&2
 	exit 2
