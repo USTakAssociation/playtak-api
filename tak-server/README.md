@@ -298,6 +298,7 @@ Logins, registrations and password resets are limited inside
 | Failed logins per IP | 20 per minute; successful logins don't count, so many players behind one IP can all log in. Logins still being checked count, so parallel attempts can't get past either login limit |
 | Registrations per IP | 5 per hour |
 | Password reset emails per username | 3 sent per hour; requests with an unknown name or the wrong email don't count |
+| Password reset requests per IP | 10 per hour, sent or not |
 | `POST /api/auth/refresh`, `/logout`, `/guest` per IP | 30 per minute, shared |
 | `GET /api/v1/seeks` per IP | 60 per minute |
 | `GET /v1/games-history/*` and `/v1/ratings/*` per IP | 60 per minute, shared |

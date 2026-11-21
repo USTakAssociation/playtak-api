@@ -171,9 +171,13 @@ func (s *Service) Register(ctx context.Context, name, email, ip string) (players
 }
 
 // SendResetToken emails a one-time password reset token, valid for an hour.
-// Only a few are sent per player per hour. An unknown name and the wrong
-// email both return ErrBadNameOrEmail.
-func (s *Service) SendResetToken(ctx context.Context, name, email string) error {
+// Only a few are sent per player per hour, and only a few requests are
+// taken from ip, which caps how many name and email pairs one IP can check.
+// An unknown name and the wrong email both return ErrBadNameOrEmail.
+func (s *Service) SendResetToken(ctx context.Context, name, email, ip string) error {
+	if err := s.allow(s.limits.resetByIP, "reset requests per IP", ratelimit.IPKey(ip)); err != nil {
+		return err
+	}
 	record, err := s.players.ByName(ctx, name)
 	if errors.Is(err, players.ErrNotFound) || (err == nil && record.Email != email) {
 		return ErrBadNameOrEmail

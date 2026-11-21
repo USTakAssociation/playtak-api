@@ -47,3 +47,16 @@ func TestSocketResetTokenRateLimited(t *testing.T) {
 	c.send("SendResetToken alice alice@example.com")
 	c.expect("Reset Token Error: Too many requests, please try again later")
 }
+
+func TestSocketResetRequestsPerIP(t *testing.T) {
+	h := newHarness(t, Config{})
+	h.m.auth.EnableLimits(true)
+	h.addPlayer("alice", false)
+	c := h.connect()
+	for i := range 10 {
+		c.send(fmt.Sprintf("SendResetToken nobody%d a@example.com", i))
+		c.expect("Reset Token Error: Username or email address is invalid")
+	}
+	c.send("SendResetToken alice alice@example.com")
+	c.expect("Reset Token Error: Too many requests, please try again later")
+}

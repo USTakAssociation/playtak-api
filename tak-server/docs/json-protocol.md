@@ -1469,6 +1469,7 @@ instead.
 | Failed logins per IP | 20 per minute. Successful logins do not count. |
 | Registrations per IP | 5 per hour |
 | Password reset emails per username | 3 sent per hour; requests with an unknown name or the wrong email don't count |
+| Password reset requests per IP | 10 per hour, sent or not |
 | `POST /api/v1/auth/refresh`, `/logout` and `/guest` per IP | 30 per minute, shared |
 | `GET /api/v1/seeks` per IP | 60 per minute |
 

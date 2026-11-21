@@ -98,7 +98,7 @@ func (s *Session) register(ctx context.Context, command protocol.Register) {
 }
 
 func (s *Session) sendResetToken(ctx context.Context, command protocol.SendResetToken) {
-	switch err := s.manager.auth.SendResetToken(ctx, command.Name, command.Email); {
+	switch err := s.manager.auth.SendResetToken(ctx, command.Name, command.Email, s.ip()); {
 	case err == nil:
 		s.Send(protocol.ResetTokenSent{})
 	case errors.Is(err, auth.ErrBadNameOrEmail):

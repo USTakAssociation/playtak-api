@@ -170,10 +170,10 @@ func TestPasswordReset(t *testing.T) {
 
 	// An unknown name and a wrong email get the same error and no email, so
 	// the reply doesn't reveal which accounts exist.
-	if err := f.svc.SendResetToken(ctx, "nobody", "a@example.com"); !errors.Is(err, ErrBadNameOrEmail) {
+	if err := f.svc.SendResetToken(ctx, "nobody", "a@example.com", "203.0.113.7"); !errors.Is(err, ErrBadNameOrEmail) {
 		t.Errorf("unknown player: %v", err)
 	}
-	if err := f.svc.SendResetToken(ctx, "alice", "other@example.com"); !errors.Is(err, ErrBadNameOrEmail) {
+	if err := f.svc.SendResetToken(ctx, "alice", "other@example.com", "203.0.113.7"); !errors.Is(err, ErrBadNameOrEmail) {
 		t.Errorf("wrong email: %v", err)
 	}
 	select {
@@ -184,7 +184,7 @@ func TestPasswordReset(t *testing.T) {
 	if err := f.svc.ResetPassword(ctx, "nobody", "badtoken", "newpass1"); !errors.Is(err, ErrWrongToken) {
 		t.Errorf("unknown player reset: %v, want ErrWrongToken", err)
 	}
-	if err := f.svc.SendResetToken(ctx, "alice", "a@example.com"); err != nil {
+	if err := f.svc.SendResetToken(ctx, "alice", "a@example.com", "203.0.113.7"); err != nil {
 		t.Fatal(err)
 	}
 	token := strings.TrimPrefix(f.mail.next(t).body, "Your reset token is ")
@@ -207,7 +207,7 @@ func TestResetTokenExpires(t *testing.T) {
 	ctx := context.Background()
 	f := newFixture(t)
 	f.addPlayer(t, "alice", "a@example.com", "oldpass1")
-	if err := f.svc.SendResetToken(ctx, "alice", "a@example.com"); err != nil {
+	if err := f.svc.SendResetToken(ctx, "alice", "a@example.com", "203.0.113.7"); err != nil {
 		t.Fatal(err)
 	}
 	token := strings.TrimPrefix(f.mail.next(t).body, "Your reset token is ")
@@ -222,7 +222,7 @@ func TestLoginClearsResetToken(t *testing.T) {
 	ctx := context.Background()
 	f := newFixture(t)
 	f.addPlayer(t, "alice", "a@example.com", "oldpass1")
-	f.svc.SendResetToken(ctx, "alice", "a@example.com")
+	f.svc.SendResetToken(ctx, "alice", "a@example.com", "203.0.113.7")
 	token := strings.TrimPrefix(f.mail.next(t).body, "Your reset token is ")
 
 	if _, err := f.svc.Login(ctx, "alice", "oldpass1", "198.51.100.1"); err != nil {
@@ -271,7 +271,7 @@ func TestPasswordChangeRevokesTokens(t *testing.T) {
 		{"change", func(f fixture) error { return f.svc.ChangePassword(ctx, "alice", "oldpass1", "newpass1") }},
 		{"admin set", func(f fixture) error { return f.svc.SetPassword(ctx, "alice", "newpass1") }},
 		{"reset", func(f fixture) error {
-			if err := f.svc.SendResetToken(ctx, "alice", "a@example.com"); err != nil {
+			if err := f.svc.SendResetToken(ctx, "alice", "a@example.com", "203.0.113.7"); err != nil {
 				return err
 			}
 			token := strings.TrimPrefix(f.mail.next(t).body, "Your reset token is ")

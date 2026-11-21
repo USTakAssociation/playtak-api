@@ -300,12 +300,12 @@ func TestResetEmailsPerName(t *testing.T) {
 	ctx := context.Background()
 	f.addPlayer(t, "alice", "a@example.com", "secret123")
 	for range resetsPerName {
-		if err := f.svc.SendResetToken(ctx, "alice", "a@example.com"); err != nil {
+		if err := f.svc.SendResetToken(ctx, "alice", "a@example.com", "203.0.113.7"); err != nil {
 			t.Fatal(err)
 		}
 		f.mail.next(t)
 	}
-	if err := f.svc.SendResetToken(ctx, "alice", "a@example.com"); !errors.Is(err, ErrRateLimited) {
+	if err := f.svc.SendResetToken(ctx, "alice", "a@example.com", "203.0.113.7"); !errors.Is(err, ErrRateLimited) {
 		t.Errorf("past the limit: %v", err)
 	}
 	select {
@@ -319,15 +319,36 @@ func TestResetEmailsCountOnlyWhenSent(t *testing.T) {
 	f := limitedFixture(t, true)
 	ctx := context.Background()
 	f.addPlayer(t, "alice", "a@example.com", "secret123")
+	// From many IPs, as an attacker would, so the per-IP limit isn't hit.
 	for i := range 10 {
-		f.svc.SendResetToken(ctx, "alice", "wrong@example.com")
-		f.svc.SendResetToken(ctx, fmt.Sprintf("madeup%d", i), "a@example.com")
+		ip := fmt.Sprintf("198.51.100.%d", i)
+		f.svc.SendResetToken(ctx, "alice", "wrong@example.com", ip)
+		f.svc.SendResetToken(ctx, fmt.Sprintf("madeup%d", i), "a@example.com", ip)
 	}
 	if n := f.svc.limits.resetByName.Len(); n != 0 {
 		t.Errorf("failed requests added %d keys", n)
 	}
-	if err := f.svc.SendResetToken(ctx, "alice", "a@example.com"); err != nil {
+	if err := f.svc.SendResetToken(ctx, "alice", "a@example.com", "203.0.113.7"); err != nil {
 		t.Errorf("owner's reset after wrong-email requests: %v", err)
+	}
+	f.mail.next(t)
+}
+
+func TestResetRequestsPerIP(t *testing.T) {
+	f := limitedFixture(t, true)
+	ctx := context.Background()
+	f.addPlayer(t, "alice", "a@example.com", "secret123")
+	// Wrong emails count here, unlike per name: this caps checking pairs.
+	for i := range resetsPerIP {
+		if err := f.svc.SendResetToken(ctx, fmt.Sprintf("madeup%d", i), "a@example.com", "203.0.113.7"); !errors.Is(err, ErrBadNameOrEmail) {
+			t.Fatalf("request %d: %v", i, err)
+		}
+	}
+	if err := f.svc.SendResetToken(ctx, "alice", "a@example.com", "203.0.113.7"); !errors.Is(err, ErrRateLimited) {
+		t.Errorf("past the limit: %v", err)
+	}
+	if err := f.svc.SendResetToken(ctx, "alice", "a@example.com", "203.0.113.8"); err != nil {
+		t.Errorf("other IPs are unaffected: %v", err)
 	}
 	f.mail.next(t)
 }

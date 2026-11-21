@@ -28,7 +28,8 @@ const (
 	failuresPerNameIP  = 10  // failed logins per name from one IP, per 15 minutes
 	failuresPerName    = 100 // failed logins per name from all IPs, per hour
 	registrationsPerIP = 5   // per hour
-	resetsPerName      = 3   // reset emails per hour
+	resetsPerName      = 3   // reset emails sent per hour
+	resetsPerIP        = 10  // reset requests per hour, sent or not
 	maxTrackedKeys     = 100_000
 )
 
@@ -40,6 +41,7 @@ type limiters struct {
 	failuresByName   *ratelimit.Keyed // nil when only IPs are limited
 	registerByIP     *ratelimit.Keyed
 	resetByName      *ratelimit.Keyed
+	resetByIP        *ratelimit.Keyed
 }
 
 // EnableLimits turns on rate limiting. With byUsername, failed logins are
@@ -52,6 +54,7 @@ func (s *Service) EnableLimits(byUsername bool) {
 		failuresByIP: ratelimit.New(failuresPerIP, time.Minute, maxTrackedKeys),
 		registerByIP: ratelimit.New(registrationsPerIP, time.Hour, maxTrackedKeys),
 		resetByName:  ratelimit.New(resetsPerName, time.Hour, maxTrackedKeys),
+		resetByIP:    ratelimit.New(resetsPerIP, time.Hour, maxTrackedKeys),
 	}
 	if byUsername {
 		l.failuresByNameIP = ratelimit.New(failuresPerNameIP, 15*time.Minute, maxTrackedKeys)
@@ -69,6 +72,7 @@ func (s *Service) PruneLimits() {
 		"failed logins per name":        s.limits.failuresByName,
 		"registrations per IP":          s.limits.registerByIP,
 		"reset emails per name":         s.limits.resetByName,
+		"reset requests per IP":         s.limits.resetByIP,
 	} {
 		if k != nil {
 			k.Prune(s.log, what)
