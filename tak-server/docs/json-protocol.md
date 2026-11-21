@@ -187,7 +187,6 @@ applications (4000 to 4999).
 | `revoked` | `4005` | PlayTak |
 | `api_key_replaced` | `4006` | PlayTak |
 | `api_key_revoked` | `4007` | PlayTak |
-| `replaced` | `4008` | PlayTak |
 
 Codes `4000` to `4999` are reserved for private use by applications
 ([RFC 6455, section 7.4.2](https://www.rfc-editor.org/rfc/rfc6455#section-7.4.2)).
@@ -431,7 +430,6 @@ The last message before the server closes the connection.
 | `revoked` | An admin revoked your tokens |
 | `api_key_replaced` | The bot's API key was replaced |
 | `api_key_revoked` | The bot's API key was revoked |
-| `replaced` | You connected again while in a tournament game, and the new connection took over (see [Connections and games](#connections-and-games)) |
 | `server_error` | Something failed on the server |
 
 When to reconnect:
@@ -439,7 +437,6 @@ When to reconnect:
 | Reason | Reconnect? |
 | --- | --- |
 | `banned`, `revoked`, `api_key_replaced`, `api_key_revoked` | No. It will fail. |
-| `replaced` | No. Another connection of yours took over. Reconnecting would close that one. |
 | `restart` | Yes, after `retry_ms` |
 | Anything else | Yes, with a growing delay, for example 1, 2, 4 and 8 seconds, up to a minute |
 
@@ -484,40 +481,12 @@ closes the connection with `idle`. Any command counts. A client should send
 - A tournament game cannot start while either player has another game in
   progress. `seek.accept` gets `GAMES_IN_PROGRESS`.
 - When a tournament game starts, the server removes both players' other open
-  seeks, and stops anything either player is observing (sending
-  `game.unobserved`).
-- While a player is in a tournament game, they cannot start another game or
-  observe a game. These get `TOURNAMENT_IN_PROGRESS`.
-- While a player is in a tournament game, they have only one connection. A
-  new connection replaces the old ones. The server closes them with
-  `session.closed` `reason: "replaced"`. This way a connection that died
-  without closing, for example on a phone that lost its signal, never locks
-  the player out while their clock runs. The new connection then attaches to
-  the game.
-- If a player has more than one connection open when their tournament game
-  starts, they choose which one to keep:
-  1. Every connection of theirs gets `session.choose_connection`.
-  2. The connection that sends `session.keep_connection` stays. The server
-     closes the others with `reason: "replaced"`.
-  3. Until then, those connections can only send `session.keep_connection`
-     and `session.ping`. Anything else gets `CHOOSE_CONNECTION_FIRST`.
-  4. If no connection answers within `timeout_ms` (30 seconds), the server
-     keeps the connection that was active most recently and closes the rest.
+  seeks.
+- While a player is in a tournament game, they cannot create a seek or start
+  another game. These get `TOURNAMENT_IN_PROGRESS`.
 
-  The game clock is not paused while the player chooses. If it is their
-  turn and the clock is running, the time spent choosing comes off their
-  clock.
-
-```json
-{"evt":"session.choose_connection","game":1043,"timeout_ms":30000,"ts":1791234563000}
-{"cmd":"session.keep_connection","id":"k1"}
-{"evt":"ack","id":"k1","ts":1791234564000}
-```
-
-| Event or command | Fields |
-| --- | --- |
-| `session.choose_connection` (event) | `game` (integer): the tournament game. `timeout_ms` (integer): how long the player has to choose. |
-| `session.keep_connection` (command) | none. Reply: `ack`. Error: `NOT_FOUND` if there is nothing to choose. |
+Otherwise a tournament game is like any other: the player can keep several
+connections open and observe other games.
 
 ### After reconnecting
 
@@ -532,21 +501,27 @@ connections and what does not.
 
 ### Guests
 
-Guests can play, observe, chat and open private rooms. They cannot create or
-accept rated or tournament seeks. Those get `PERMISSION_DENIED`.
+Guests can play, observe, chat and open private rooms. They cannot create
+rated seeks, or create or accept tournament seeks. Those get
+`PERMISSION_DENIED`.
+
+A guest can accept a rated seek, for example a bot's. The game is played
+unrated: its game record has `rated: false`. Player records mark guests
+with `is_guest: true`, so bots and clients can tell.
 
 ## 4. Players
 
 Seeks and games describe players with a player record.
 
 ```json
-{"username":"bob","is_bot":false,"rating":1520}
+{"username":"bob","is_bot":false,"is_guest":false,"rating":1520}
 ```
 
 | Field | Type | Req. | Meaning |
 | --- | --- | --- | --- |
 | `username` | string | yes | The player's name |
 | `is_bot` | boolean | yes | `true` if the account has the `bot` role |
+| `is_guest` | boolean | yes | `true` for a guest |
 | `rating` | integer | no | The player's rating. Left out for guests and for accounts a moderator has excluded from ratings. |
 
 Where the rating comes from:
@@ -703,7 +678,7 @@ never starts.
 | `half_komi` | integer | yes | Komi in half flats, 0 to 8. `5` means 2.5 flats. |
 | `pieces` | integer | yes | Flat stones per player |
 | `capstones` | integer | yes | Capstones per player |
-| `rated` | boolean | yes | Whether the game is rated |
+| `rated` | boolean | yes | Whether the game is rated. A game with a guest is never rated, so its game record has `false` even if the seek had `true`. |
 | `tournament` | boolean | yes | Whether it is a tournament game. Anyone can create one for now. This may be limited to tournament tools later. |
 | `opening` | string | yes | `"swap"` (normal) or `"double_black_stack"` |
 | `increment_scales` | boolean | yes | `true` if the increment grows with each move. See [Time rules](#time-rules). |
@@ -767,7 +742,7 @@ out:
 Sent after login and in reply to the `seek.list` command.
 
 ```json
-{"evt":"seek.list","seeks":[{"seek":498,"player":{"username":"bob","is_bot":false,"rating":1520},"size":6,"time":900000,"increment":15000,"color":"any","half_komi":4,"pieces":30,"capstones":1,"rated":true,"tournament":false,"opening":"swap","increment_scales":false,"one_game_per_opponent":false}],"ts":1791234560100}
+{"evt":"seek.list","seeks":[{"seek":498,"player":{"username":"bob","is_bot":false,"is_guest":false,"rating":1520},"size":6,"time":900000,"increment":15000,"color":"any","half_komi":4,"pieces":30,"capstones":1,"rated":true,"tournament":false,"opening":"swap","increment_scales":false,"one_game_per_opponent":false}],"ts":1791234560100}
 ```
 
 | Field | Type | Req. | Meaning |
@@ -781,7 +756,7 @@ Both carry a full seek record at the top level. For `seek.updated`, replace
 the seek you have with the same `seek` ID.
 
 ```json
-{"evt":"seek.added","seek":512,"player":{"username":"carol","is_bot":true,"rating":1700},"size":5,"time":600000,"increment":10000,"color":"white","half_komi":0,"pieces":21,"capstones":1,"rated":true,"tournament":false,"opening":"swap","increment_scales":false,"one_game_per_opponent":true,"ts":1791234561000}
+{"evt":"seek.added","seek":512,"player":{"username":"carol","is_bot":true,"is_guest":false,"rating":1700},"size":5,"time":600000,"increment":10000,"color":"white","half_komi":0,"pieces":21,"capstones":1,"rated":true,"tournament":false,"opening":"swap","increment_scales":false,"one_game_per_opponent":true,"ts":1791234561000}
 ```
 
 ### seek.removed (event)
@@ -867,12 +842,15 @@ players then gets `session.games`. Attach with `game.attach` to get
 {"evt":"ack","id":"r4","game":1043,"ts":1791234563000}
 ```
 
+A guest can accept a rated seek. The game is then unrated, and its game
+record has `rated: false`.
+
 If two players accept the same seek at once, the first one gets the game.
 The second gets `NOT_FOUND`, because the seek is gone.
 
 Errors: `NOT_FOUND` (no such seek, or someone else accepted it first),
 `PERMISSION_DENIED` (the seek is for another opponent,
-or you are a guest and the seek is rated or a tournament seek),
+or you are a guest and the seek is a tournament seek),
 `ALREADY_PLAYING` (the seek has `one_game_per_opponent` and you already
 have a game in progress with its poster), `GAMES_IN_PROGRESS` (a tournament
 seek, and you or the poster have another game in progress),
@@ -928,8 +906,8 @@ Like the seek list, for games in progress. The server sends `game.list`
 after login and in reply to the `game.list` command.
 
 ```json
-{"evt":"game.list","games":[{"game":1043,"white":{"username":"alice","is_bot":false,"rating":1610},"black":{"username":"bob","is_bot":false,"rating":1520},"size":6,"time":900000,"increment":15000,"half_komi":4,"pieces":30,"capstones":1,"rated":true,"tournament":false,"opening":"swap","increment_scales":false}],"ts":1791234560100}
-{"evt":"game.added","game":1044,"white":{"username":"carol","is_bot":true,"rating":1700},"black":{"username":"dave","is_bot":false},"size":5,"time":600000,"increment":10000,"half_komi":0,"pieces":21,"capstones":1,"rated":false,"tournament":false,"opening":"swap","increment_scales":false,"ts":1791234561000}
+{"evt":"game.list","games":[{"game":1043,"white":{"username":"alice","is_bot":false,"is_guest":false,"rating":1610},"black":{"username":"bob","is_bot":false,"is_guest":false,"rating":1520},"size":6,"time":900000,"increment":15000,"half_komi":4,"pieces":30,"capstones":1,"rated":true,"tournament":false,"opening":"swap","increment_scales":false}],"ts":1791234560100}
+{"evt":"game.added","game":1044,"white":{"username":"carol","is_bot":true,"is_guest":false,"rating":1700},"black":{"username":"dave","is_bot":false,"is_guest":false},"size":5,"time":600000,"increment":10000,"half_komi":0,"pieces":21,"capstones":1,"rated":false,"tournament":false,"opening":"swap","increment_scales":false,"ts":1791234561000}
 {"evt":"game.removed","game":1044,"ts":1791234590000}
 ```
 
@@ -945,7 +923,7 @@ Sent in reply to `game.attach`, `game.observe` and `game.sync`. It has the
 fixed details and the full history. A `game.state` follows right after.
 
 ```json
-{"evt":"game.start","game":1043,"white":{"username":"alice","is_bot":false,"rating":1610},"black":{"username":"bob","is_bot":false,"rating":1520},"color":"black","size":6,"time":900000,"increment":15000,"half_komi":4,"pieces":30,"capstones":1,"rated":true,"tournament":false,"opening":"swap","increment_scales":false,"moves":["a6","f1","d4","c3"],"ts":1791234563000}
+{"evt":"game.start","game":1043,"white":{"username":"alice","is_bot":false,"is_guest":false,"rating":1610},"black":{"username":"bob","is_bot":false,"is_guest":false,"rating":1520},"color":"black","size":6,"time":900000,"increment":15000,"half_komi":4,"pieces":30,"capstones":1,"rated":true,"tournament":false,"opening":"swap","increment_scales":false,"moves":["a6","f1","d4","c3"],"ts":1791234563000}
 ```
 
 | Field | Type | Req. | Meaning |
@@ -1100,7 +1078,7 @@ Every command here takes `game` (integer, required): the game ID.
 | `game.give_time` | | Gives the opponent 15 seconds | `NOT_FOUND`, `NOT_IN_GAME`, `CLOCK_NOT_STARTED`, `COOLDOWN` |
 | `game.attach` | | Attaches this connection to one of your games in progress: `ack`, then `game.start` and `game.state` | `NOT_FOUND` (no such game, or it has ended), `NOT_IN_GAME`, `UNSUPPORTED_VERSION` |
 | `game.detach` | | Stops this connection getting the game's events. If no connection of yours is still attached, you are away from the game. On a game that has ended: `ack` and nothing else. | `NOT_FOUND`, `GAME_NOT_ATTACHED` |
-| `game.observe` | | `ack`, then `game.start` and `game.state` | `NOT_FOUND`, `UNSUPPORTED_VERSION`, `TOURNAMENT_IN_PROGRESS`, `PERMISSION_DENIED` (you play in this game: attach instead) |
+| `game.observe` | | `ack`, then `game.start` and `game.state` | `NOT_FOUND`, `UNSUPPORTED_VERSION`, `PERMISSION_DENIED` (you play in this game: attach instead) |
 | `game.unobserve` | | `ack`. On a game that has ended: `ack` and nothing else. | `NOT_FOUND` |
 | `game.sync` | | `ack`, then `game.start` and `game.state` | `NOT_FOUND`, `UNSUPPORTED_VERSION` |
 
@@ -1123,20 +1101,6 @@ ends when a move is played. To decline, send `game.decline_draw` or
 sends no other event. Rematches (`seek.rematch`) and the
 game's chat room keep working after this. A finished game is read from the
 [game history](#addresses), not attached to.
-
-### game.unobserved (event)
-
-Sent when the server stops your observing, for example because you started
-a tournament game.
-
-```json
-{"evt":"game.unobserved","game":1043,"reason":"tournament","ts":1791234563500}
-```
-
-| Field | Type | Req. | Meaning |
-| --- | --- | --- | --- |
-| `game` | integer | yes | The game you were observing |
-| `reason` | string | yes | `tournament` |
 
 ### Disconnects
 
@@ -1172,7 +1136,7 @@ To come back, log in again and send `game.attach` for the game.
 | Room | Who is in it |
 | --- | --- |
 | `global` | Everyone. Joined at login. |
-| `game:1043` | Anyone who joins. The server creates it when game 1043 starts. |
+| `game:1043` | Observers of game 1043 who join. Its two players cannot join while it is in progress. The server creates it when the game starts. |
 | `private:7` | Two players chatting privately. See [Private rooms](#private-rooms). |
 | any other name | Players who joined it |
 
@@ -1189,11 +1153,22 @@ Room names:
 You join rooms per connection. Each connection joins its own rooms, and a
 new connection must join them again.
 
-Anyone can join a game's room, including players who are not in or
-observing the game. The server does not put players or observers in it.
-The client decides whether to join, for example automatically when it
-attaches to or observes a game. A game's room stays open after the game
-ends, for post-game chat, until its last member leaves.
+**Game chat** is in two places, so observers and players never see each
+other's messages during a game:
+
+- **Observers** use the game's room, `game:1043`. While the game is in
+  progress, its two players get `PERMISSION_DENIED` from `chat.join`, so
+  observers can talk about the game freely. This holds for moderators and
+  admins too when they are playing. Anyone else can join, including
+  players who are not observing. The server does not put anyone in the
+  room: the client joins, for example when it observes the game. The room
+  stays open after the game ends, and the players can then join it for
+  post-game chat. It is removed when its last member leaves.
+- **The two players** chat in their private room (see
+  [Private rooms](#private-rooms)). Get it with `chat.open` and the
+  opponent's username. Clients should show it as the game's chat while the
+  game is in progress, apart from `global` and other rooms, so players are
+  not distracted by other chat.
 
 ### Private rooms
 
@@ -1227,7 +1202,7 @@ and JSON players can chat privately.
 
 | Command | Fields | Reply | Errors |
 | --- | --- | --- | --- |
-| `chat.join` | `room` (string, required) | `ack`, then `chat.joined` to the room | `INVALID_FIELD` (bad room name), `PERMISSION_DENIED` (a reserved name, including a private room), `NOT_FOUND` (a game room for a game that does not exist) |
+| `chat.join` | `room` (string, required) | `ack`, then `chat.joined` to the room | `INVALID_FIELD` (bad room name), `PERMISSION_DENIED` (a reserved name, including a private room, or the room of a game you are playing while it is in progress), `NOT_FOUND` (a game room for a game that does not exist) |
 | `chat.leave` | `room` (string, required) | `ack`, then `chat.left` to the room | `NOT_IN_ROOM` (including a private room) |
 | `chat.send` | `room` (string, required), `text` (string, required) | `ack`, then `chat.message` to the room | `NOT_IN_ROOM`, `NOT_ONLINE` (a private room whose other player is offline), `INVALID_FIELD`, `PERMISSION_DENIED` (you are gagged) |
 | `chat.open` | `username` (string, required) | `ack` with `room`. If the room is new, `chat.room` to both players. | `NOT_ONLINE`, `INVALID_FIELD` (including your own username) |
@@ -1351,10 +1326,9 @@ An error with no `id` is a server notice, not a reply.
 | `COOLDOWN` | Wait before giving time again. See `retry_ms`. |
 | `NOT_IN_ROOM` | Join the room first |
 | `PERMISSION_DENIED` | You may not do this |
-| `TOURNAMENT_IN_PROGRESS` | You are in a tournament game, so you cannot start another game or observe a game |
+| `TOURNAMENT_IN_PROGRESS` | You are in a tournament game, so you cannot create a seek or start another game |
 | `GAMES_IN_PROGRESS` | A tournament game cannot start while you or your opponent have another game in progress. `message` says who. |
 | `GAME_NOT_ATTACHED` | Attach this connection to the game with `game.attach` first |
-| `CHOOSE_CONNECTION_FIRST` | Your tournament game has started and you have several connections. Send `session.keep_connection` on the one you want to keep. |
 | `TIMEOUT` | The server did not finish in time. Try again. |
 | `SERVER_ERROR` | Something failed on the server |
 
@@ -1995,6 +1969,10 @@ Not part of v1, but the design leaves room for them:
   Text protocol players cannot be invited, since `Tell` only reaches one
   player. Leaving a private room comes with this.
 - **Blocking.** Stop a player from opening private rooms with you.
+- **Reporting chat.** `chat.report` with a room, sending its recent
+  messages to moderators at the reporter's request. This is how moderators
+  would see abuse in a private room, which they otherwise cannot read. It
+  needs the server to keep recent messages, so it comes with chat history.
 - **Bot management on the website.** A page where bot owners manage their
   bot's settings and key, instead of asking a moderator.
 - **Give time settings.** A seek setting to turn giving time off, which
@@ -2007,7 +1985,6 @@ Not part of v1, but the design leaves room for them:
   async games are frozen: they cannot move in them, and move deadlines are
   paused.
 - **Several tournament games at once.** Not allowed in v1.
-- **Several connections during a tournament game.** In v1 a new connection replaces the old one. This may be relaxed later.
 
 ## 15. Open questions
 
