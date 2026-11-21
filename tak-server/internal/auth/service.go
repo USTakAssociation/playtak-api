@@ -174,14 +174,17 @@ func (s *Service) Register(ctx context.Context, name, email, ip string) (players
 // Only a few are sent per player per hour. An unknown name and the wrong
 // email both return ErrBadNameOrEmail.
 func (s *Service) SendResetToken(ctx context.Context, name, email string) error {
-	if err := s.allow(s.limits.resetByName, "reset emails per name", nameKey(name)); err != nil {
-		return err
-	}
 	record, err := s.players.ByName(ctx, name)
 	if errors.Is(err, players.ErrNotFound) || (err == nil && record.Email != email) {
 		return ErrBadNameOrEmail
 	}
 	if err != nil {
+		return err
+	}
+	// Counted only for emails that would be sent, so requests with the wrong
+	// email can't use up the owner's resets, and made-up names can't fill
+	// the table.
+	if err := s.allow(s.limits.resetByName, "reset emails per name", nameKey(name)); err != nil {
 		return err
 	}
 	token := rand.Text()

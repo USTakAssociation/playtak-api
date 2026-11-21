@@ -305,7 +305,7 @@ func TestResetEmailsPerName(t *testing.T) {
 		}
 		f.mail.next(t)
 	}
-	if err := f.svc.SendResetToken(ctx, "Alice", "a@example.com"); !errors.Is(err, ErrRateLimited) {
+	if err := f.svc.SendResetToken(ctx, "alice", "a@example.com"); !errors.Is(err, ErrRateLimited) {
 		t.Errorf("past the limit: %v", err)
 	}
 	select {
@@ -313,6 +313,23 @@ func TestResetEmailsPerName(t *testing.T) {
 		t.Errorf("a limited request sent mail: %+v", m)
 	case <-time.After(50 * time.Millisecond):
 	}
+}
+
+func TestResetEmailsCountOnlyWhenSent(t *testing.T) {
+	f := limitedFixture(t, true)
+	ctx := context.Background()
+	f.addPlayer(t, "alice", "a@example.com", "secret123")
+	for i := range 10 {
+		f.svc.SendResetToken(ctx, "alice", "wrong@example.com")
+		f.svc.SendResetToken(ctx, fmt.Sprintf("madeup%d", i), "a@example.com")
+	}
+	if n := f.svc.limits.resetByName.Len(); n != 0 {
+		t.Errorf("failed requests added %d keys", n)
+	}
+	if err := f.svc.SendResetToken(ctx, "alice", "a@example.com"); err != nil {
+		t.Errorf("owner's reset after wrong-email requests: %v", err)
+	}
+	f.mail.next(t)
 }
 
 func TestNoLimitsUnlessEnabled(t *testing.T) {
