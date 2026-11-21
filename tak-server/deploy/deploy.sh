@@ -32,11 +32,16 @@ app_dir=/var/apps/tak-server-$env
 go_unit=tak-server-$env.service
 java_unit=takserver-$env.service
 backups=/var/backups/tak-server-$env
+# The server runs as the user that owns the databases, so the WAL files
+# SQLite creates beside them (-wal, -shm) stay writable by everything else
+# that opens them.
+run_user=ubuntu
 
 for f in tak-server .env rollback.sh migrations; do
 	[ -e "$release/$f" ] || { echo "missing $f in $release" >&2; exit 1; }
 done
 command -v sqlite3 >/dev/null || { echo "sqlite3 is not installed" >&2; exit 1; }
+id -u "$run_user" >/dev/null 2>&1 || { echo "user $run_user does not exist" >&2; exit 1; }
 
 # Read one setting from .env. Not sourced, so secrets are never run as shell.
 setting() { { grep -E "^$1=" "$release/.env" || true; } | tail -n1 | cut -d= -f2- | sed -E "s/^[\"'](.*)[\"']$/\\1/"; }
@@ -109,18 +114,27 @@ phase=backed-up
 
 echo "running migrations"
 bash "$release/migrations/run-all.sh" "$players_db" "$games_db"
+# The backup and migrations ran as root: if SQLite left WAL files behind,
+# hand them back, or the server couldn't write to the database.
+for db in "$players_db" "$games_db"; do
+	chown "$run_user:" "$db"
+	chown -f "$run_user:" "$db-wal" "$db-shm" "$db-journal" 2>/dev/null || true # usually absent
+done
+# Written by an earlier deploy that ran the server as root.
+pending=$(setting TAK_PENDING_RESULTS_FILE)
+chown -f "$run_user:" "${pending:-$(dirname "$games_db")/pending-game-results.jsonl}" 2>/dev/null || true
 
 echo "installing to $app_dir"
 mkdir -p "$app_dir"
 install -m 0755 "$release/tak-server" "$app_dir/tak-server.new"
 mv -f "$app_dir/tak-server.new" "$app_dir/tak-server"
-install -m 0600 "$release/.env" "$app_dir/.env"
+install -m 0600 -o "$run_user" "$release/.env" "$app_dir/.env"
 install -m 0755 "$release/rollback.sh" "$app_dir/rollback.sh"
 
-# TODO: the server runs as root with no sandboxing, so any remote code
-# execution bug is root on the host. Once the NodeJS API and the Java server
-# are retired, run tak-server in a rootless podman container instead (or at
-# least a dedicated user plus NoNewPrivileges, ProtectSystem=strict,
+# TODO: the server runs as $run_user with no sandboxing, so a remote code
+# execution bug gets that user's files. Once the NodeJS API and the Java
+# server are retired, run tak-server in a rootless podman container instead
+# (or at least a dedicated user plus NoNewPrivileges, ProtectSystem=strict,
 # ReadWritePaths= for the DB directory and PrivateTmp).
 cat >"/etc/systemd/system/$go_unit" <<EOF
 [Unit]
@@ -130,7 +144,7 @@ After=network.target
 [Service]
 WorkingDirectory=$app_dir
 ExecStart=$app_dir/tak-server
-User=root
+User=$run_user
 Type=simple
 Restart=on-failure
 RestartSec=10
