@@ -30,6 +30,29 @@ node_app=playtak-api-$env
 node_cursor=/var/apps/playtak-api-$env/previous.txt
 
 pm2() { sudo -u "$run_user" -i pm2 "$@"; }
+
+# api.<env>.playtak.com reaches whichever API is live through one nginx
+# upstream. point_api sets the port in that block only, checks the config
+# and reloads; on a bad config it puts the file back. The copy is kept
+# outside sites-enabled, where nginx would load it as a second config.
+nginx_conf=/etc/nginx/sites-enabled/proxysettings
+nginx_upstream=playtak-api-$env
+node_api_port_file=$app_dir/nginx-api-port.node
+api_port() { sed -n "/^upstream $nginx_upstream {/,/}/ s/.*127\.0\.0\.1:\([0-9]\+\).*/\1/p" "$nginx_conf"; }
+point_api() {
+	if [ -z "$(api_port)" ]; then
+		echo "no 'upstream $nginx_upstream' block with a 127.0.0.1 port in $nginx_conf" >&2
+		return 1
+	fi
+	cp "$nginx_conf" "$app_dir/proxysettings.before"
+	sed -i --follow-symlinks "/^upstream $nginx_upstream {/,/}/ s/127\.0\.0\.1:[0-9]\+/127.0.0.1:$1/" "$nginx_conf"
+	if ! nginx -t -q; then
+		cp "$app_dir/proxysettings.before" "$(readlink -f "$nginx_conf")"
+		echo "nginx rejected the config; left it as it was" >&2
+		return 1
+	fi
+	systemctl reload nginx
+}
 # Read one setting from the installed .env, as deploy.sh does.
 setting() { { grep -E "^$1=" "$app_dir/.env" 2>/dev/null || true; } | tail -n1 | cut -d= -f2- | sed -E "s/^[\"'](.*)[\"']$/\\1/"; }
 cursor=$(setting TAK_RATING_CURSOR_FILE)
@@ -118,5 +141,10 @@ if pm2 describe "$node_app" >/dev/null 2>&1; then
 		echo "$node_app did not start; check: sudo -u $run_user -i pm2 logs $node_app" >&2
 		exit 1
 	fi
+fi
+# Back to NestJS, if a deploy moved the API to Go.
+if [ -f "$node_api_port_file" ]; then
+	echo "pointing nginx upstream $nginx_upstream at port $(cat "$node_api_port_file")"
+	point_api "$(cat "$node_api_port_file")"
 fi
 echo "rolled back: $java_unit and $node_app are running"

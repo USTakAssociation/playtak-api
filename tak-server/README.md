@@ -380,6 +380,10 @@ Safe to run again. On each run it:
    start both, and checks it really is disabled. Then it starts the Go unit
    and the rating timer.
 6. Checks the server sends `Welcome!` on its telnet port within 30 seconds.
+   Then it points the nginx `upstream playtak-api-<env>` block (in
+   `/etc/nginx/sites-enabled/proxysettings`, which serves api.playtak.com or
+   api.beta.playtak.com) at the Go HTTP port, checks it with `nginx -t` and
+   reloads. The NestJS port it replaces is saved for `rollback.sh`.
 7. Deletes old backups, keeping the 10 newest. This runs only after a
    successful deploy, so failed deploys can't push out the last good backup.
 
@@ -411,7 +415,7 @@ bash /var/apps/tak-server-prod/rollback.sh prod --restore-db # also restore the 
 
 Rolling back stops the rating timer (waiting for a run in progress), moves
 the Go rating cursor back to NestJS so it doesn't rate those games again,
-and starts Java and the NestJS API.
+starts Java and the NestJS API, and points nginx back at NestJS.
 
 The Java server runs on the migrated databases, so restoring is rarely
 needed. Restoring loses everything since the backup; the replaced files are

@@ -55,6 +55,9 @@ players_db=$(setting TAK_PLAYERS_DB)
 games_db=$(setting TAK_GAMES_DB)
 telnet_port=$(setting TAK_TELNET_ADDR)
 telnet_port=${telnet_port##*:}
+http_port=$(setting TAK_HTTP_ADDR)
+http_port=${http_port:-:9998}
+http_port=${http_port##*:}
 cursor=$(setting TAK_RATING_CURSOR_FILE)
 cursor=${cursor:-$(dirname "$games_db")/previous.txt}
 for v in players_db games_db telnet_port; do
@@ -92,6 +95,29 @@ on_failure() {
 }
 
 pm2() { sudo -u "$run_user" -i pm2 "$@"; }
+
+# api.<env>.playtak.com reaches whichever API is live through one nginx
+# upstream. point_api sets the port in that block only, checks the config
+# and reloads; on a bad config it puts the file back. The copy is kept
+# outside sites-enabled, where nginx would load it as a second config.
+nginx_conf=/etc/nginx/sites-enabled/proxysettings
+nginx_upstream=playtak-api-$env
+node_api_port_file=$app_dir/nginx-api-port.node
+api_port() { sed -n "/^upstream $nginx_upstream {/,/}/ s/.*127\.0\.0\.1:\([0-9]\+\).*/\1/p" "$nginx_conf"; }
+point_api() {
+	if [ -z "$(api_port)" ]; then
+		echo "no 'upstream $nginx_upstream' block with a 127.0.0.1 port in $nginx_conf" >&2
+		return 1
+	fi
+	cp "$nginx_conf" "$app_dir/proxysettings.before"
+	sed -i --follow-symlinks "/^upstream $nginx_upstream {/,/}/ s/127\.0\.0\.1:[0-9]\+/127.0.0.1:$1/" "$nginx_conf"
+	if ! nginx -t -q; then
+		cp "$app_dir/proxysettings.before" "$(readlink -f "$nginx_conf")"
+		echo "nginx rejected the config; left it as it was" >&2
+		return 1
+	fi
+	systemctl reload nginx
+}
 
 echo "stopping servers"
 systemctl stop "$go_unit" 2>/dev/null || true
@@ -232,6 +258,13 @@ echo "checking the server answers on port $telnet_port"
 for _ in $(seq 1 30); do
 	if line=$(timeout 2 bash -c "exec 3<>/dev/tcp/127.0.0.1/$telnet_port && head -n1 <&3" 2>/dev/null) &&
 		[[ $line == Welcome!* ]]; then
+		# Only now, with Go answering, move the API over. A failure here
+		# still rolls back. The NestJS port is saved for rollback.sh.
+		if [ "$(api_port)" != "$http_port" ]; then
+			api_port >"$node_api_port_file"
+		fi
+		echo "pointing nginx upstream $nginx_upstream at port $http_port"
+		point_api "$http_port"
 		echo "deployed: $go_unit is running"
 		# Deployed, so nothing below may roll back.
 		trap - ERR

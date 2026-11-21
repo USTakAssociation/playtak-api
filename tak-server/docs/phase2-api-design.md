@@ -170,15 +170,13 @@ Prod settings, mapped from the NestJS `.env`:
 (and with it the Node rating job), copies Node's `previous.txt` to the Go
 cursor, and installs the hourly `tak-server-rate-<env>.timer`, run as
 `ubuntu`, who owns `/var/www/html/` (the ratings list is written to a temp
-file there and renamed into place). `rollback.sh` reverses it: it stops the
-timer, moves the cursor back to Node, and starts NestJS. Node can read
-everything Go writes.
+file there and renamed into place). Once Go answers, it points nginx's
+`upstream playtak-api-<env>` at the Go HTTP port. `rollback.sh` reverses it
+all: it stops the timer, moves the cursor back to Node, starts NestJS and
+points nginx back. Node can read everything Go writes.
 
-Still by hand:
-
-1. Point api.playtak.com at the tak-server HTTP listener.
-2. Once Go has run without a rollback for a while: `pm2 delete` the NestJS
-   apps, and delete `api/` and `tests/rating-parity/`.
+Still by hand: once Go has run without a rollback for a while, `pm2 delete`
+the NestJS apps, and delete `api/` and `tests/rating-parity/`.
 
 ## Open questions
 
